@@ -31,17 +31,19 @@ const styles = {
   input: {background:"#1E293B", border:"1px solid #334155", color:"white", width:"100%", padding:12, borderRadius:12},
   btnPrimary: {background:"#38BDF8", border:"none", color:"#050A18", padding:"10px 20px", borderRadius:12, fontWeight:"700", width:"100%", marginTop:10},
   btnDanger: {background:"#F87171", border:"none", color:"white", padding:"10px 20px", borderRadius:12, fontWeight:"700", width:"100%", marginTop:10},
-  tag: {background:"#1E293B", padding:"4px 10px", borderRadius:20, fontSize:12, marginRight:5, display:"inline-block"}
+  loginWall: {textAlign:"center", padding:40} // NEW
 }
 
 export default function Home() {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("home");
   const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     onAuthStateChanged(auth, async (u) => {
       setUser(u);
+      setLoading(false);
       if(u) {
         const userRef = doc(db, "users", u.uid);
         if(!(await getDoc(userRef)).exists())
@@ -51,28 +53,23 @@ export default function Home() {
     });
   }, []);
 
-  if (!user) return (
-    <div style={{...styles.body, textAlign:"center", paddingTop:100}}>
-      <h1 style={styles.logo}>ConnectAI</h1>
-      <p>Connect. Build. Ship. Not Scroll.</p>
-      <button style={styles.btnPrimary} onClick={()=>signInWithPopup(auth, new GoogleAuthProvider())}>Login with Google</button>
-    </div>
-  )
+  // GUEST KI KUDA FEED CHUPINCHALI
+  if (loading) return <div style={styles.body}><h1 style={styles.logo}>ConnectAI</h1></div>
 
   return (
     <div style={styles.body}>
       <div style={styles.header}>
         <h2 style={styles.logo}>ConnectAI</h2>
-        <span>🔥{users.find(x=>x.id===user.uid)?.streak || 0}</span>
+        {user? <span>🔥{users.find(x=>x.id===user.uid)?.streak || 0}</span> : <button onClick={()=>signInWithPopup(auth, new GoogleAuthProvider())} style={{background:"none",border:"1px solid #38BDF8",color:"#38BDF8",padding:"5px 10px",borderRadius:8}}>Login</button>}
       </div>
 
       {tab === "home" && <Feed user={user} users={users} db={db} storage={storage}/>}
-      {tab === "cofounder" && <CofounderSwipe user={user} users={users} db={db}/>}
-      {tab === "add" && <CreatePost user={user} db={db} storage={storage} setTab={setTab}/>}
-      {tab === "aipitch" && <AIPitchGenerator user={user} db={db}/>}
+      {tab === "cofounder" && <AuthWall user={user}><CofounderSwipe user={user} users={users} db={db}/></AuthWall>}
+      {tab === "add" && <AuthWall user={user}><CreatePost user={user} db={db} storage={storage} setTab={setTab}/></AuthWall>}
+      {tab === "aipitch" && <AuthWall user={user}><AIPitchGenerator user={user} db={db}/></AuthWall>}
       {tab === "demoday" && <DemoDay users={users}/>}
-      {tab === "investor" && <AIInvestorRoom user={user}/>}
-      {tab === "profile" && <ProfilePage user={user} db={db}/>}
+      {tab === "investor" && <AuthWall user={user}><AIInvestorRoom user={user}/></AuthWall>}
+      {tab === "profile" && <AuthWall user={user}><ProfilePage user={user} db={db}/></AuthWall>}
 
       <div style={styles.bottomNav}>
         <span onClick={()=>setTab("home")}>🎯</span>
@@ -86,7 +83,19 @@ export default function Home() {
   )
 }
 
-// ===== FEATURE 1: FEED + 10 POST LIMIT =====
+// NEW COMPONENT: ACTION CHESTE LOGIN ADUGUTUNDI
+function AuthWall({user, children}) {
+  if(!user) return(
+    <div style={styles.loginWall}>
+      <h2>🔒 Join to Build</h2>
+      <p>To ship, match, or use AI tools you need to login</p>
+      <button style={styles.btnPrimary} onClick={()=>signInWithPopup(auth, new GoogleAuthProvider())}>Continue with Google</button>
+    </div>
+  )
+  return children
+}
+
+// ===== FEED - GUEST KI KUDA CHUPINCHALI =====
 function Feed({user, users, db}) {
   const [posts, setPosts] = useState([]);
   const [scrollCount, setScrollCount] = useState(0);
@@ -95,28 +104,29 @@ function Feed({user, users, db}) {
     onSnapshot(query(collection(db,"posts"), orderBy("createdAt","desc"), limit(10)), snap=>setPosts(snap.docs.map(d=>({id:d.id,...d.data()}))))
   },[]);
 
-  if(scrollCount >= 10) return (
+  if(scrollCount >= 10 &&!user) return ( // GUEST KI MATRAM BLOCK
     <div style={styles.focusCard}>
-      <h2>⏰ Focus Time Over</h2>
-      <p>You've consumed 10 builds. Now it's time to CREATE.</p>
-      <button style={styles.btnPrimary} onClick={()=>alert("Go build something and post it!")}>What did you build today?</button>
+      <h2>⏰ Free Preview Over</h2>
+      <p>Login to continue building</p>
+      <button style={styles.btnPrimary} onClick={()=>signInWithPopup(auth, new GoogleAuthProvider())}>Login with Google</button>
     </div>
   )
 
   return(
     <div>
       <div style={styles.focusCard}>
-        <h3>Your Goal 🎯: {users.find(x=>x.id===user.uid)?.goals}</h3>
-        <progress value="30" max="100" style={{width:"100%"}}></progress>
+        <h3>Builder Feed 🎯</h3>
+        <p>See what others are shipping</p>
       </div>
-      {posts.map(p=><div key={p.id} onClick={()=>setScrollCount(scrollCount+1)}><Post post={p} user={user} db={db}/></div>)}
+      {posts.map(p=><div key={p.id} onClick={()=>user && setScrollCount(scrollCount+1)}><Post post={p} user={user} db={db}/></div>)}
     </div>
   )
 }
 
 function Post({post,user,db}) {
-  const [liked, setLiked] = useState(post.likes?.includes(user.uid));
+  const [liked, setLiked] = useState(post.likes?.includes(user?.uid));
   const like = async () => {
+    if(!user) return signInWithPopup(auth, new GoogleAuthProvider()); // ACTION LO LOGIN
     const ref = doc(db,"posts",post.id);
     liked? updateDoc(ref,{likes:arrayRemove(user.uid)}) : updateDoc(ref,{likes:arrayUnion(user.uid)});
     setLiked(!liked);
@@ -132,7 +142,7 @@ function Post({post,user,db}) {
   )
 }
 
-// ===== FEATURE 1: BUILD STREAK IN CREATEPOST =====
+// ===== CREATE POST =====
 function CreatePost({user,db,storage,setTab}) {
   const [built, setBuilt] = useState("");
   const [file, setFile] = useState(null);
@@ -147,15 +157,14 @@ function CreatePost({user,db,storage,setTab}) {
       built, image:img, likes:[], createdAt:serverTimestamp()
     });
 
-    // STREAK LOGIC
     const userRef = doc(db,"users",user.uid);
     const snap = await getDoc(userRef);
     const today = new Date().toDateString();
     const data = snap.data();
-    if(data.lastPost !== today){
+    if(data.lastPost!== today){
       await updateDoc(userRef, {streak: (data.streak||0)+1, lastPost: today})
     }
-    
+
     setUploading(false); setTab("home");
   }
 
@@ -169,36 +178,26 @@ function CreatePost({user,db,storage,setTab}) {
   )
 }
 
-// ===== FEATURE 2: AI DEMO DAY =====
+// ===== DEMO DAY - GUEST KI KUDA CHUPINCHALI =====
 function DemoDay({users}) {
-  // SATURDAY CHECK
   const isSaturday = new Date().getDay() === 6;
   const topBuilders = users.sort((a,b)=>(b.streak||0)-(a.streak||0)).slice(0,3);
-
   return(
     <div style={{padding:20}}>
       <h2>🏆 Weekly Demo Day</h2>
-      {isSaturday ? <p style={{color:"#38BDF8"}}>AI is judging live now!</p> : <p>Next Demo Day: Saturday</p>}
-      
-      <h3>Top 3 Builders This Week</h3>
+      {isSaturday? <p style={{color:"#38BDF8"}}>AI is judging live now!</p> : <p>Next Demo Day: Saturday</p>}
       {topBuilders.map((u,i)=><div key={u.id} style={styles.focusCard}>
         <h3>#{i+1} {u.name}</h3>
         <p>🔥 {u.streak} Day Streak</p>
-        <p>Goal: {u.goals}</p>
       </div>)}
-      
-      <div style={styles.focusCard}>
-        <b>Prize:</b> $1000 + Investor Intros for #1
-      </div>
     </div>
   )
 }
 
-// ===== FEATURE 3: AI INVESTOR ROOM =====
+// ===== AI INVESTOR ROOM =====
 function AIInvestorRoom({user}) {
   const [pitch, setPitch] = useState("");
   const [feedback, setFeedback] = useState([]);
-
   const getFeedback = () => {
     setFeedback([
       {name: "Sequoia AI", text: `Market for "${pitch}" is too small. 10x it.`, emoji: "😠"},
@@ -206,18 +205,12 @@ function AIInvestorRoom({user}) {
       {name: "YC AI", text: `Who are your first 10 users? Get them first.`, emoji: "🤔"}
     ]);
   }
-
   return(
     <div style={{padding:20}}>
       <h2>💼 AI Investor Room</h2>
-      <p>Pitch your idea. Get roasted by 3 AI investors.</p>
       <input style={styles.input} placeholder="My startup is..." value={pitch} onChange={e=>setPitch(e.target.value)}/>
       <button style={styles.btnPrimary} onClick={getFeedback}>Get Feedback</button>
-      
-      {feedback.map((f,i)=><div key={i} style={styles.focusCard}>
-        <h4>{f.emoji} {f.name}</h4>
-        <p>{f.text}</p>
-      </div>)}
+      {feedback.map((f,i)=><div key={i} style={styles.focusCard}><h4>{f.emoji} {f.name}</h4><p>{f.text}</p></div>)}
     </div>
   )
 }
@@ -234,7 +227,6 @@ function CofounderSwipe({user, users, db}) {
       <div style={styles.focusCard}>
         <img src={person.photo} style={{width:100,height:100,borderRadius:"50%"}}/>
         <h3>{person.name}</h3>
-        <p><b>AI Match:</b> 94%</p>
         <p>{person.goals}</p>
       </div>
       <button style={styles.btnPrimary} onClick={()=>setIndex(index+1)}>Next Founder</button>
@@ -265,16 +257,13 @@ function ProfilePage({user, db}) {
   return (
     <div style={{padding:20}}>
       <h2>📈 Your Progress</h2>
-      <div style={styles.focusCard}>
-        <h3>🔥 Build Streak: {profile.streak || 0} days</h3>
-      </div>
+      <div style={styles.focusCard}><h3>🔥 Build Streak: {profile.streak || 0} days</h3></div>
       <img src={profile.photo} style={{width:80,height:80,borderRadius:"50%"}}/>
       <h3>{profile.name}</h3>
       <input style={styles.input} placeholder="Skills" value={profile.skills||""} onChange={e=>setProfile({...profile,skills:e.target.value})}/>
       <input style={styles.input} placeholder="Weekly Goal" value={profile.goals||""} onChange={e=>setProfile({...profile,goals:e.target.value})}/>
-      <input style={styles.input} placeholder="MRR Revenue $" type="number" value={profile.revenue||""} onChange={e=>setProfile({...profile,revenue:Number(e.target.value)})}/>
       <button style={styles.btnPrimary} onClick={save}>Save</button>
       <button style={styles.btnDanger} onClick={()=>signOut(auth)}>Logout</button>
     </div>
   )
-  }
+    }

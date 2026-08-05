@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from "react";
 import { initializeApp } from "firebase/app";
-import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import { getAuth, RecaptchaVerifier, signInWithPhoneNumber, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "firebase/auth";
 
-// NEE FIREBASE CONFIG
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// Nuvvu ichina keys
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
   authDomain: "nexoraai-75ae2.firebaseapp.com",
@@ -17,110 +16,83 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-const styles = {
-  container: { padding: '20px', maxWidth: '500px', margin: '0 auto', background: '#111', color: 'white', minHeight: '100vh', fontFamily: 'sans-serif' },
-  input: { width: '100%', padding: '12px', margin: '10px 0', borderRadius: '8px', border: '1px solid #333', background: '#222', color: 'white', fontSize: '16px', boxSizing: 'border-box' },
-  btn: { width: '100%', padding: '12px', margin: '10px 0', borderRadius: '8px', border: 'none', background: '#00ff88', color: 'black', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' },
-  card: { background: '#1a1a1a', padding: '15px', borderRadius: '10px', margin: '10px 0' }
-}
-
-export default function ConnectAI(){
-  const [page, setPage] = useState('home')
-  const [user, setUser] = useState(null)
-  const [otpSent, setOtpSent] = useState(false)
-  const [confirmationResult, setConfirmationResult] = useState(null)
-
-  const feedData = {
-    feed: [
-      {user: 'Rahul', text: 'AgriTech lo AI use chesi farmers ki help cheyochu'},
-      {user: 'Priya', text: 'Voice to Text projects kosam team kavali'},
-      {user: 'Arjun', text: 'Co-founder kavali - EdTech App'},
-      {user: 'Sneha', text: 'Open source: Telugu AI Chat'},
-    ]
-  }
-
-  const getMatches = () => [
-    {type: "Learner", name: "Sita", match: "92%"},
-    {type: "Mentor", name: "Dr. Ramesh", match: "89%"},
-    {type: "Community", name: "AI Builders", match: "95%"}
-  ]
+export default function Home() {
+  const [user, setUser] = useState(null);
+  const [showLogin, setShowLogin] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [confirmation, setConfirmation] = useState(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('connectAI_user')
-    if(saved) setUser(JSON.parse(saved))
-  }, [])
+    onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+  }, []);
 
-  useEffect(() => {
-    if(page === 'signup' && typeof window !== 'undefined' && !window.recaptchaVerifier){
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { 
-        size: 'normal',
-        callback: () => {}
-      });
+  // Phone OTP
+  const sendOTP = async () => {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
     }
-  }, [page, auth])
+    const confirmationResult = await signInWithPhoneNumber(auth, phone, window.recaptchaVerifier);
+    setConfirmation(confirmationResult);
+    alert("OTP sent!");
+  };
+  const verifyOTP = async () => {
+    await confirmation.confirm(otp);
+  };
 
-  const sendOTP = () => {
-    const phone = document.getElementById('phone').value;
-    if(!phone.startsWith('+91')){
-      alert('Please enter with +91. Ex: +91 9876543210')
-      return
-    }
-    signInWithPhoneNumber(auth, phone, window.recaptchaVerifier)
-   .then((result) => {
-      setConfirmationResult(result);
-      setOtpSent(true);
-      alert('OTP sent to ' + phone)
-    }).catch((error) => { alert(error.message); });
-  }
+  // Google Login
+  const googleLogin = async () => {
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
+  };
 
-  const verifyOTP = () => {
-    const otp = document.getElementById('otp').value;
-    confirmationResult.confirm(otp).then((result) => {
-      const userData = { phone: result.user.phoneNumber, level: "Rising Star", points: 100 }
-      localStorage.setItem('connectAI_user', JSON.stringify(userData))
-      setUser(userData);
-      setPage('feed');
-    }).catch((error) => { alert('Wrong OTP'); });
-  }
+  const logout = () => signOut(auth);
 
-  if (page === 'home') return (
-    <div style={styles.container}>
-      <h1 style={{textAlign: 'center'}}>ConnectAI</h1>
-      <p style={{textAlign: 'center'}}>People ni followers kosam kaadu, future kosam</p>
-      <button onClick={() => setPage('signup')} style={styles.btn}>Join Now</button>
-    </div>
-  )
-
-  if (page === 'signup') return (
-    <div style={styles.container}>
-      <h2>Login with Phone</h2>
-      <input id="phone" placeholder="+91 9876543210" style={styles.input} />
-      <div id="recaptcha-container"></div>
-      <button onClick={sendOTP} style={styles.btn}>Send OTP</button>
-      {otpSent && (
-        <>
-          <input id="otp" placeholder="Enter 6 digit OTP" style={styles.input} />
-          <button onClick={verifyOTP} style={styles.btn}>Verify & Login</button>
-        </>
-      )}
-    </div>
-  )
-
-  return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h2>{user?.phone}</h2>
-        <p>PTS: {user?.points} | {user?.level}</p>
+  // 1. User login aithe Dashboard
+  if (user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white p-4">
+        <h1 className="text-3xl font-bold mb-4">Welcome to ConnectAI 🚀</h1>
+        <p className="mb-4">Hello, {user.displayName || user.phoneNumber}</p>
+        <button onClick={logout} className="bg-red-600 px-4 py-2 rounded">Logout</button>
       </div>
-      <h3>AI Match</h3>
-      {getMatches().map((m,i) => (
-        <div key={i} style={styles.card}><b>{m.type}</b>: {m.name} - Match: {m.match}</div>
-      ))}
-      <h3>Feed</h3>
-      {feedData.feed.map((item,i) => (
-        <div key={i} style={styles.card}><b>{item.user}</b>: {item.text}</div>
-      ))}
-      <button onClick={() => {localStorage.clear(); setUser(null); setPage('home')}} style={{...styles.btn, background: '#ff4444'}}>Logout</button>
+    )
+  }
+
+  // 2. Login button kottithe Login Page
+  if (showLogin) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white p-4">
+        <h1 className="text-2xl font-bold mb-4">Login to ConnectAI</h1>
+        
+        {!confirmation ? (
+          <>
+            <input type="text" placeholder="+91 9876543210" value={phone} onChange={(e)=>setPhone(e.target.value)} className="p-2 mb-2 bg-gray-800 rounded w-72"/>
+            <button onClick={sendOTP} className="bg-green-600 px-4 py-2 rounded w-72 mb-2">Send OTP</button>
+            <button onClick={googleLogin} className="bg-blue-600 px-4 py-2 rounded w-72">Continue with Google</button>
+            <div id="recaptcha-container"></div>
+            <button onClick={()=>setShowLogin(false)} className="mt-4 text-gray-400">Back to Home</button>
+          </>
+        ) : (
+          <>
+            <input type="text" placeholder="Enter OTP" value={otp} onChange={(e)=>setOtp(e.target.value)} className="p-2 mb-2 bg-gray-800 rounded w-72"/>
+            <button onClick={verifyOTP} className="bg-green-600 px-4 py-2 rounded w-72">Verify OTP</button>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  // 3. First Homepage
+  return (
+    <div className="min-h-screen flex-col items-center justify-center bg-black text-white p-4 text-center">
+      <h1 className="text-5xl font-bold mb-4">ConnectAI</h1>
+      <p className="text-lg mb-8">Your AI-Powered Social Platform</p>
+      <button onClick={()=>setShowLogin(true)} className="bg-green-600 px-8 py-3 rounded-lg text-xl font-semibold">
+        Login / Signup
+      </button>
     </div>
   )
-  }
+          }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { initializeApp } from "firebase/app";
 import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 
-// NEE FIREBASE CONFIG - screenshot nunchi teesindi
+// NEE FIREBASE CONFIG
 const firebaseConfig = {
   apiKey: "AIzaSyA1f6g5AT9qRDUvycsM7huz7Ex",
   authDomain: "nexoraai-75aw2.firebaseapp.com",
@@ -18,7 +18,7 @@ const auth = getAuth(app);
 
 const styles = {
   container: { padding: '20px', maxWidth: '500px', margin: '0 auto', background: '#111', color: 'white', minHeight: '100vh', fontFamily: 'sans-serif' },
-  input: { width: '100%', padding: '12px', margin: '10px 0', borderRadius: '8px', border: '1px solid #333', background: '#222', color: 'white', fontSize: '16px' },
+  input: { width: '100%', padding: '12px', margin: '10px 0', borderRadius: '8px', border: '1px solid #333', background: '#222', color: 'white', fontSize: '16px', boxSizing: 'border-box' },
   btn: { width: '100%', padding: '12px', margin: '10px 0', borderRadius: '8px', border: 'none', background: '#00ff88', color: 'black', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' },
   card: { background: '#1a1a1a', padding: '15px', borderRadius: '10px', margin: '10px 0' }
 }
@@ -27,7 +27,7 @@ export default function ConnectAI(){
   const [page, setPage] = useState('home')
   const [user, setUser] = useState(null)
   const [otpSent, setOtpSent] = useState(false)
-  let confirmationResult;
+  const [confirmationResult, setConfirmationResult] = useState(null)
 
   const feedData = {
     feed: [
@@ -51,7 +51,10 @@ export default function ConnectAI(){
 
   useEffect(() => {
     if(page === 'signup' && typeof window !== 'undefined' && !window.recaptchaVerifier){
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'normal' });
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { 
+        size: 'normal',
+        callback: () => {}
+      });
     }
   }, [page, auth])
 
@@ -63,7 +66,7 @@ export default function ConnectAI(){
     }
     signInWithPhoneNumber(auth, phone, window.recaptchaVerifier)
    .then((result) => {
-      confirmationResult = result;
+      setConfirmationResult(result);
       setOtpSent(true);
       alert('OTP sent to ' + phone)
     }).catch((error) => { alert(error.message); });

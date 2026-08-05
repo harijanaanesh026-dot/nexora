@@ -1,137 +1,139 @@
 import { useState, useEffect } from 'react'
+import { initializeApp } from "firebase/app";
+import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 
-export default function ConnectAI() {
+// FIREBASE CONFIG - Nuvvu ichindi
+const firebaseConfig = {
+  apiKey: "AIzaSyAT9pB0KXxCZxHtzuez2XK06yDbyOa4",
+  authDomain: "nexoraai-75aw2.firebaseapp.com",
+  projectId: "nexoraai-75aw2",
+  storageBucket: "nexoraai-75aw2.appspot.com",
+  messagingSenderId: "173122711117",
+  appId: "1:173122711117:web:e8b37359d1d18bdc1e488"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+const styles = {
+  container: { padding: '20px', maxWidth: '500px', margin: '0 auto', background: '#111', color: 'white', minHeight: '100vh' },
+  input: { width: '100%', padding: '12px', margin: '10px 0', borderRadius: '8px', border: '1px solid #333', background: '#222', color: 'white', fontSize: '16px' },
+  btn: { width: '100%', padding: '12px', margin: '10px 0', borderRadius: '8px', border: 'none', background: '#00ff88', color: 'black', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer' },
+  card: { background: '#1a1a1a', padding: '15px', borderRadius: '10px', margin: '10px 0' }
+}
+
+export default function ConnectAI(){
   const [page, setPage] = useState('home')
   const [user, setUser] = useState(null)
-  const [activeTab, setActiveTab] = useState('ideas')
-  const [aiGoal, setAiGoal] = useState('')
+  const [otpSent, setOtpSent] = useState(false)
 
-  // Dummy Data
   const feedData = {
-    ideas: [{user: "Rahul", text: "AgriTech lo AI use chesi farmers ki help cheyochu"}, {user: "Priya", text: "Voice to Telugu blog converter idea"} ],
-    projects: [{user: "Arjun", text: "Co-founder kavali - EdTech App"}, {user: "Sneha", text: "Open source: Telugu AI Chatbot"}],
-    learning: [{user: "Kavya", text: "Next.js nerchukovali - help chestara?"}, {user: "Vikram", text: "System Design free workshop Sunday"}],
-    collab: [{user: "Meera", text: "UI Designer kavali - Startup kosam"}, {user: "Aman", text: "Hackathon team - 2 members needed"}]
-  }
-
-  const communities = ["AI Builders", "Startup Ideas", "Coding", "Design", "Cricket Fans"]
-  
-  const getAIMatches = () => {
-    if(!aiGoal) return []
-    return [
-      {type: "Learner", name: "Sita", match: "92%"},
-      {type: "Mentor", name: "Dr. Ramesh", match: "88%"},
-      {type: "Community", name: "AI Builders", match: "95%"}
+    feed: [
+      {user: 'Rahul', text: 'AgriTech lo AI use chesi farmers ki help cheyochu'},
+      {user: 'Priya', text: 'Voice to Text projects kosam team kavali'},
+      {user: 'Arjun', text: 'Co-founder kavali - EdTech App'},
+      {user: 'Sneha', text: 'Open source: Telugu AI Chat'},
     ]
   }
 
+  const getMatches = () => [
+    {type: "Learner", name: "Sita", match: "92%"},
+    {type: "Mentor", name: "Dr. Ramesh", match: "89%"},
+    {type: "Community", name: "AI Builders", match: "95%"}
+  ]
+
   useEffect(() => {
-    const saved = localStorage.getItem('connectAI_v2')
-    if (saved) {
-      setUser(JSON.parse(saved))
-      setPage('feed')
-    }
+    const saved = localStorage.getItem('connectAI_user')
+    if(saved) setUser(JSON.parse(saved))
   }, [])
 
-  const handleSignup = () => {
-    const userData = {
-      name: document.getElementById('name').value,
-      skills: document.getElementById('skills').value,
-      goals: document.getElementById('goals').value,
-      projects: document.getElementById('projects').value,
-      help: document.getElementById('help').value,
-      points: 120,
-      level: "Rising Star"
+  // OTP functions
+  useEffect(() => {
+    if(page === 'signup' &&!window.recaptchaVerifier){
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { 
+        size: 'normal',
+        callback: () => {}
+      });
     }
-    localStorage.setItem('connectAI_v2', JSON.stringify(userData))
-    setUser(userData)
-    setPage('feed')
+  }, [page])
+
+  let confirmationResult;
+
+  const sendOTP = () => {
+    const phone = document.getElementById('phone').value;
+    if(!phone.startsWith('+91')){
+      alert('Please enter with +91. Ex: +91 9876543210')
+      return
+    }
+    signInWithPhoneNumber(auth, phone, window.recaptchaVerifier)
+   .then((result) => {
+      confirmationResult = result;
+      setOtpSent(true);
+      alert('OTP sent to ' + phone)
+    }).catch((error) => { 
+      alert(error.message); 
+    });
   }
 
+  const verifyOTP = () => {
+    const otp = document.getElementById('otp').value;
+    confirmationResult.confirm(otp).then((result) => {
+      const userData = { phone: result.user.phoneNumber, level: "Rising Star", points: 100 }
+      localStorage.setItem('connectAI_user', JSON.stringify(userData))
+      setUser(userData);
+      setPage('feed');
+    }).catch((error) => { alert('Wrong OTP'); });
+  }
+
+  // HOME PAGE
   if (page === 'home') return (
     <div style={styles.container}>
-      <h1 style={styles.logo}>ConnectAI</h1>
-      <p>People ni followers kosam kaadu, future kosam</p>
+      <h1 style={{textAlign: 'center'}}>ConnectAI</h1>
+      <p style={{textAlign: 'center'}}>People ni followers kosam kaadu, future kosam</p>
       <button onClick={() => setPage('signup')} style={styles.btn}>Join Now</button>
     </div>
   )
 
+  // SIGNUP/LOGIN PAGE
   if (page === 'signup') return (
     <div style={styles.container}>
-      <h2>Smart Profile</h2>
-      <input id="name" placeholder="Nee peru" style={styles.input} />
-      <input id="skills" placeholder="Skills: React, Python, Design" style={styles.input} />
-      <input id="goals" placeholder="Goals: Startup, Job, Learn AI" style={styles.input} />
-      <input id="projects" placeholder="Projects: 2 apps built" style={styles.input} />
-      <input id="help" placeholder="Nenu help cheyagalindi: UI, Marketing" style={styles.input} />
-      <button onClick={handleSignup} style={styles.btn}>Create Profile</button>
+      <h2>Login with Phone</h2>
+      <input id="phone" placeholder="+91 9876543210" style={styles.input} />
+      <div id="recaptcha-container"></div>
+      <button onClick={sendOTP} style={styles.btn}>Send OTP</button>
+      
+      {otpSent && (
+        <>
+          <input id="otp" placeholder="Enter 6 digit OTP" style={styles.input} />
+          <button onClick={verifyOTP} style={styles.btn}>Verify & Login</button>
+        </>
+      )}
     </div>
   )
 
   // MAIN FEED
   return (
-    <div style={styles.feedContainer}>
-      {/* HEADER */}
-      <div style={styles.header}>
-        <h2>Hi {user?.name} 👋</h2>
-        <div>🏆 {user?.points} pts | {user?.level}</div>
+    <div style={styles.container}>
+      <div style={styles.card}>
+        <h2>{user?.phone}</h2>
+        <p>PTS: {user?.points} | {user?.level}</p>
       </div>
 
-      {/* AI MATCH */}
-      <div style={styles.aiBox}>
-        <h3>🤖 AI Match</h3>
-        <input value={aiGoal} onChange={e => setAiGoal(e.target.value)} placeholder="Nenu em nerchukovali? Emi cheyali?" style={styles.input} />
-        {getAIMatches().map((m,i) => (
-          <div key={i} style={styles.matchCard}>
-            {m.type}: <b>{m.name}</b> - {m.match} Match <button style={styles.smallBtn}>Connect</button>
-          </div>
-        ))}
-      </div>
-
-      {/* TABS */}
-      <div style={styles.tabs}>
-        {['ideas','projects','learning','collab'].map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} style={activeTab===tab? styles.activeTab : styles.tab}>
-            {tab==='ideas' && '💡 Ideas'}
-            {tab==='projects' && '🚀 Projects'}
-            {tab==='learning' && '📚 Learning'}
-            {tab==='collab' && '🤝 Collab'}
-          </button>
-        ))}
-      </div>
-
-      {/* FEED */}
-      {feedData[activeTab].map((post,i) => (
+      <h3>AI Match</h3>
+      {getMatches().map((m,i) => (
         <div key={i} style={styles.card}>
-          <b>{post.user}</b>
-          <p>{post.text}</p>
-          <button>👍 Helpful</button>
+          <b>{m.type}</b>: {m.name} - Match: {m.match}
         </div>
       ))}
 
-      {/* COMMUNITIES */}
-      <h3 style={{marginTop:30}}>🌎 Communities</h3>
-      <div style={styles.commGrid}>
-        {communities.map(c => <div key={c} style={styles.commCard}>{c}</div>)}
-      </div>
+      <h3>Feed</h3>
+      {feedData.feed.map((item,i) => (
+        <div key={i} style={styles.card}>
+          <b>{item.user}</b>: {item.text}
+        </div>
+      ))}
+
+      <button onClick={() => {localStorage.clear(); setUser(null); setPage('home')}} style={{...styles.btn, background: '#ff4444'}}>Logout</button>
     </div>
   )
-}
-
-const styles = {
-  container: { minHeight: '100vh', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 },
-  feedContainer: { minHeight: '100vh', background: '#f0f2f5', padding: 20, paddingBottom: 80 },
-  logo: { fontSize: 48, fontWeight: 'bold' },
-  btn: { background: 'white', color: '#764ba2', padding: '14px 28px', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' },
-  input: { padding: 12, borderRadius: 8, border: '1px solid #ddd', width: '100%', marginBottom: 10 },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  aiBox: { background: 'white', padding: 15, borderRadius: 12, marginBottom: 20 },
-  matchCard: { background: '#f0f2f5', padding: 10, borderRadius: 8, marginTop: 8 },
-  tabs: { display: 'flex', gap: 8, marginBottom: 20, overflowX: 'auto' },
-  tab: { padding: '8px 16px', border: 'none', background: 'white', borderRadius: 20 },
-  activeTab: { padding: '8px 16px', border: 'none', background: '#667eea', color: 'white', borderRadius: 20 },
-  card: { background: 'white', padding: 15, borderRadius: 12, marginBottom: 15 },
-  commGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 },
-  commCard: { background: 'white', padding: 15, borderRadius: 12, textAlign: 'center' },
-  smallBtn: { background: '#667eea', color: 'white', border: 'none', padding: '6px 10px', borderRadius: 6, marginLeft: 8 }
-    }
+  }

@@ -3,14 +3,15 @@ import { initializeApp } from "firebase/app";
 import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 
 // NEE FIREBASE CONFIG
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyA1f6g5AT9qRDUvycsM7huz7Ex",
-  authDomain: "nexoraai-75aw2.firebaseapp.com",
-  projectId: "nexoraai-75aw2",
-  storageBucket: "nexoraai-75aw2.appspot.com",
-  messagingSenderId: "173122711117",
-  appId: "1:173122711117:web:e8b37359d1d18bdc1e488",
-  measurementId: "G-11Y8F8BDC"
+  apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
+  authDomain: "nexoraai-75ae2.firebaseapp.com",
+  projectId: "nexoraai-75ae2",
+  storageBucket: "nexoraai-75ae2.firebasestorage.app",
+  messagingSenderId: "173122711177",
+  appId: "1:173122711177:web:68e373598d110d80c1e058",
+  measurementId: "G-11Y8XF8MBC"
 };
 
 const app = initializeApp(firebaseConfig);

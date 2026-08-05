@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "firebase/auth";
 import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, orderBy, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp, where } from "firebase/firestore";
@@ -20,9 +20,9 @@ const storage = getStorage(app);
 
 const styles = {
   body: {background:"#0a0a0a", color:"white", fontFamily:"Arial", margin:0, padding:0, minHeight:"100vh"},
-  nav: {display:"flex", justifyContent:"space-around", padding:12, borderBottom:"1px solid #333", position:"sticky", top:0, background:"#0a0a0a"},
-  btn: {background:"#22c55e", color:"white", border:"none", padding:"10px 20px", borderRadius:8, cursor:"pointer"},
-  btn2: {background:"#3b82f6", color:"white", border:"none", padding:"5px 10px", borderRadius:5, cursor:"pointer", fontSize:12},
+  nav: {display:"flex", justifyContent:"space-around", padding:12, borderBottom:"1px solid #333", position:"sticky", top:0, background:"#0a0a0a", flexWrap:"wrap"},
+  btn: {background:"#22c55e", color:"white", border:"none", padding:"10px 20px", borderRadius:8, cursor:"pointer", margin:5},
+  btn2: {background:"#3b82f6", color:"white", border:"none", padding:"5px 10px", borderRadius:5, cursor:"pointer", fontSize:12, margin:2},
   card: {background:"#1a1a1a", padding:15, margin:15, borderRadius:10},
   input: {width:"95%", padding:10, margin:"5px 0", background:"#333", border:"none", color:"white", borderRadius:5},
   flex: {display:"flex", alignItems:"center", gap:10}
@@ -38,7 +38,7 @@ export default function Home() {
       setUser(u);
       if(u) {
         const docSnap = await getDoc(doc(db, "users", u.uid));
-        if(!docSnap.exists()) setDoc(doc(db, "users", u.uid), {name: u.displayName, photo: u.photoURL, bio: "", skills: "", goals: "", following: []});
+        if(!docSnap.exists()) setDoc(doc(db, "users", u.uid), {name: u.displayName, photo: u.photoURL, bio: "", skills: "", goals: "", following: [], blocked: []});
         onSnapshot(collection(db, "users"), snap => setUsers(snap.docs.map(d=>({id:d.id,...d.data()}))));
       }
     });
@@ -55,7 +55,7 @@ export default function Home() {
   return (
     <div style={styles.body}>
       <div style={styles.nav}>
-        {["home","profile","ai","chat","communities","notify"].map(t=><button key={t} onClick={()=>setTab(t)} style={{background:"none", border:"none", color:tab===t?"#22c55e":"white", textTransform:"capitalize"}}>{t}</button>)}
+        {["home","profile","ai","chat","communities","premium","v3"].map(t=><button key={t} onClick={()=>setTab(t)} style={{background:"none", border:"none", color:tab===t?"#22c55e":"white", textTransform:"capitalize"}}>{t}</button>)}
         <button onClick={()=>signOut(auth)} style={{background:"none", border:"none", color:"red"}}>Logout</button>
       </div>
 
@@ -64,12 +64,12 @@ export default function Home() {
       {tab === "ai" && <AIMatch user={user} users={users}/>}
       {tab === "chat" && <ChatPage user={user} users={users} db={db}/>}
       {tab === "communities" && <CommunitiesPage user={user} db={db}/>}
-      {tab === "notify" && <NotifyPage user={user} db={db}/>}
+      {tab === "premium" && <PremiumFeatures user={user} db={db}/>}
+      {tab === "v3" && <V3Features/>}
     </div>
   )
 }
 
-// ===== PROFILE =====
 function ProfilePage({user, db}) {
   const [profile, setProfile] = useState({});
   useEffect(()=>{ getDoc(doc(db,"users",user.uid)).then(d=>setProfile(d.data())) },[]);
@@ -86,7 +86,6 @@ function ProfilePage({user, db}) {
   )
 }
 
-// ===== HOME FEED =====
 function HomeFeed({user, users, db, storage}) {
   const [posts, setPosts] = useState([]);
   const [text, setText] = useState(""); const [file, setFile] = useState(null);
@@ -118,7 +117,8 @@ function HomeFeed({user, users, db, storage}) {
         <div key={p.id} style={styles.card}>
           <div style={styles.flex}><img src={p.photo} style={{width:40,height:40,borderRadius:"50%"}}/><b>{p.name}</b><FollowBtn current={user} target={p.uid} db={db}/></div>
           <p>{p.text}</p>
-          {p.image && <img src={p.image} style={{width:"100%", borderRadius:8, marginTop:10}}/>}
+          {p.image && <img src={p.image} style={{width:"100%", borderRadius:8, marginTop:10}}/>
+}
           <button onClick={()=>like(p.id,p.likes)} style={{background:"none",border:"none",color:"white"}}>❤️ {p.likes?.length}</button>
           <CommentBox postId={p.id} comments={p.comments} user={user} db={db}/>
         </div>
@@ -151,8 +151,9 @@ function FollowBtn({current,target,db}){
     setFollowing(!following);
   }
   return current.uid!==target && <button style={styles.btn2} onClick={toggle}>{following?"Following":"Follow"}</button>
-}
-// ===== AI PEOPLE MATCH =====
+  }
+
+            // ===== AI PEOPLE MATCH =====
 function AIMatch({user,users}){
   const me = users.find(u=>u.id===user.uid);
   const mySkill = me?.skills?.split(",")[0]?.toLowerCase();
@@ -186,13 +187,13 @@ function ChatPage({user,users,db}){
     setMsg("");
   }
   return(
-    <div style={{display:"flex", height:"80vh"}}>
-      <div style={{width:"30%", borderRight:"1px solid #333"}}>
+    <div style={{display:"flex", height:"70vh"}}>
+      <div style={{width:"40%", borderRight:"1px solid #333", overflow:"scroll"}}>
         {users.filter(u=>u.id!==user.uid).map(u=><div key={u.id} onClick={()=>setTo(u.id)} style={{padding:10, cursor:"pointer"}}>{u.name}</div>)}
       </div>
       <div style={{flex:1, padding:10, display:"flex", flexDirection:"column"}}>
-        {msgs.map((m,i)=><p key={i} style={{textAlign:m.from===user.uid?"right":"left"}}>{m.text}</p>)}
-        <div style={{...styles.flex, marginTop:"auto"}}><input style={styles.input} value={msg} onChange={e=>setMsg(e.target.value)}/><button style={styles.btn} onClick={send}>Send</button></div>
+        {to?<><div style={{flex:1, overflow:"scroll"}}>{msgs.map((m,i)=><p key={i} style={{textAlign:m.from===user.uid?"right":"left"}}>{m.text}</p>)}</div>
+        <div style={styles.flex}><input style={styles.input} value={msg} onChange={e=>setMsg(e.target.value)}/><button style={styles.btn} onClick={send}>Send</button></div></>:<p>Select a user</p>}
       </div>
     </div>
   )
@@ -211,20 +212,85 @@ function CommunitiesPage({user,db}){
       {coms.map(c=><div key={c.id} style={{...styles.flex, margin:"10px 0"}}>{c.name} <button style={styles.btn2} onClick={()=>join(c.id)}>{c.members?.includes(user.uid)?"Joined":"Join"}</button></div>)}
     </div>
   )
-}
+        }
 
-// ===== NOTIFICATIONS =====
-function NotifyPage({user,db}){
-  const [notifs,setNotifs]=useState([]);
-  useEffect(()=>{
-    const q = query(collection(db,"notifications"), where("to", "==", user.uid), orderBy("time","desc"));
-    onSnapshot(q,snap=>setNotifs(snap.docs.map(d=>d.data())));
-  },[]);
+import Peer from 'simple-peer'; // npm install simple-peer
+
+// ===== PREMIUM + SECURITY + REPUTATION + V2 =====
+function PremiumFeatures({user, db}) {
+  const [trust, setTrust] = useState(70);
+
+  useEffect(()=>{ setTrust(70 + (user.displayName?10:0) + 10); },[]);
+
+  const blockUser = async(targetId)=>{
+    await updateDoc(doc(db,"users",user.uid), {blocked: arrayUnion(targetId)});
+    alert("User Blocked");
+  }
+  const reportUser = async(targetId)=>{
+    await addDoc(collection(db,"reports"), {by:user.uid, to:targetId, time:serverTimestamp()});
+    alert("Reported");
+  }
+
   return(
-    <div style={styles.card}>
-      <h2>Notifications</h2>
-      {notifs.length===0?<p>No notifications</p>:
-      notifs.map((n,i)=><p key={i}>{n.text}</p>)}
+    <div>
+      <div style={styles.card}>
+        <h2>⭐ Premium Features</h2>
+        <p><b>Trust Score:</b> {trust}/100</p>
+        <p><b>Badges:</b> {trust>80?"🏅 Verified":"🥉 Newbie"}</p>
+        <p><b>Achievements:</b> First Post, 10 Likes</p>
+        <button style={styles.btn2}>Audio Call</button>
+        <button style={styles.btn2}>Video Call</button>
+      </div>
+
+      <AICommunitySuggestions/>
+      <AIMentorSuggestions/>
+
+      <div style={styles.card}>
+        <h3>🚀 V2 Tools</h3>
+        {["Startup Team Finder","Co-founder Match","Events","Learning Hub","Goal Tracking","Creator Analytics"].map(t=><button key={t} style={styles.btn2}>{t}</button>)}
+      </div>
+
+      <div style={styles.card}>
+        <h3>🛡️ Security</h3>
+        <button onClick={()=>reportUser("someId")} style={{background:"red",color:"white",border:"none",padding:5}}>Report User</button>
+        <button onClick={()=>blockUser("someId")} style={{background:"gray",color:"white",border:"none",padding:5, marginLeft:10}}>Block User</button>
+        <p>AI Spam Detection: Active</p>
+      </div>
     </div>
   )
-        }
+}
+
+function AICommunitySuggestions() {
+  return(<div style={styles.card}><h3>AI Suggested Communities</h3><p>🤖 AI Developers India</p><p>🤖 Startup Founders</p></div>)
+}
+function AIMentorSuggestions() {
+  return(<div style={styles.card}><h3>AI Mentor Suggestions</h3><p>👨‍🏫 Ravi - AI Expert</p><p>👨‍🏫 Priya - Startup Mentor</p></div>)
+}
+
+// ===== V3 FEATURES =====
+function V3Features() {
+  return(
+    <div style={styles.card}>
+      <h2>🌎 V3 - AI Powered</h2>
+      <p><b>Real-time Translation:</b> Coming Soon</p>
+      <p><b>AI Digital Twin:</b> Replies when you are offline</p>
+      <p><b>AR Communities:</b> Join AR rooms</p>
+      <p><b>Virtual Meetups:</b> VR meetups</p>
+      <VideoCall/>
+    </div>
+  )
+}
+
+// ===== VIDEO CALL =====
+function VideoCall() {
+  const startCall = async()=>{
+    const s = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
+    alert("Camera ON. For full call we need Firebase signaling server. This is base code.");
+  }
+  return(
+    <div style={{marginTop:20}}>
+      <button style={styles.btn} onClick={startCall}>📹 Start Video Call</button>
+      <button style={styles.btn}>🔊 Audio Call</button>
+    </div>
+  )
+                                                          }

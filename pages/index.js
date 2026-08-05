@@ -3,7 +3,6 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "firebase/auth";
 import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, orderBy, onSnapshot, updateDoc, arrayUnion, arrayRemove, serverTimestamp } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { getMessaging, getToken } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
@@ -18,7 +17,14 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
-const messaging = getMessaging(app);
+
+// FIX: MESSAGING NI BROWSER LO MATRAM RAN CHEYYADANIKI
+let messaging = null;
+if (typeof window!== 'undefined') {
+  import("firebase/messaging").then(({ getMessaging, getToken }) => {
+    messaging = getMessaging(app);
+  });
+}
 
 const styles = {
   body: {background:"#000", color:"white", fontFamily:"-apple-system,BlinkMacSystemFont", margin:0, paddingBottom:70},
@@ -47,7 +53,15 @@ export default function Home() {
         if(!(await getDoc(doc(db, "users", u.uid))).exists())
           setDoc(doc(db, "users", u.uid), {name: u.displayName, photo: u.photoURL, bio: "", skills: "", goals: "", following: []});
         onSnapshot(collection(db, "users"), snap => setUsers(snap.docs.map(d=>({id:d.id,...d.data()}))));
-        Notification.requestPermission().then(p=>{ if(p==="granted") getToken(messaging).then(t=>setDoc(doc(db,"users",u.uid),{fcmToken:t},{merge:true})) })
+        
+        // NOTIFICATION TOKEN - BROWSER LO MATRAM
+        if(typeof window!== 'undefined' && messaging) {
+          import("firebase/messaging").then(({ getToken }) => {
+            Notification.requestPermission().then(p=>{ 
+              if(p==="granted") getToken(messaging).then(t=>setDoc(doc(db,"users",u.uid),{fcmToken:t},{merge:true})) 
+            })
+          })
+        }
       }
     });
   }, []);
@@ -155,6 +169,6 @@ function CofounderSwipe({user, users, db}) {
 }
 
 // ===== PROFILE + CHAT + AI =====
-function ProfilePage({user, db}) { const [profile, setProfile] = useState({}); useEffect(()=>{ getDoc(doc(db,"users",user.uid)).then(d=>setProfile(d.data())) },[]); return (<div style={{padding:20}}><div style={{display:"flex", gap:20}}><img src={profile.photo} style={{width:80,height:80,borderRadius:"50%"}}/><div><h2>{profile.name}</h2><input style={styles.input} placeholder="Bio" value={profile.bio||""} onChange={e=>setProfile({...profile,bio:e.target.value})}/><input style={styles.input} placeholder="Skills" value={profile.skills||""} onChange={e=>setProfile({...profile,skills:e.target.value})}/><input style={styles.input} placeholder="Goals" value={profile.goals||""} onChange={e=>setProfile({...profile,goals:e.target.value})}/><button onClick={()=>setDoc(doc(db,"users",user.uid),profile,{merge:true})}>Save</button></div></div><button style={styles.btn} onClick={()=>signOut(auth)}>Logout</button></div>) }
+function ProfilePage({user, db}) { const [profile, setProfile] = useState({}); useEffect(()=>{ getDoc(doc(db,"users",user.uid)).then(d=>setProfile(d.data())) },[]); const save=()=>setDoc(doc(db,"users",user.uid),profile,{merge:true}); return (<div style={{padding:20}}><div style={{display:"flex", gap:20}}><img src={profile.photo} style={{width:80,height:80,borderRadius:"50%"}}/><div><h2>{profile.name}</h2><input style={styles.input} placeholder="Bio" value={profile.bio||""} onChange={e=>setProfile({...profile,bio:e.target.value})}/><input style={styles.input} placeholder="Skills" value={profile.skills||""} onChange={e=>setProfile({...profile,skills:e.target.value})}/><input style={styles.input} placeholder="Goals" value={profile.goals||""} onChange={e=>setProfile({...profile,goals:e.target.value})}/><button onClick={save}>Save</button></div></div><button style={styles.btn} onClick={()=>signOut(auth)}>Logout</button></div>) }
 function ChatPage({user,users,db,setTab}){ return(<div style={{padding:20}}><h2>Messages</h2>{users.filter(u=>u.id!==user.uid).map(u=><p key={u.id}>{u.name}</p>)}</div>) }
 function AIMatch({user,users}){ return(<div style={{padding:20}}><h2>AI Suggested for You</h2>{users.map(u=><p key={u.id}>{u.name}</p>)}</div>) }

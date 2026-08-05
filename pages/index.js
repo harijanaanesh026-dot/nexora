@@ -18,20 +18,19 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
-// UNIQUE THEME: DARK BLUE BUILDER MODE
 const styles = {
   body: {background:"#050A18", color:"#CBD5E1", fontFamily:"'Inter', sans-serif", margin:0, paddingBottom:80},
   header: {display:"flex", justifyContent:"space-between", padding:"15px 20px", borderBottom:"1px solid #1E293B", position:"sticky", top:0, background:"#050A18", zIndex:10},
   logo: {fontSize:22, fontWeight:"800", color:"#38BDF8"},
-  bottomNav: {display:"flex", justifyContent:"space-around", padding:"12px 0", borderTop:"1px solid #1E293B", position:"fixed", bottom:0, width:"100%", background:"#050A18", fontSize:24},
+  bottomNav: {display:"flex", justifyContent:"space-around", padding:"12px 0", borderTop:"1px solid #1E293B", position:"fixed", bottom:0, width:"100%", background:"#050A18", fontSize:22},
   focusCard: {background:"linear-gradient(135deg,#0F172A,#1E293B)", border:"1px solid #38BDF8", margin:15, padding:20, borderRadius:16},
   post: {background:"#0F172A", border:"1px solid #1E293B", margin:"15px", borderRadius:16, padding:0},
   postHeader: {display:"flex", alignItems:"center", gap:12, padding:15},
-  postImg: {width:"100%", borderRadius:0},
+  postImg: {width:"100%"},
   actions: {display:"flex", gap:20, padding:"12px 15px", fontSize:22},
   input: {background:"#1E293B", border:"1px solid #334155", color:"white", width:"100%", padding:12, borderRadius:12},
   btnPrimary: {background:"#38BDF8", border:"none", color:"#050A18", padding:"10px 20px", borderRadius:12, fontWeight:"700", width:"100%", marginTop:10},
-  timer: {color:"#F87171", fontWeight:"bold", textAlign:"center", padding:10},
+  btnDanger: {background:"#F87171", border:"none", color:"white", padding:"10px 20px", borderRadius:12, fontWeight:"700", width:"100%", marginTop:10},
   tag: {background:"#1E293B", padding:"4px 10px", borderRadius:20, fontSize:12, marginRight:5, display:"inline-block"}
 }
 
@@ -44,8 +43,9 @@ export default function Home() {
     onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if(u) {
-        if(!(await getDoc(doc(db, "users", u.uid))).exists())
-          setDoc(doc(db, "users", u.uid), {name: u.displayName, photo: u.photoURL, bio: "", skills: "", goals: "Launch MVP", weeklyGoal: 0});
+        const userRef = doc(db, "users", u.uid);
+        if(!(await getDoc(userRef)).exists())
+          setDoc(userRef, {name: u.displayName, photo: u.photoURL, bio: "", skills: "", goals: "Launch MVP", streak: 0, lastPost: "", revenue: 0});
         onSnapshot(collection(db, "users"), snap => setUsers(snap.docs.map(d=>({id:d.id,...d.data()}))));
       }
     });
@@ -63,27 +63,30 @@ export default function Home() {
     <div style={styles.body}>
       <div style={styles.header}>
         <h2 style={styles.logo}>ConnectAI</h2>
-        <span style={{fontSize:12}}>Focus Mode</span>
+        <span>🔥{users.find(x=>x.id===user.uid)?.streak || 0}</span>
       </div>
 
       {tab === "home" && <Feed user={user} users={users} db={db} storage={storage}/>}
       {tab === "cofounder" && <CofounderSwipe user={user} users={users} db={db}/>}
       {tab === "add" && <CreatePost user={user} db={db} storage={storage} setTab={setTab}/>}
       {tab === "aipitch" && <AIPitchGenerator user={user} db={db}/>}
+      {tab === "demoday" && <DemoDay users={users}/>}
+      {tab === "investor" && <AIInvestorRoom user={user}/>}
       {tab === "profile" && <ProfilePage user={user} db={db}/>}
 
       <div style={styles.bottomNav}>
         <span onClick={()=>setTab("home")}>🎯</span>
         <span onClick={()=>setTab("cofounder")}>🚀</span>
         <span onClick={()=>setTab("add")}>🚢</span>
-        <span onClick={()=>setTab("aipitch")}>📊</span>
+        <span onClick={()=>setTab("demoday")}>🏆</span>
+        <span onClick={()=>setTab("investor")}>💼</span>
         <span onClick={()=>setTab("profile")}>📈</span>
       </div>
     </div>
   )
 }
 
-// ===== 1. GOAL DASHBOARD + 10 POST LIMIT =====
+// ===== FEATURE 1: FEED + 10 POST LIMIT =====
 function Feed({user, users, db}) {
   const [posts, setPosts] = useState([]);
   const [scrollCount, setScrollCount] = useState(0);
@@ -96,7 +99,6 @@ function Feed({user, users, db}) {
     <div style={styles.focusCard}>
       <h2>⏰ Focus Time Over</h2>
       <p>You've consumed 10 builds. Now it's time to CREATE.</p>
-      <p style={styles.timer}>Come back in 2 hours</p>
       <button style={styles.btnPrimary} onClick={()=>alert("Go build something and post it!")}>What did you build today?</button>
     </div>
   )
@@ -104,8 +106,7 @@ function Feed({user, users, db}) {
   return(
     <div>
       <div style={styles.focusCard}>
-        <h3>Your Goal This Week 🎯</h3>
-        <p>Launch MVP</p>
+        <h3>Your Goal 🎯: {users.find(x=>x.id===user.uid)?.goals}</h3>
         <progress value="30" max="100" style={{width:"100%"}}></progress>
       </div>
       {posts.map(p=><div key={p.id} onClick={()=>setScrollCount(scrollCount+1)}><Post post={p} user={user} db={db}/></div>)}
@@ -131,7 +132,7 @@ function Post({post,user,db}) {
   )
 }
 
-// ===== 2. SHIP LOG - BUILD ONLY =====
+// ===== FEATURE 1: BUILD STREAK IN CREATEPOST =====
 function CreatePost({user,db,storage,setTab}) {
   const [built, setBuilt] = useState("");
   const [file, setFile] = useState(null);
@@ -145,77 +146,118 @@ function CreatePost({user,db,storage,setTab}) {
       uid:user.uid, name:user.displayName, photo:user.photoURL,
       built, image:img, likes:[], createdAt:serverTimestamp()
     });
+
+    // STREAK LOGIC
+    const userRef = doc(db,"users",user.uid);
+    const snap = await getDoc(userRef);
+    const today = new Date().toDateString();
+    const data = snap.data();
+    if(data.lastPost !== today){
+      await updateDoc(userRef, {streak: (data.streak||0)+1, lastPost: today})
+    }
+    
     setUploading(false); setTab("home");
   }
 
   return(
     <div style={{padding:20}}>
       <h2>🚢 Ship Log</h2>
-      <p><b>What did you build today?</b></p>
-      <textarea style={{...styles.input,height:120}} placeholder="Ex: Completed login page + Connected Firebase" value={built} onChange={e=>setBuilt(e.target.value)}/>
+      <textarea style={{...styles.input,height:120}} placeholder="What did you build today?" value={built} onChange={e=>setBuilt(e.target.value)}/>
       <input type="file" onChange={e=>setFile(e.target.files[0])} style={{margin:"10px 0"}}/>
       <button style={styles.btnPrimary} onClick={post}>{uploading?"Shipping...":"Ship It 🚀"}</button>
     </div>
   )
 }
 
-// ===== 3. AI PITCH GENERATOR =====
-function AIPitchGenerator({user, db}) {
-  const [idea, setIdea] = useState("");
-  const [deck, setDeck] = useState([]);
+// ===== FEATURE 2: AI DEMO DAY =====
+function DemoDay({users}) {
+  // SATURDAY CHECK
+  const isSaturday = new Date().getDay() === 6;
+  const topBuilders = users.sort((a,b)=>(b.streak||0)-(a.streak||0)).slice(0,3);
 
-  const generateDeck = () => {
-    setDeck([
-      `Problem: ${idea}`,
-      `Solution: AI powered platform for ${idea}`,
-      `Market: $10B Opportunity`,
-      `Team: Find co-founders on ConnectAI`,
-      `Ask: $500K for 10%`
+  return(
+    <div style={{padding:20}}>
+      <h2>🏆 Weekly Demo Day</h2>
+      {isSaturday ? <p style={{color:"#38BDF8"}}>AI is judging live now!</p> : <p>Next Demo Day: Saturday</p>}
+      
+      <h3>Top 3 Builders This Week</h3>
+      {topBuilders.map((u,i)=><div key={u.id} style={styles.focusCard}>
+        <h3>#{i+1} {u.name}</h3>
+        <p>🔥 {u.streak} Day Streak</p>
+        <p>Goal: {u.goals}</p>
+      </div>)}
+      
+      <div style={styles.focusCard}>
+        <b>Prize:</b> $1000 + Investor Intros for #1
+      </div>
+    </div>
+  )
+}
+
+// ===== FEATURE 3: AI INVESTOR ROOM =====
+function AIInvestorRoom({user}) {
+  const [pitch, setPitch] = useState("");
+  const [feedback, setFeedback] = useState([]);
+
+  const getFeedback = () => {
+    setFeedback([
+      {name: "Sequoia AI", text: `Market for "${pitch}" is too small. 10x it.`, emoji: "😠"},
+      {name: "Angel AI", text: `Love the vision! Can you build MVP in 2 weeks?`, emoji: "😍"},
+      {name: "YC AI", text: `Who are your first 10 users? Get them first.`, emoji: "🤔"}
     ]);
   }
 
   return(
     <div style={{padding:20}}>
-      <h2>📊 AI Pitch Deck</h2>
-      <input style={styles.input} placeholder="Your idea in 1 line" value={idea} onChange={e=>setIdea(e.target.value)}/>
-      <button style={styles.btnPrimary} onClick={generateDeck}>Generate Deck ✨</button>
-      {deck.length>0 && <div style={{marginTop:20}}>
-        {deck.map((d,i)=><div key={i} style={styles.focusCard}><b>Slide {i+1}</b><p>{d}</p></div>)}
-      </div>}
+      <h2>💼 AI Investor Room</h2>
+      <p>Pitch your idea. Get roasted by 3 AI investors.</p>
+      <input style={styles.input} placeholder="My startup is..." value={pitch} onChange={e=>setPitch(e.target.value)}/>
+      <button style={styles.btnPrimary} onClick={getFeedback}>Get Feedback</button>
+      
+      {feedback.map((f,i)=><div key={i} style={styles.focusCard}>
+        <h4>{f.emoji} {f.name}</h4>
+        <p>{f.text}</p>
+      </div>)}
     </div>
   )
 }
 
-// ===== 4. AI VOICE CO-FOUNDER MATCH =====
+// ===== OTHER PAGES =====
 function CofounderSwipe({user, users, db}) {
   const [index, setIndex] = useState(0);
-  const [recording, setRecording] = useState(false);
   const matches = users.filter(u=>u.id!==user.uid && u.goals);
   const person = matches[index];
-
-  const startRecording = () => {
-    setRecording(true);
-    setTimeout(()=>{ setRecording(false); alert("AI Matched: Based on your vision!"); },2000)
-  }
-
   if(!person) return <p style={{textAlign:"center",marginTop:100}}>No more founders</p>
   return(
     <div style={{textAlign:"center", padding:20}}>
       <h2>🚀 AI Voice Match</h2>
-      <button onMouseDown={startRecording} onMouseUp={()=>setRecording(false)} style={{width:100,height:100,borderRadius:"50%",background:recording?"#F87171":"#38BDF8",border:"none",fontSize:40}}>🎤</button>
       <div style={styles.focusCard}>
         <img src={person.photo} style={{width:100,height:100,borderRadius:"50%"}}/>
         <h3>{person.name}</h3>
         <p><b>AI Match:</b> 94%</p>
         <p>{person.goals}</p>
-        <div>{person.skills?.split(",").map(s=><span key={s} style={styles.tag}>{s}</span>)}</div>
       </div>
       <button style={styles.btnPrimary} onClick={()=>setIndex(index+1)}>Next Founder</button>
     </div>
   )
 }
 
-// ===== 5. PROGRESS PROFILE =====
+function AIPitchGenerator({user, db}) {
+  const [idea, setIdea] = useState("");
+  const [deck, setDeck] = useState([]);
+  const generateDeck = () => {
+    setDeck([`Problem: ${idea}`, `Solution: AI for ${idea}`, `Market: $10B`, `Team: ConnectAI`, `Ask: $500K`]);
+  }
+  return(
+    <div style={{padding:20}}>
+      <h2>📊 AI Pitch Deck</h2>
+      <input style={styles.input} placeholder="Your idea" value={idea} onChange={e=>setIdea(e.target.value)}/>
+      <button style={styles.btnPrimary} onClick={generateDeck}>Generate</button>
+      {deck.map((d,i)=><div key={i} style={styles.focusCard}><b>Slide {i+1}</b><p>{d}</p></div>)}
+    </div>
+  )
+}
+
 function ProfilePage({user, db}) {
   const [profile, setProfile] = useState({});
   useEffect(()=>{ getDoc(doc(db,"users",user.uid)).then(d=>setProfile(d.data())) },[]);
@@ -223,12 +265,16 @@ function ProfilePage({user, db}) {
   return (
     <div style={{padding:20}}>
       <h2>📈 Your Progress</h2>
+      <div style={styles.focusCard}>
+        <h3>🔥 Build Streak: {profile.streak || 0} days</h3>
+      </div>
       <img src={profile.photo} style={{width:80,height:80,borderRadius:"50%"}}/>
       <h3>{profile.name}</h3>
-      <input style={styles.input} placeholder="Skills: React, AI, Design" value={profile.skills||""} onChange={e=>setProfile({...profile,skills:e.target.value})}/>
+      <input style={styles.input} placeholder="Skills" value={profile.skills||""} onChange={e=>setProfile({...profile,skills:e.target.value})}/>
       <input style={styles.input} placeholder="Weekly Goal" value={profile.goals||""} onChange={e=>setProfile({...profile,goals:e.target.value})}/>
+      <input style={styles.input} placeholder="MRR Revenue $" type="number" value={profile.revenue||""} onChange={e=>setProfile({...profile,revenue:Number(e.target.value)})}/>
       <button style={styles.btnPrimary} onClick={save}>Save</button>
-      <button style={{...styles.btnPrimary, background:"#F87171", marginTop:10}} onClick={()=>signOut(auth)}>Logout</button>
+      <button style={styles.btnDanger} onClick={()=>signOut(auth)}>Logout</button>
     </div>
   )
   }

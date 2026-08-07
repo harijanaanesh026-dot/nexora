@@ -1,144 +1,293 @@
-"use client"
-import { useState } from "react";
+"use client";
+import { useState, useEffect, useRef } from "react";
 
-export default function NexoraApp() {
-  const [tab, setTab] = useState("home");
+// ============ FIREBASE DIRECT IMPORTS ============
+import { initializeApp } from "firebase/app";
+import { getAuth, onAuthStateChanged, signInWithPopup, signOut, GoogleAuthProvider } from "firebase/auth";
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
-  return (
-    <div style={{maxWidth: 600, margin: "0 auto", paddingBottom: 80, fontFamily: "Inter"}}>
+// ============ 1. NEE FIREBASE CONFIG IKKADA PASTE CHEY ============
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
+  authDomain: "nexoraai-75ae2.firebaseapp.com",
+  projectId: "nexoraai-75ae2",
+  storageBucket: "nexoraai-75ae2.firebasestorage.app",
+  messagingSenderId: "173122711177",
+  appId: "1:173122711177:web:68e373598d110d80c1e058",
+  measurementId: "G-11Y8XF8MBC"
+};
+// =================================================================
 
-      {/* HEADER */}
-      <header style={{padding: 16, borderBottom: "1px solid #eee", position: "sticky", top: 0, background: "white", zIndex: 10}}>
-        <h1>🌍 NEXORA</h1>
-      </header>
+// Firebase Initialize
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
+const googleProvider = new GoogleAuthProvider();
 
-      {/* TAB CONTENT */}
-      {tab === "home" && <HomeTab />}
-      {tab === "discover" && <DiscoverTab />}
-      {tab === "collaborate" && <CollaborateTab />}
-      {tab === "chat" && <ChatTab />}
-      {tab === "profile" && <ProfileTab />}
-
-      {/* BOTTOM NAV */}
-      <nav style={styles.nav}>
-        <NavBtn icon="🏠" label="Home" active={tab==="home"} onClick={()=>setTab("home")} />
-        <NavBtn icon="🔍" label="Discover" active={tab==="discover"} onClick={()=>setTab("discover")} />
-        <NavBtn icon="🚀" label="Collaborate" active={tab==="collaborate"} onClick={()=>setTab("collaborate")} />
-        <NavBtn icon="💬" label="Chat" active={tab==="chat"} onClick={()=>setTab("chat")} />
-        <NavBtn icon="👤" label="Profile" active={tab==="profile"} onClick={()=>setTab("profile")} />
-      </nav>
-    </div>
-  )
-}
-
-function NavBtn({icon, label, active, onClick}) {
-  return <button onClick={onClick} style={{...styles.navBtn, color: active? "#4F46E5" : "#888"}}>
-    <div style={{fontSize: 20}}>{icon}</div><div style={{fontSize: 10}}>{label}</div>
-  </button>
-}
-
-/* ============ 1. HOME TAB ============ */
-function HomeTab() {
-  return <div style={{padding: 16}}>
-    <Section title="🔥 Discover People" content="Today’s Top Builders in Rayadurg" />
-    <Section title="📈 Trending Communities" content="Learn Coding, Startup India, Fitness" />
-    <Section title="✨ Success Stories" content="Ravi → Google in 1 year" />
-    <Section title="🎯 Goal Rooms Live" content="200 people coding right now" />
-    <Section title="📅 Upcoming Events" content="Startup Meetup - Aug 15" />
-  </div>
-}
-
-/* ============ 2. DISCOVER TAB ============ */
-function DiscoverTab() {
-  return <div style={{padding: 16}}>
-    <input placeholder="Search People..." style={styles.input} />
-    <div style={styles.filters}>
-      <button style={styles.filter}>Skills</button>
-      <button style={styles.filter}>City</button>
-      <button style={styles.filter}>Goals</button>
-      <button style={styles.filter}>Profession</button>
-    </div>
-    <h3>🌟 Unique Matches</h3>
-    <Card title="Accountability Partner" desc="Find gym/code/study partner" />
-    <Card title="Mentor Finder" desc="Get guidance from experts" />
-    <Card title="Study Partner" desc="Learn together" />
-    <Card title="Skill Exchange" desc="Nenu coding, nuvvu English" />
-    <Card title="Travel Buddy" desc="Find travel partners" />
-  </div>
-}
-
-/* ============ 3. COLLABORATE TAB ============ */
-function CollaborateTab() {
-  return <div style={{padding: 16}}>
-    <button style={styles.btnPrimary}>+ Post a Project</button>
-    <button style={styles.btnPrimary}>+ Find Co-Founder</button>
-    <h3>💼 Opportunities</h3>
-    <Card title="Jobs" desc="Full-time roles" />
-    <Card title="Internships" desc="For students" />
-    <Card title="Freelance" desc="Quick gigs" />
-    <Card title="Competitions" desc="Win prizes" />
-    <Card title="Scholarships" desc="Funding" />
-    <h3>👥 Communities</h3>
-    <Card title="Create Community" desc="Start your own" />
-    <Card title="Polls & Announcements" desc="Engage members" />
-    <h3>📅 Events</h3>
-    <Card title="Online Workshops" desc="Learn new skills" />
-    <Card title="Offline Meetups" desc="Network IRL" />
-  </div>
-}
-
-/* ============ 4. CHAT TAB ============ */
-function ChatTab() {
-  return <div style={{padding: 16}}>
-    <h3>💬 Messages</h3>
-    <Card title="One-to-One Chat" desc="DM your connections" />
-    <Card title="Group Chat" desc="Community + Project groups" />
-    <Card title="Voice Messages" desc="Send voice notes" />
-    <Card title="File Sharing" desc="Share resume, portfolio" />
-    <h3>🤝 Connections</h3>
-    <Card title="Connection Requests" desc="3 pending" />
-    <Card title="Mutual Connections" desc="See who you know" />
-  </div>
-}
-
-/* ============ 5. PROFILE TAB ============ */
-function ProfileTab() {
-  return <div style={{padding: 16}}>
-    <div style={{textAlign: "center"}}>
-      <img src="https://i.pravatar.cc/100" style={{borderRadius: "50%"}} />
-      <h2>Your Name</h2>
-      <p>Builder | Rayadurg</p>
-    </div>
-    <Section title="📝 Bio" content="Add your bio" />
-    <Section title="🛠️ Skills" content="React, Python, Design" />
-    <Section title="🎯 Goals" content="Start Startup in 2026" />
-    <Section title="📚 Education & Experience" content="Add details" />
-    <Section title="🔗 Portfolio" content="github.com/you" />
-    <Section title="🏆 Achievements" content="Badges & Trust Score" />
-    <h3>⭐ Reputation</h3>
-    <Card title="Endorse Skills" desc="Get endorsed by others" />
-    <Card title="Reviews" desc="4.8 ★ from 20 people" />
-    <h3>🛡️ Safety</h3>
-    <button style={styles.btnGhost}>Privacy Controls</button>
-    <button style={styles.btnGhost}>Report / Block</button>
-  </div>
-}
-
-/* ============ UI HELPERS ============ */
-function Section({title, content}) {
-  return <div style={styles.card}><h3>{title}</h3><p>{content}</p></div>
-}
-function Card({title, desc}) {
-  return <div style={styles.card}><b>{title}</b><p style={{fontSize: 12, color: "#666"}}>{desc}</p></div>
-}
-
+/* ============ STYLES ============ */
 const styles = {
-  nav: {position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "space-around", background: "white", borderTop: "1px solid #eee", padding: 8},
-  navBtn: {background: "none", border: "none", cursor: "pointer"},
-  card: {border: "1px solid #eee", borderRadius: 12, padding: 12, marginBottom: 12},
-  input: {width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ddd", marginBottom: 12},
-  btnPrimary: {background: "#4F46E5", color: "white", padding: "12px 16px", borderRadius: 8, border: "none", width: "100%", marginBottom: 10, fontWeight: 600},
-  btnGhost: {background: "#f3f4f6", padding: "10px 16px", borderRadius: 8, border: "none", width: "100%", marginBottom: 10},
-  filters: {display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap"},
-  filter: {padding: "6px 12px", borderRadius: 20, border: "1px solid #ddd", background: "white"}
-        }
+  page: {padding:20, maxWidth:900, margin:"0 auto", fontFamily:"sans-serif", background:"#f9fafb"},
+  btnPrimary: {background:"#4F46E5", color:"white", padding:"10px 16px", borderRadius:8, border:"none", cursor:"pointer", fontWeight:600},
+  btnSecondary: {background:"#f3f4f6", padding:"10px 16px", borderRadius:8, border:"none", cursor:"pointer", fontWeight:600},
+  btnVoice: {background:"#4F46E5", color:"white", padding:"10px 14px", borderRadius:8, border:"none", fontSize:18, cursor:"pointer"},
+  input: {padding:10, borderRadius:8, border:"1px solid #ddd", width:"100%", fontSize:14},
+  card: {background:"white", padding:16, borderRadius:12, boxShadow:"0 2px 4px rgba(0,0,0,0.1)", margin:"10px 0"},
+  replyPreview: {background:"#E0E7FF", padding:8, borderRadius:8, borderLeft:"3px solid #4F46E5", marginBottom:8, display:"flex", justifyContent:"space-between", fontSize:12},
+  replyCard: {background:"#f3f4f6", padding:6, borderRadius:6, borderLeft:"2px solid #4F46E5", marginBottom:4, fontSize:12},
+  replyBtn: {position:"absolute", top:5, right:5, background:"none", border:"none", fontSize:12, cursor:"pointer", opacity:0.6},
+  reactionBtn: {padding:"2px 6px", borderRadius:12, border:"1px solid #ddd", fontSize:12, cursor:"pointer", background:"white"},
+  fileBtn: {background:"#f3f4f6", padding:"10px 12px", borderRadius:8, border:"none", fontSize:16, cursor:"pointer"},
+  onlineDot: {width:8, height:8, borderRadius:"50%", display:"inline-block"},
+  deleteBtn: {position:"absolute", top:-5, right:-5, background:"red", color:"white", border:"none", borderRadius:"50%", width:20, height:20, fontSize:10, cursor:"pointer"}
+}
+
+const TABS = ["Dashboard","Goals","Chat","Focus Room","Video Call","Profile"];
+const emojis = ["❤️", "👍", "😂", "🔥", "👏", "🙏"];
+const selectedChat = "coding-room";
+
+/* ============ MAIN APP ============ */
+export default function Home() {
+  const [user, setUser] = useState(null);
+  const [tab, setTab] = useState("Dashboard");
+
+  useEffect(() => {
+    onAuthStateChanged(auth, (u) => setUser(u));
+  }, []);
+
+  if(!user) return <LoginScreen />;
+
+  return <div style={styles.page}>
+    <Header user={user} tab={tab} setTab={setTab} />
+    <TabContent tab={tab} user={user} />
+  </div>
+}
+
+function Header({user, tab, setTab}) {
+  return <div>
+    <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+      <h2>NEXORA 🚀</h2>
+      <button onClick={()=>signOut(auth)} style={styles.btnSecondary}>Logout</button>
+    </div>
+    <div style={{display:"flex", gap:8, margin:"10px 0", flexWrap:"wrap"}}>
+      {TABS.map(t => <button key={t} onClick={()=>setTab(t)} style={tab===t? styles.btnPrimary : styles.btnSecondary}>{t}</button>)}
+    </div>
+  </div>
+}
+
+function LoginScreen() {
+  return <div style={{textAlign:"center", padding:50}}>
+    <h1>NEXORA 🚀</h1>
+    <p>Goal Rooms + Chat + Focus Timer</p>
+    <button onClick={()=>signInWithPopup(auth, googleProvider)} style={styles.btnPrimary}>Login with Google</button>
+  </div>
+}
+
+function TabContent({tab, user}) {
+  switch(tab) {
+    case "Dashboard": return <DashboardTab user={user} />;
+    case "Goals": return <GoalsTab user={user} />;
+    case "Chat": return <ChatTab user={user} />;
+    case "Focus Room": return <FocusRoomTab user={user} />;
+    case "Video Call": return <VideoCallTab user={user} />;
+    case "Profile": return <ProfileTab user={user} />;
+    default: return null;
+  }
+}
+
+/* ============ 1. DASHBOARD ============ */
+function DashboardTab({user}) {
+  return <div style={styles.card}>
+    <h3>Welcome {user.displayName}! 👋</h3>
+    <p>Goal Rooms, Chat, Focus Timer, Video Call anni ikkade unnai.</p>
+  </div>
+}
+
+/* ============ 2. GOALS ============ */
+function GoalsTab({user}) {
+  const [goals, setGoals] = useState([]);
+  const [newGoal, setNewGoal] = useState("");
+  useEffect(() => {
+    const q = query(collection(db, "goals"), orderBy("createdAt"));
+    const unsub = onSnapshot(q, snap => setGoals(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return unsub;
+  }, []);
+  const addGoal = async () => {
+    if(!newGoal) return;
+    await addDoc(collection(db,"goals"),{text:newGoal, completed:false, userId:user.uid, createdAt:serverTimestamp()});
+    setNewGoal("");
+  }
+  return <div>
+    <div style={{display:"flex", gap:8}}>
+      <input value={newGoal} onChange={e=>setNewGoal(e.target.value)} placeholder="Add Goal" style={styles.input} />
+      <button onClick={addGoal} style={styles.btnPrimary}>Add</button>
+    </div>
+    {goals.map(g=><div key={g.id} style={styles.card}>{g.text}</div>)}
+  </div>
+}
+
+/* ============ 3. CHAT - FULL FEATURES ============ */
+function ChatTab({user}) {
+  const [messages, setMessages] = useState([]);
+  const [newMsg, setNewMsg] = useState("");
+  const [replyTo, setReplyTo] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef(null);
+  const timerRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    const q = query(collection(db, "chats", selectedChat, "messages"), orderBy("createdAt"));
+    const unsub = onSnapshot(q, snap => setMessages(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    return unsub;
+  }, []);
+
+  const filteredMessages = messages.filter(m => (m.text || "").toLowerCase().includes(searchQuery.toLowerCase()));
+
+  const sendMessage = async (voiceUrl=null, duration=null, fileUrl=null, fileName=null) => {
+    if(!newMsg &&!voiceUrl &&!fileUrl) return;
+    await addDoc(collection(db, "chats", selectedChat, "messages"), {
+      sender:user.uid, senderName:user.displayName,
+      text:newMsg, voiceUrl, duration, fileUrl, fileName,
+      type: voiceUrl? "voice" : fileUrl? "file" : "text",
+      replyTo, reactions:{}, createdAt:serverTimestamp()
+    });
+    setNewMsg(""); setReplyTo(null);
+  }
+
+  const startRecording = async () => {
+    setIsRecording(true); setRecordingTime(0);
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    const recorder = new MediaRecorder(stream);
+    mediaRecorderRef.current = recorder;
+    const chunks=[];
+    recorder.ondataavailable = e=>chunks.push(e.data);
+    recorder.onstop = async ()=>{
+      const blob = new Blob(chunks,{type:'audio/webm'});
+      const voiceRef = ref(storage,`voices/${selectedChat}/${Date.now()}.webm`);
+      const snap = await uploadBytes(voiceRef,blob);
+      const url = await getDownloadURL(snap.ref);
+      await sendMessage(url, formatTime(recordingTime));
+      stream.getTracks().forEach(t=>t.stop());
+    };
+    recorder.start();
+    timerRef.current = setInterval(()=>setRecordingTime(p=>p+1),1000);
+  };
+  const stopRecording = ()=>{mediaRecorderRef.current?.stop(); setIsRecording(false); clearInterval(timerRef.current);};
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0]; if(!file) return;
+    const fileRef = ref(storage,`files/${selectedChat}/${Date.now()}_${file.name}`);
+    const snap = await uploadBytes(fileRef,file);
+    const url = await getDownloadURL(snap.ref);
+    await sendMessage(null,null,url,file.name);
+  }
+
+  const addReaction = async (msgId, emoji) => {
+    const msgRef = doc(db,"chats",selectedChat,"messages",msgId);
+    const msg = messages.find(m=>m.id===msgId);
+    const reactions = msg.reactions||{};
+    if(reactions[emoji]?.includes(user.uid)) reactions[emoji]=reactions[emoji].filter(u=>u!==user.uid);
+    else reactions[emoji]=[...(reactions[emoji]||[]),user.uid];
+    await updateDoc(msgRef,{reactions});
+  }
+
+  const deleteMessage = async (msgId) => {
+    if(confirm("Delete this message?")) await deleteDoc(doc(db,"chats",selectedChat,"messages",msgId));
+  }
+
+  const formatTime = (sec)=>`${Math.floor(sec/60)}:${(sec%60).toString().padStart(2,'0')}`;
+
+  return <div>
+    <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="🔍 Search in chat" style={{...styles.input, marginBottom:8}} />
+    {replyTo && <div style={styles.replyPreview}><b>Replying to {replyTo.senderName}</b><button onClick={()=>setReplyTo(null)}>✕</button></div>}
+
+    <div style={{height:350, overflow:"auto", border:"1px solid #eee", padding:10, borderRadius:8, background:"white"}}>
+      {filteredMessages.map(m=>(
+        <div key={m.id} style={{margin:"12px 0", position:"relative"}}>
+          <b style={{fontSize:10}}>{m.senderName}</b>
+          {m.sender===user.uid && <button onClick={()=>deleteMessage(m.id)} style={styles.deleteBtn}>🗑️</button>}
+          {m.replyTo && <div style={styles.replyCard}><b>{m.replyTo.senderName}</b><p>{m.replyTo.text}</p></div>}
+          <div style={{background:m.sender===user.uid?"#4F46E5":"white",color:m.sender===user.uid?"white":"black",padding:10,borderRadius:12,display:"inline-block",maxWidth:"80%", position:"relative"}} onDoubleClick={()=>setReplyTo({id:m.id,senderName:m.senderName,text:m.text||"🎙️ Voice"})}>
+            {m.type==="text" && m.text}
+            {m.type==="voice" && <div><audio controls src={m.voiceUrl} /><span style={{fontSize:12, marginLeft:8}}>{m.duration}</span></div>}
+            {m.type==="file" && <a href={m.fileUrl} target="_blank" style={{color:m.sender===user.uid?"white":"blue"}}>📎 {m.fileName}</a>}
+            <button onClick={()=>setReplyTo({id:m.id,senderName:m.senderName,text:m.text||"🎙️ Voice"})} style={styles.replyBtn}>↩️</button>
+          </div>
+          <div style={{display:"flex",gap:4,marginTop:4}}>
+            {emojis.map(e=>m.reactions?.[e]?.length>0 && <button key={e} onClick={()=>addReaction(m.id,e)} style={styles.reactionBtn}>{e} {m.reactions[e].length}</button>)}
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <div style={{display:"flex",gap:8,alignItems:"center",marginTop:8}}>
+      <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{display:"none"}} />
+      <button onClick={()=>fileInputRef.current.click()} style={styles.fileBtn}>📎</button>
+      <input value={newMsg} onChange={e=>setNewMsg(e.target.value)} placeholder={isRecording?`Recording ${formatTime(recordingTime)}`:"Type message..."} style={{...styles.input,flex:1}} />
+      <button onMouseDown={startRecording} onMouseUp={stopRecording} style={{...styles.btnVoice,background:isRecording?"red":"#4F46E5"}}>{isRecording?"⏹️":"🎙️"}</button>
+      <button onClick={()=>sendMessage()} style={styles.btnPrimary}>Send</button>
+    </div>
+  </div>
+}
+
+/* ============ 4. FOCUS ROOM ============ */
+function FocusRoomTab({user}) {
+  const [minutes,setMinutes]=useState(25);
+  const [seconds,setSeconds]=useState(0);
+  const [isActive,setIsActive]=useState(false);
+  const [streak,setStreak]=useState(0);
+  useEffect(()=>{const s=localStorage.getItem("nexora_streak"); if(s)setStreak(parseInt(s))},[]);
+  useEffect(()=>{
+    let i;
+    if(isActive && (minutes>0||seconds>0)){
+      i=setInterval(()=>{seconds===0? (setMinutes(m=>m-1),setSeconds(59)) : setSeconds(s=>s-1)},1000);
+    } else if(minutes===0 && seconds===0 && isActive){
+      const ns=streak+1; setStreak(ns); localStorage.setItem("nexora_streak",ns); alert("🎉 Session Done! Streak: "+ns); setIsActive(false); setMinutes(25); setSeconds(0);
+    }
+    return ()=>clearInterval(i);
+  },[isActive,minutes,seconds]);
+  return <div style={styles.card}>
+    <h3>🎯 Focus Room - 25min Sprint</h3>
+    <div style={{textAlign:"center"}}><h1 style={{fontSize:48}}>{String(minutes).padStart(2,'0')}:{String(seconds).padStart(2,'0')}</h1>
+    <button onClick={()=>setIsActive(!isActive)} style={styles.btnPrimary}>{isActive?"⏸️ Pause":"▶️ Start"}</button></div>
+    <p style={{textAlign:"center", marginTop:10}}>🔥 Streak: {streak} days</p>
+  </div>
+}
+
+/* ============ 5. VIDEO CALL ============ */
+function VideoCallTab({user}) {
+  const [inCall,setInCall]=useState(false);
+  const localRef=useRef(null); const remoteRef=useRef(null); const pc=useRef(null);
+  const startCall=async()=>{
+    setInCall(true);
+    pc.current=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
+    const stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+    localRef.current.srcObject=stream;
+    stream.getTracks().forEach(t=>pc.current.addTrack(t,stream));
+    pc.current.ontrack=e=>remoteRef.current.srcObject=e.streams[0];
+    const offer=await pc.current.createOffer();
+    await pc.current.setLocalDescription(offer);
+    alert("Offer created. Share with friend for full connection");
+  };
+  const endCall=()=>{setInCall(false); pc.current?.close(); localRef.current.srcObject=null;}
+  return <div style={styles.card}>
+    <h3>📹 Video Call</h3>
+    {!inCall?<button onClick={startCall} style={styles.btnPrimary}>Start Call</button>:
+    <div><div style={{display:"flex",gap:10}}><video ref={localRef} autoPlay muted style={{width:"48%",background:"black",borderRadius:8}} /><video ref={remoteRef} autoPlay style={{width:"48%",background:"black",borderRadius:8}} /></div>
+    <button onClick={endCall} style={{...styles.btnPrimary,background:"red",marginTop:10}}>End Call</button></div>}
+  </div>
+}
+
+/* ============ 6. PROFILE ============ */
+function ProfileTab({user}) {
+  return <div style={styles.card}>
+    <img src={user.photoURL} style={{borderRadius:"50%",width:80}} />
+    <h3>{user.displayName}</h3>
+    <p>{user.email}</p>
+  </div>
+    }

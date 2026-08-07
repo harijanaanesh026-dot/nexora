@@ -1,175 +1,144 @@
 "use client"
-import { useState, useEffect } from "react";
-import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "firebase/auth";
-import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, where, onSnapshot, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
+import { useState } from "react";
 
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
-  authDomain: "nexoraai-75ae2.firebaseapp.com",
-  projectId: "nexoraai-75ae2",
-  storageBucket: "nexoraai-75ae2.firebasestorage.app",
-  messagingSenderId: "173122711177",
-  appId: "1:173122711177:web:68e373598d110d80c1e058",
-  measurementId: "G-11Y8XF8MBC"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-const styles = {
-  body: {background:"radial-gradient(ellipse at top, #1A0A1F 0%, #050A18 100%)", color:"#E2E8F0", fontFamily:"'Inter', sans-serif", margin:0, paddingBottom:80},
-  header: {display:"flex", justifyContent:"space-between", padding:"14px 16px", background:"rgba(168,85,247,0.2)", borderBottom:"1px solid #A855F7"},
-  logo: {fontSize:22, fontWeight:"800", background: "linear-gradient(90deg, #EC4899, #A855F7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent"},
-  card: {background:"rgba(30,10,40,0.8)", border:"1px solid #A855F7", margin:"16px", borderRadius:16, padding:16},
-  btnPrimary: {background:"linear-gradient(90deg, #EC4899, #A855F7)", border:"none", color:"white", padding:"12px 20px", borderRadius:12, fontWeight:"700", width:"100%"},
-  btnGhost: {background:"#1E293B", border:"1px solid #A855F7", color:"white", padding:"10px 16px", borderRadius:12},
-  input: {background:"#1E293B", border:"1px solid #334155", color:"white", width:"100%", padding:12, borderRadius:12, margin:"8px 0"},
-}
-
-export default function RishtaApp() {
-  const [user, setUser] = useState(null);
-  const [tab, setTab] = useState("discover");
-  const [profile, setProfile] = useState(null);
-
-  useEffect(() => {
-    onAuthStateChanged(auth, async (u) => {
-      setUser(u);
-      if(u) {
-        const d = await getDoc(doc(db, "rishta_users", u.uid));
-        setProfile(d.data());
-      }
-    });
-  }, []);
+export default function NexoraApp() {
+  const [tab, setTab] = useState("home");
 
   return (
-    <div style={styles.body}>
-      <div style={styles.header}>
-        <h2 style={styles.logo}>NEXORA RISHTA 💍</h2>
-        {user && <span onClick={()=>setTab("profile")}>👤</span>}
-      </div>
+    <div style={{maxWidth: 600, margin: "0 auto", paddingBottom: 80, fontFamily: "Inter"}}>
 
-      {!user && <AuthWall/>}
-      {user && !profile && <CreateProfile user={user}/>}
-      
-      {user && profile && <>
-        {tab === "discover" && <Discover user={user} profile={profile}/>}
-        {tab === "matches" && <Matches user={user}/>}
-        {tab === "chat" && <ChatPage user={user}/>}
-        {tab === "profile" && <MyProfile user={user} profile={profile}/>}
-      </>}
+      {/* HEADER */}
+      <header style={{padding: 16, borderBottom: "1px solid #eee", position: "sticky", top: 0, background: "white", zIndex: 10}}>
+        <h1>🌍 NEXORA</h1>
+      </header>
 
-      {user && profile && <div style={{display:"flex", justifyContent:"space-around", position:"fixed", bottom:0, width:"100%", background:"#0F172A", padding:12}}>
-        <span onClick={()=>setTab("discover")}>🔍</span>
-        <span onClick={()=>setTab("matches")}>❤️</span>
-        <span onClick={()=>setTab("chat")}>💬</span>
-      </div>}
+      {/* TAB CONTENT */}
+      {tab === "home" && <HomeTab />}
+      {tab === "discover" && <DiscoverTab />}
+      {tab === "collaborate" && <CollaborateTab />}
+      {tab === "chat" && <ChatTab />}
+      {tab === "profile" && <ProfileTab />}
+
+      {/* BOTTOM NAV */}
+      <nav style={styles.nav}>
+        <NavBtn icon="🏠" label="Home" active={tab==="home"} onClick={()=>setTab("home")} />
+        <NavBtn icon="🔍" label="Discover" active={tab==="discover"} onClick={()=>setTab("discover")} />
+        <NavBtn icon="🚀" label="Collaborate" active={tab==="collaborate"} onClick={()=>setTab("collaborate")} />
+        <NavBtn icon="💬" label="Chat" active={tab==="chat"} onClick={()=>setTab("chat")} />
+        <NavBtn icon="👤" label="Profile" active={tab==="profile"} onClick={()=>setTab("profile")} />
+      </nav>
     </div>
   )
 }
 
-function AuthWall() {
-  return(<div style={{textAlign:"center", padding:60}}>
-    <h2>Find Your Person</h2>
-    <p>Love + Arrange = Best</p>
-    <button style={styles.btnPrimary} onClick={()=>signInWithPopup(auth, new GoogleAuthProvider())}>Continue with Google</button>
-  </div>)
+function NavBtn({icon, label, active, onClick}) {
+  return <button onClick={onClick} style={{...styles.navBtn, color: active? "#4F46E5" : "#888"}}>
+    <div style={{fontSize: 20}}>{icon}</div><div style={{fontSize: 10}}>{label}</div>
+  </button>
 }
 
-// ===== 1. CREATE PROFILE WITH FILTERS =====
-function CreateProfile({user}) {
-  const [form, setForm] = useState({name:"", age:"", gender:"Male", city:"", job:"", education:"", food:"Veg", religion:"", bio:""});
-
-  const save = async() => {
-    await setDoc(doc(db,"rishta_users",user.uid), {...form, photo: user.photoURL, uid: user.uid, likes:[], matches:[]});
-    alert("Profile Created!");
-  }
-
-  return(<div style={{padding:16}}>
-    <h3>Create Your Profile</h3>
-    <input style={styles.input} placeholder="Full Name" onChange={e=>setForm({...form,name:e.target.value})}/>
-    <input style={styles.input} type="number" placeholder="Age" onChange={e=>setForm({...form,age:e.target.value})}/>
-    <select style={styles.input} onChange={e=>setForm({...form,gender:e.target.value})}><option>Male</option><option>Female</option></select>
-    <input style={styles.input} placeholder="City" onChange={e=>setForm({...form,city:e.target.value})}/>
-    <input style={styles.input} placeholder="Job" onChange={e=>setForm({...form,job:e.target.value})}/>
-    <select style={styles.input} onChange={e=>setForm({...form,food:e.target.value})}><option>Veg</option><option>Non-Veg</option><option>Eggetarian</option></select>
-    <textarea style={styles.input} placeholder="About you" onChange={e=>setForm({...form,bio:e.target.value})}/>
-    <button style={styles.btnPrimary} onClick={save}>Save & Find Matches</button>
-  </div>)
+/* ============ 1. HOME TAB ============ */
+function HomeTab() {
+  return <div style={{padding: 16}}>
+    <Section title="🔥 Discover People" content="Today’s Top Builders in Rayadurg" />
+    <Section title="📈 Trending Communities" content="Learn Coding, Startup India, Fitness" />
+    <Section title="✨ Success Stories" content="Ravi → Google in 1 year" />
+    <Section title="🎯 Goal Rooms Live" content="200 people coding right now" />
+    <Section title="📅 Upcoming Events" content="Startup Meetup - Aug 15" />
+  </div>
 }
 
-// ===== 2. DISCOVER WITH FILTERS =====
-function Discover({user, profile}) {
-  const [people, setPeople] = useState([]);
-  
-  useEffect(()=>{
-    // Show opposite gender + same city first
-    const q = query(collection(db,"rishta_users"), 
-      where("gender","!=",profile.gender),
-      where("city","==",profile.city)
-    );
-    onSnapshot(q, snap=>{ setPeople(snap.docs.map(d=>d.data()).filter(p=>p.uid!==user.uid)) })
-  },[]);
-
-  const like = async(person) => {
-    // Add to my likes
-    await updateDoc(doc(db,"rishta_users",user.uid), {likes: arrayUnion(person.uid)});
-    // Check if they also liked me = MATCH
-    if(person.likes?.includes(user.uid)) {
-      await updateDoc(doc(db,"rishta_users",user.uid), {matches: arrayUnion(person.uid)});
-      await updateDoc(doc(db,"rishta_users",person.uid), {matches: arrayUnion(user.uid)});
-      alert(`It's a Match with ${person.name}! Chat open ayindi 💌`);
-    }
-  }
-
-  return(<div style={{padding:16}}>
-    <h3>Discover in {profile.city}</h3>
-    {people.map(p=>(
-      <div key={p.uid} style={styles.card}>
-        <img src={p.photo} style={{width:80,height:80,borderRadius:"50%"}}/>
-        <h4>{p.name}, {p.age}</h4>
-        <p>{p.job} • {p.food} • {p.education}</p>
-        <p style={{fontSize:13}}>{p.bio}</p>
-        <button style={styles.btnPrimary} onClick={()=>like(p)}>❤️ Interested</button>
-      </div>
-    ))}
-  </div>)
+/* ============ 2. DISCOVER TAB ============ */
+function DiscoverTab() {
+  return <div style={{padding: 16}}>
+    <input placeholder="Search People..." style={styles.input} />
+    <div style={styles.filters}>
+      <button style={styles.filter}>Skills</button>
+      <button style={styles.filter}>City</button>
+      <button style={styles.filter}>Goals</button>
+      <button style={styles.filter}>Profession</button>
+    </div>
+    <h3>🌟 Unique Matches</h3>
+    <Card title="Accountability Partner" desc="Find gym/code/study partner" />
+    <Card title="Mentor Finder" desc="Get guidance from experts" />
+    <Card title="Study Partner" desc="Learn together" />
+    <Card title="Skill Exchange" desc="Nenu coding, nuvvu English" />
+    <Card title="Travel Buddy" desc="Find travel partners" />
+  </div>
 }
 
-// ===== 3. MATCHES + 7 DAY CHAT =====
-function Matches({user}) {
-  const [matches, setMatches] = useState([]);
-  useEffect(()=>{
-    getDoc(doc(db,"rishta_users",user.uid)).then(d=>{
-      const data = d.data();
-      if(data.matches) {
-        data.matches.forEach(id=>{
-          getDoc(doc(db,"rishta_users",id)).then(m=>setMatches(prev=>[...prev, m.data()]))
-        })
-      }
-    })
-  },[]);
-  
-  return(<div style={{padding:16}}>
-    <h3>Your Matches</h3>
-    <p style={{fontSize:12}}>Rule: 7 days app lo matrame chat. Tarvatha number</p>
-    {matches.map(m=>(
-      <div key={m.uid} style={styles.card}>
-        <img src={m.photo} style={{width:50,height:50,borderRadius:"50%"}}/>
-        <b>{m.name}</b>
-        <button style={styles.btnGhost}>Chat Now 💬</button>
-      </div>
-    ))}
-  </div>)
+/* ============ 3. COLLABORATE TAB ============ */
+function CollaborateTab() {
+  return <div style={{padding: 16}}>
+    <button style={styles.btnPrimary}>+ Post a Project</button>
+    <button style={styles.btnPrimary}>+ Find Co-Founder</button>
+    <h3>💼 Opportunities</h3>
+    <Card title="Jobs" desc="Full-time roles" />
+    <Card title="Internships" desc="For students" />
+    <Card title="Freelance" desc="Quick gigs" />
+    <Card title="Competitions" desc="Win prizes" />
+    <Card title="Scholarships" desc="Funding" />
+    <h3>👥 Communities</h3>
+    <Card title="Create Community" desc="Start your own" />
+    <Card title="Polls & Announcements" desc="Engage members" />
+    <h3>📅 Events</h3>
+    <Card title="Online Workshops" desc="Learn new skills" />
+    <Card title="Offline Meetups" desc="Network IRL" />
+  </div>
 }
 
-function MyProfile({user, profile}) {
-  return(<div style={{padding:20, textAlign:"center"}}>
-    <img src={profile.photo} style={{width:100,height:100,borderRadius:"50%", border:"3px solid #A855F7"}}/>
-    <h2>{profile.name}</h2>
-    <p>{profile.job} • {profile.city}</p>
-    <button style={{...styles.btnPrimary, background:"#F87171"}} onClick={()=>signOut(auth)}>Logout</button>
-  </div>)
+/* ============ 4. CHAT TAB ============ */
+function ChatTab() {
+  return <div style={{padding: 16}}>
+    <h3>💬 Messages</h3>
+    <Card title="One-to-One Chat" desc="DM your connections" />
+    <Card title="Group Chat" desc="Community + Project groups" />
+    <Card title="Voice Messages" desc="Send voice notes" />
+    <Card title="File Sharing" desc="Share resume, portfolio" />
+    <h3>🤝 Connections</h3>
+    <Card title="Connection Requests" desc="3 pending" />
+    <Card title="Mutual Connections" desc="See who you know" />
+  </div>
+}
+
+/* ============ 5. PROFILE TAB ============ */
+function ProfileTab() {
+  return <div style={{padding: 16}}>
+    <div style={{textAlign: "center"}}>
+      <img src="https://i.pravatar.cc/100" style={{borderRadius: "50%"}} />
+      <h2>Your Name</h2>
+      <p>Builder | Rayadurg</p>
+    </div>
+    <Section title="📝 Bio" content="Add your bio" />
+    <Section title="🛠️ Skills" content="React, Python, Design" />
+    <Section title="🎯 Goals" content="Start Startup in 2026" />
+    <Section title="📚 Education & Experience" content="Add details" />
+    <Section title="🔗 Portfolio" content="github.com/you" />
+    <Section title="🏆 Achievements" content="Badges & Trust Score" />
+    <h3>⭐ Reputation</h3>
+    <Card title="Endorse Skills" desc="Get endorsed by others" />
+    <Card title="Reviews" desc="4.8 ★ from 20 people" />
+    <h3>🛡️ Safety</h3>
+    <button style={styles.btnGhost}>Privacy Controls</button>
+    <button style={styles.btnGhost}>Report / Block</button>
+  </div>
+}
+
+/* ============ UI HELPERS ============ */
+function Section({title, content}) {
+  return <div style={styles.card}><h3>{title}</h3><p>{content}</p></div>
+}
+function Card({title, desc}) {
+  return <div style={styles.card}><b>{title}</b><p style={{fontSize: 12, color: "#666"}}>{desc}</p></div>
+}
+
+const styles = {
+  nav: {position: "fixed", bottom: 0, left: 0, right: 0, display: "flex", justifyContent: "space-around", background: "white", borderTop: "1px solid #eee", padding: 8},
+  navBtn: {background: "none", border: "none", cursor: "pointer"},
+  card: {border: "1px solid #eee", borderRadius: 12, padding: 12, marginBottom: 12},
+  input: {width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ddd", marginBottom: 12},
+  btnPrimary: {background: "#4F46E5", color: "white", padding: "12px 16px", borderRadius: 8, border: "none", width: "100%", marginBottom: 10, fontWeight: 600},
+  btnGhost: {background: "#f3f4f6", padding: "10px 16px", borderRadius: 8, border: "none", width: "100%", marginBottom: 10},
+  filters: {display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap"},
+  filter: {padding: "6px 12px", borderRadius: 20, border: "1px solid #ddd", background: "white"}
         }

@@ -3,9 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, arrayUnion } from "firebase/firestore";
-import { Home, Users, Target, Flame, BookOpen, Briefcase, MapPin, MessageCircle, Trophy, User, Send, Heart, Search, Bell } from "lucide-react";
 
-// ============ FIREBASE ============
+// ============ FIREBASE CONFIG - NEE KEYS PETTU ============
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
@@ -19,7 +18,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-// ====================================
+// ==========================================================
 
 export default function UpliftApp() {
   const [tab, setTab] = useState("Home");
@@ -41,18 +40,25 @@ export default function UpliftApp() {
   }, []);
 
   const tabs = [
-    {id:"Home", icon:Home}, {id:"People", icon:Users}, {id:"Goals", icon:Target},
-    {id:"Skills", icon:BookOpen}, {id:"Opportunities", icon:Briefcase}, {id:"Nearby", icon:MapPin},
-    {id:"Social", icon:MessageCircle}, {id:"Rewards", icon:Trophy}, {id:"Profile", icon:User}
+    {id:"Home", icon:"🏠", name:"Home"},
+    {id:"People", icon:"👥", name:"People"},
+    {id:"Goals", icon:"🎯", name:"Goals"},
+    {id:"Skills", icon:"📚", name:"Skills"},
+    {id:"Opportunities", icon:"💼", name:"Jobs"},
+    {id:"Nearby", icon:"📍", name:"Nearby"},
+    {id:"Social", icon:"💬", name:"Chat"},
+    {id:"Rewards", icon:"🏆", name:"Rewards"},
+    {id:"Profile", icon:"👤", name:"You"}
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F8F9FA] to-[#EDE9FE] pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-[#F8F9FA] to-[#EDE9FE] pb-24 font-sans">
       <div className="max-w-[500px] mx-auto">
+
         {/* Header */}
-        <div className="sticky top-0 bg-white/80 backdrop-blur z-10 p-4 flex justify-between items-center">
+        <div className="sticky top-0 bg-white/80 backdrop-blur z-10 p-4 flex justify-between items-center border-b">
           <h1 className="text-xl font-bold text-[#6366F1]">UPLIFT</h1>
-          <Bell className="w-6 h-6 text-gray-600"/>
+          <span className="text-2xl">🔔</span>
         </div>
 
         {tab==="Home" && <HomeScreen goals={goals} streak={streak} xp={xp} people={people}/>}
@@ -69,9 +75,9 @@ export default function UpliftApp() {
       {/* Bottom Nav */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg flex justify-around py-2 max-w-[500px] mx-auto">
         {tabs.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} className={`flex flex-col items-center text-xs ${tab===t.id?"text-[#6366F1]":"text-gray-400"}`}>
-            <t.icon className="w-6 h-6"/>
-            <span>{t.id}</span>
+          <button key={t.id} onClick={()=>setTab(t.id)} className={`flex flex-col items-center text-xs ${tab===t.id?"text-[#6366F1] font-bold":"text-gray-400"}`}>
+            <span className="text-2xl">{t.icon}</span>
+            <span>{t.name}</span>
           </button>
         ))}
       </div>
@@ -102,9 +108,10 @@ function HomeScreen({goals, streak, xp, people}){
       </Card>
 
       <Card title="👥 People You May Know">
-        {people.slice(0,2).map(p=>(
+        {people.length===0? <p className="text-gray-500">Add people</p> :
+        people.slice(0,2).map(p=>(
           <div key={p.id} className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-200 rounded-full flex items-center justify-center">😊</div>
+            <div className="w-10 h-10 bg-purple-200 rounded-full flex items-center justify-center text-xl">😊</div>
             <div>
               <p className="font-semibold">{p.name || "User"}</p>
               <p className="text-xs text-gray-500">Same goal: Learn React</p>
@@ -123,15 +130,22 @@ function HomeScreen({goals, streak, xp, people}){
 // ============ 2. PEOPLE ============
 function PeopleScreen({people, db}){
   const [search, setSearch] = useState("");
+  const filtered = people.filter(p=>p.name?.toLowerCase().includes(search.toLowerCase()));
+
+  const connect = async (id) => {
+    await addDoc(collection(db,"connections"), {from:"me", to:id, createdAt:serverTimestamp()})
+    alert("Connection Request Sent!")
+  }
+
   return (
     <div className="p-4 space-y-3">
       <h2 className="text-2xl font-bold">Discover People</h2>
       <div className="relative">
-        <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400"/>
+        <span className="absolute left-3 top-3">🔍</span>
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search skills, goals..." className="w-full pl-10 p-3 border rounded-xl"/>
       </div>
 
-      {people.map(p=>(
+      {filtered.map(p=>(
         <div key={p.id} className="bg-white p-4 rounded-2xl shadow flex items-center justify-between">
           <div className="flex gap-3">
             <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-2xl">😎</div>
@@ -141,7 +155,7 @@ function PeopleScreen({people, db}){
               <p className="text-xs text-green-600">● Active now</p>
             </div>
           </div>
-          <button className="bg-[#6366F1] text-white px-4 py-2 rounded-xl text-sm">Connect</button>
+          <button onClick={()=>connect(p.id)} className="bg-[#6366F1] text-white px-4 py-2 rounded-xl text-sm">Connect</button>
         </div>
       ))}
     </div>
@@ -156,6 +170,10 @@ function GoalsScreen({goals, db, user, setXp}){
     await addDoc(collection(db,"goals"), {title:newGoal, userId:user?.uid, completed:false, createdAt:serverTimestamp()})
     setNewGoal(""); setXp(prev=>prev+10);
   }
+  const completeGoal = async (id) => {
+    await updateDoc(doc(db,"goals",id), {completed:true})
+    setXp(prev=>prev+20);
+  }
   return (
     <div className="p-4 space-y-3">
       <h2 className="text-2xl font-bold">Goals & Challenges</h2>
@@ -165,8 +183,8 @@ function GoalsScreen({goals, db, user, setXp}){
       </div>
       {goals.map(g=>(
         <div key={g.id} className="bg-white p-4 rounded-2xl shadow flex justify-between">
-          <span>{g.title}</span>
-          <button className="text-green-600 font-semibold">Mark Done</button>
+          <span className={g.completed?"line-through text-gray-400":""}>{g.title}</span>
+          {!g.completed && <button onClick={()=>completeGoal(g.id)} className="text-green-600 font-semibold">Done</button>}
         </div>
       ))}
     </div>
@@ -188,14 +206,15 @@ function SocialScreen({posts, db, user, chats}){
     if(!chatText) return;
     await addDoc(collection(db,"chats"), {text:chatText, userId:user?.uid, createdAt:serverTimestamp()})
     setChatText("");
-    chatRef.current?.scrollIntoView({behavior:"smooth"})
+  }
+  const likePost = async (id) => {
+    await updateDoc(doc(db,"posts",id), {likes: arrayUnion(user?.uid)})
   }
 
   return (
     <div className="p-4 space-y-4">
       <h2 className="text-2xl font-bold">Social & Chat</h2>
 
-      {/* Post */}
       <div className="flex gap-2">
         <input value={postText} onChange={e=>setPostText(e.target.value)} placeholder="Share your progress..." className="flex-1 p-3 border rounded-xl"/>
         <button onClick={addPost} className="bg-blue-500 text-white px-5 rounded-xl">Post</button>
@@ -204,11 +223,10 @@ function SocialScreen({posts, db, user, chats}){
       {posts.map(p=>(
         <div key={p.id} className="bg-white p-4 rounded-2xl shadow">
           <p>{p.text}</p>
-          <button className="flex items-center gap-1 text-sm mt-2 text-gray-600"><Heart className="w-4 h-4"/> {p.likes?.length || 0}</button>
+          <button onClick={()=>likePost(p.id)} className="flex items-center gap-1 text-sm mt-2 text-gray-600">❤️ {p.likes?.length || 0}</button>
         </div>
       ))}
 
-      {/* Chat Box */}
       <div className="bg-white rounded-2xl shadow p-4">
         <h3 className="font-bold mb-2">💬 Group Chat</h3>
         <div className="h-64 overflow-y-auto space-y-2 mb-2">
@@ -219,7 +237,7 @@ function SocialScreen({posts, db, user, chats}){
         </div>
         <div className="flex gap-2">
           <input value={chatText} onChange={e=>setChatText(e.target.value)} placeholder="Message..." className="flex-1 p-2 border rounded-lg"/>
-          <button onClick={sendChat} className="bg-[#6366F1] text-white p-2 rounded-lg"><Send className="w-5 h-5"/></button>
+          <button onClick={sendChat} className="bg-[#6366F1] text-white px-4 rounded-lg">📤</button>
         </div>
       </div>
     </div>
@@ -307,7 +325,7 @@ function ProfileScreen({user, xp, streak}){
   )
 }
 
-// ============ REUSABLE CARD COMPONENT ============
+// ============ REUSABLE CARD ============
 function Card({title, children}){
   return (
     <div className="bg-white p-4 rounded-2xl shadow space-y-2">
@@ -315,4 +333,4 @@ function Card({title, children}){
       {children}
     </div>
   )
-          }
+}

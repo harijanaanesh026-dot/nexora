@@ -1,10 +1,13 @@
-"use client";
-import { useState, useEffect, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
-import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, arrayUnion } from "firebase/firestore";
+import { getAuth, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signOut, onAuthStateChanged, sendPasswordResetEmail } from "firebase/auth";
+import { getFirestore, collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, setDoc } from "firebase/firestore";
+import { Home, Search, Target, Flame, MessageCircle, User, Bell, Plus, X, Send, Award, Trophy } from "lucide-react";
+import { motion } from "framer-motion";
+import toast, { Toaster } from "react-hot-toast";
 
-// ============ FIREBASE CONFIG - NEE KEYS PETTU ============
+// ============ FIREBASE ============
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
@@ -18,319 +21,394 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-// ==========================================================
+const googleProvider = new GoogleAuthProvider();
 
-export default function UpliftApp() {
-  const [tab, setTab] = useState("Home");
-  const [user, setUser] = useState(null);
-  const [goals, setGoals] = useState([]);
-  const [posts, setPosts] = useState([]);
-  const [people, setPeople] = useState([]);
-  const [chats, setChats] = useState([]);
-  const [streak, setStreak] = useState(7);
-  const [xp, setXp] = useState(340);
+// ============ TYPES ============
+type UserType = { uid: string; email: string; name?: string; username?: string; xp?: number; streak?: number; level?: number; bio?: string; city?: string };
+type GoalType = { id: string; title: string; category: string; completed: boolean; userId: string; date: string };
+type BadgeType = { id: string; name: string; icon: string; unlocked: boolean };
+type NotificationType = { id: string; text: string; read: boolean; userId: string; createdAt: any };
+
+// ============ XP & LEVEL SYSTEM ============
+const XP_PER_GOAL = 20;
+const XP_PER_CHALLENGE = 50;
+const XP_PER_STREAK = 10;
+const getLevel = (xp: number) => Math.floor(xp / 100) + 1;
+const xpToNextLevel = (xp: number) => 100 - (xp % 100);
+
+// ============ BADGES ============
+const BADGES: BadgeType[] = [
+  { id: "first_goal", name: "First Goal", icon: "🎯", unlocked: false },
+  { id: "first_challenge", name: "First Challenge", icon: "🔥", unlocked: false },
+  { id: "streak_7", name: "7 Day Streak", icon: "🏆", unlocked: false },
+  { id: "streak_30", name: "30 Day Streak", icon: "👑", unlocked: false },
+];
+
+// ============ MAIN APP ============
+function App() {
+  const [user, setUser] = useState<UserType | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    onAuthStateChanged(auth, (u) => { if(!u) signInAnonymously(auth); else setUser(u); });
-
-    onSnapshot(query(collection(db,"goals"), orderBy("createdAt","desc")), snap => setGoals(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    onSnapshot(query(collection(db,"posts"), orderBy("createdAt","desc")), snap => setPosts(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    onSnapshot(collection(db,"users"), snap => setPeople(snap.docs.map(d=>({id:d.id,...d.data()}))));
-    onSnapshot(query(collection(db,"chats"), orderBy("createdAt","asc")), snap => setChats(snap.docs.map(d=>({id:d.id,...d.data()}))));
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (u) {
+        const userDoc = await getDoc(doc(db, "users", u.uid));
+        setUser(userDoc.exists()? userDoc.data() as UserType : { uid: u.uid, email: u.email! });
+      } else setUser(null);
+      setLoading(false);
+    });
+    return () => unsub();
   }, []);
 
-  const tabs = [
-    {id:"Home", icon:"🏠", name:"Home"},
-    {id:"People", icon:"👥", name:"People"},
-    {id:"Goals", icon:"🎯", name:"Goals"},
-    {id:"Skills", icon:"📚", name:"Skills"},
-    {id:"Opportunities", icon:"💼", name:"Jobs"},
-    {id:"Nearby", icon:"📍", name:"Nearby"},
-    {id:"Social", icon:"💬", name:"Chat"},
-    {id:"Rewards", icon:"🏆", name:"Rewards"},
-    {id:"Profile", icon:"👤", name:"You"}
-  ]
+  if (loading) return <div className="h-screen flex items-center justify-center">Loading...</div>;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F8F9FA] to-[#EDE9FE] pb-24 font-sans">
-      <div className="max-w-[500px] mx-auto">
-
-        {/* Header */}
-        <div className="sticky top-0 bg-white/80 backdrop-blur z-10 p-4 flex justify-between items-center border-b">
-          <h1 className="text-xl font-bold text-[#6366F1]">UPLIFT</h1>
-          <span className="text-2xl">🔔</span>
-        </div>
-
-        {tab==="Home" && <HomeScreen goals={goals} streak={streak} xp={xp} people={people}/>}
-        {tab==="People" && <PeopleScreen people={people} db={db}/>}
-        {tab==="Goals" && <GoalsScreen goals={goals} db={db} user={user} setXp={setXp}/>}
-        {tab==="Skills" && <SkillsScreen/>}
-        {tab==="Opportunities" && <OpportunitiesScreen/>}
-        {tab==="Nearby" && <NearbyScreen/>}
-        {tab==="Social" && <SocialScreen posts={posts} db={db} user={user} chats={chats}/>}
-        {tab==="Rewards" && <RewardsScreen xp={xp} streak={streak}/>}
-        {tab==="Profile" && <ProfileScreen user={user} xp={xp} streak={streak}/>}
-      </div>
-
-      {/* Bottom Nav */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg flex justify-around py-2 max-w-[500px] mx-auto">
-        {tabs.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} className={`flex flex-col items-center text-xs ${tab===t.id?"text-[#6366F1] font-bold":"text-gray-400"}`}>
-            <span className="text-2xl">{t.icon}</span>
-            <span>{t.name}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
+    <BrowserRouter>
+      <Toaster position="top-center"/>
+      {user? user.name? <MainApp user={user}/> : <Onboarding user={user} setUser={setUser}/> : <AuthPage setUser={setUser}/>}
+    </BrowserRouter>
+  );
 }
 
-// ============ 1. HOME ============
-function HomeScreen({goals, streak, xp, people}){
-  return (
-    <div className="p-4 space-y-4">
-      <div className="bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white p-5 rounded-2xl shadow-lg">
-        <p className="text-sm">Good Morning 👋</p>
-        <h2 className="text-2xl font-bold">Ready to grow today?</h2>
-        <div className="flex gap-4 mt-3">
-          <div>🔥 {streak} Day Streak</div>
-          <div>⭐ {xp} XP</div>
-        </div>
-      </div>
+// ============ A. ONBOARDING ============
+function Onboarding({ user, setUser }: any) {
+  const [form, setForm] = useState({ name: "", username: "", bio: "", city: "", interests: "" });
+  const save = async () => {
+    if (!form.name ||!form.username) return toast.error("Name & Username required");
 
-      <Card title="🎯 Today's Goals">
-        {goals.length===0? <p className="text-gray-500">No goals yet. Add one!</p> :
-         goals.slice(0,3).map(g=><div key={g.id} className="flex items-center gap-2"><input type="checkbox" className="w-4 h-4"/> {g.title}</div>)}
-      </Card>
+    // Check username unique
+    const q = query(collection(db, "users"), where("username", "==", form.username));
+    const snap = await getDocs(q);
+    if (!snap.empty) return toast.error("Username already taken");
 
-      <Card title="🔥 Active Challenge">
-        <div className="bg-orange-100 p-3 rounded-lg">7-Day No Sugar - Day 4/7</div>
-      </Card>
-
-      <Card title="👥 People You May Know">
-        {people.length===0? <p className="text-gray-500">Add people</p> :
-        people.slice(0,2).map(p=>(
-          <div key={p.id} className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-200 rounded-full flex items-center justify-center text-xl">😊</div>
-            <div>
-              <p className="font-semibold">{p.name || "User"}</p>
-              <p className="text-xs text-gray-500">Same goal: Learn React</p>
-            </div>
-          </div>
-        ))}
-      </Card>
-
-      <Card title="💼 New Opportunities">
-        <p>React Intern - Remote - Apply Now</p>
-      </Card>
-    </div>
-  )
-}
-
-// ============ 2. PEOPLE ============
-function PeopleScreen({people, db}){
-  const [search, setSearch] = useState("");
-  const filtered = people.filter(p=>p.name?.toLowerCase().includes(search.toLowerCase()));
-
-  const connect = async (id) => {
-    await addDoc(collection(db,"connections"), {from:"me", to:id, createdAt:serverTimestamp()})
-    alert("Connection Request Sent!")
+    await setDoc(doc(db, "users", user.uid), {...user,...form, xp: 0, level: 1, streak: 0 });
+    setUser({...user,...form });
+    toast.success("Profile Created! +50 XP");
+    addXP(user.uid, 50);
+    addNotification(user.uid, "Welcome to LIFELOOP! 🎉");
   }
 
   return (
-    <div className="p-4 space-y-3">
-      <h2 className="text-2xl font-bold">Discover People</h2>
-      <div className="relative">
-        <span className="absolute left-3 top-3">🔍</span>
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search skills, goals..." className="w-full pl-10 p-3 border rounded-xl"/>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary to-purple-500 p-4">
+      <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm">
+        <h2 className="text-2xl font-bold mb-4">Complete Profile</h2>
+        <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Name" className="w-full p-3 border rounded-xl mb-3"/>
+        <input value={form.username} onChange={e=>setForm({...form,username:e.target.value})} placeholder="Username" className="w-full p-3 border rounded-xl mb-3"/>
+        <input value={form.city} onChange={e=>setForm({...form,city:e.target.value})} placeholder="City" className="w-full p-3 border rounded-xl mb-3"/>
+        <textarea value={form.bio} onChange={e=>setForm({...form,bio:e.target.value})} placeholder="Bio" className="w-full p-3 border rounded-xl mb-3"/>
+        <button onClick={save} className="w-full bg-primary text-white py-3 rounded-xl font-bold">Save & Continue</button>
       </div>
+    </div>
+  )
+}
 
-      {filtered.map(p=>(
-        <div key={p.id} className="bg-white p-4 rounded-2xl shadow flex items-center justify-between">
-          <div className="flex gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-2xl">😎</div>
-            <div>
-              <p className="font-bold">{p.name || "Rahul"}</p>
-              <p className="text-sm text-gray-500">Skills: React, UI Design</p>
-              <p className="text-xs text-green-600">● Active now</p>
-            </div>
-          </div>
-          <button onClick={()=>connect(p.id)} className="bg-[#6366F1] text-white px-4 py-2 rounded-xl text-sm">Connect</button>
-        </div>
+// ============ AUTH PAGE ============
+function AuthPage({ setUser }: any) {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleAuth = async () => {
+    try {
+      if (isLogin) await signInWithEmailAndPassword(auth, email, password);
+      else await createUserWithEmailAndPassword(auth, email, password);
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const googleLogin = async () => await signInWithPopup(auth, googleProvider);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary to-purple-500 p-4">
+      <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm">
+        <h2 className="text-2xl font-bold text-center mb-4">LIFELOOP</h2>
+        <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" className="w-full p-3 border rounded-xl mb-3"/>
+        <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" className="w-full p-3 border rounded-xl mb-3"/>
+        <button onClick={handleAuth} className="w-full bg-primary text-white py-3 rounded-xl font-bold mb-2">{isLogin?"Login":"Sign Up"}</button>
+        <button onClick={googleLogin} className="w-full bg-red-500 text-white py-3 rounded-xl font-bold mb-2">Google</button>
+        <p className="text-center cursor-pointer" onClick={()=>setIsLogin(!isLogin)}>
+          {isLogin?"New? Sign Up":"Login"}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ============ MAIN APP ============
+function MainApp({ user }: { user: UserType }) {
+  const [notifications, setNotifications] = useState<NotificationType[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, "notifications"), where("userId","==",user.uid), orderBy("createdAt","desc"));
+    return onSnapshot(q, snap => setNotifications(snap.docs.map(d=>({id:d.id,...d.data()} as NotificationType))));
+  }, [user]);
+
+  return (
+    <div className="max-w-[500px] mx-auto bg-gray-50 min-h-screen pb-20">
+      <Header notifications={notifications}/>
+      <Routes>
+        <Route path="/" element={<HomePage user={user}/>}/>
+        <Route path="/discover" element={<DiscoverPage user={user}/>}/>
+        <Route path="/goals" element={<GoalsPage user={user}/>}/>
+        <Route path="/challenges" element={<ChallengesPage user={user}/>}/>
+        <Route path="/chat" element={<ChatPage user={user}/>}/>
+        <Route path="/profile" element={<ProfilePage user={user}/>}/>
+      </Routes>
+      <BottomNav/>
+    </div>
+  )
+}
+
+// ============ HEADER WITH NOTIFICATIONS ============
+function Header({ notifications }: any) {
+  const [show, setShow] = useState(false);
+  const unread = notifications.filter((n:NotificationType)=>!n.read).length;
+
+  const markRead = async (id: string) => {
+    await updateDoc(doc(db,"notifications",id), {read:true});
+  }
+
+  return (
+    <div className="sticky top-0 bg-white/80 backdrop-blur p-4 flex justify-between items-center border-b z-10">
+      <h1 className="text-xl font-bold text-primary">LIFELOOP</h1>
+      <div className="relative">
+        <Bell className="w-6 h-6 cursor-pointer" onClick={()=>setShow(!show)}/>
+        {unread>0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">{unread}</span>}
+        {show && <div className="absolute right-0 mt-2 w-72 bg-white shadow-xl rounded-xl p-3">
+          {notifications.length===0?<p>No notifications</p>:notifications.map((n:NotificationType)=>(
+            <div key={n.id} onClick={()=>markRead(n.id)} className={`p-2 ${n.read?"text-gray-400":"font-bold"}`}>{n.text}</div>
+          ))}
+        </div>}
+      </div>
+    </div>
+  )
+}
+
+// ============ BOTTOM NAV ============
+function BottomNav() {
+  const nav = useNavigate();
+  const loc = useLocation();
+  const tabs = [
+    { path: "/", icon: Home }, { path: "/discover", icon: Search },
+    { path: "/goals", icon: Target }, { path: "/challenges", icon: Flame },
+    { path: "/chat", icon: MessageCircle }, { path: "/profile", icon: User },
+  ];
+  return (
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around py-2 max-w-[500px] mx-auto">
+      {tabs.map(t => (
+        <button key={t.path} onClick={() => nav(t.path)}
+          className={`flex flex-col items-center ${loc.pathname===t.path?"text-primary":"text-gray-400"}`}>
+          <t.icon className="w-6 h-6"/>
+        </button>
       ))}
     </div>
   )
 }
 
-// ============ 3. GOALS ============
-function GoalsScreen({goals, db, user, setXp}){
-  const [newGoal, setNewGoal] = useState("");
+// ============ HOME PAGE ============
+function HomePage({ user }: { user: UserType }) {
+  const [goals, setGoals] = useState<GoalType[]>([]);
+  const [badges, setBadges] = useState<BadgeType[]>(BADGES);
+
+  useEffect(() => {
+    const q = query(collection(db, "goals"), where("userId", "==", user.uid));
+    return onSnapshot(q, snap => setGoals(snap.docs.map(d => ({ id: d.id,...d.data() } as GoalType))));
+  }, [user]);
+
+  // B. BADGE UNLOCK LOGIC
+  useEffect(() => {
+    if (goals.length>=1 &&!badges[0].unlocked) unlockBadge(user.uid, "first_goal");
+    if (user.streak>=7 &&!badges[2].unlocked) unlockBadge(user.uid, "streak_7");
+  }, [goals, user.streak]);
+
+  const completed = goals.filter(g => g.completed).length;
+  const percent = goals.length? Math.round(completed / goals.length * 100) : 0;
+
+  return (
+    <div className="p-4 space-y-4">
+      <motion.div className="bg-gradient-to-r from-primary to-purple-500 text-white p-5 rounded-2xl">
+        <p>Good Morning 👋</p>
+        <h2 className="text-2xl font-bold">Live Better. Together.</h2>
+        <div className="flex gap-4 mt-2">🔥 {user.streak} Streak | ⭐ {user.xp} XP | Level {getLevel(user.xp||0)}</div>
+        <div className="w-full bg-white/30 rounded-full h-2 mt-2">
+          <div className="bg-white h-2 rounded-full" style={{width: `${xpToNextLevel(user.xp||0)}%`}}/>
+        </div>
+      </motion.div>
+
+      <Card title="🎯 Today's Goals">
+        <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+          <div className="bg-primary h-2 rounded-full" style={{width: `${percent}%`}}/>
+        </div>
+        {goals.map(g => <GoalItem key={g.id} goal={g} user={user}/>)}
+      </Card>
+
+      <Card title="🏆 Badges">
+        <div className="flex gap-3">
+          {badges.map(b=>(
+            <div key={b.id} className={`text-center ${b.unlocked?"opacity-100":"opacity-30"}`}>
+              <div className="text-3xl">{b.icon}</div>
+              <p className="text-xs">{b.name}</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+function GoalItem({ goal, user }: any) {
+  const toggle = async () => {
+    const newStatus =!goal.completed;
+    await updateDoc(doc(db, "goals", goal.id), { completed: newStatus });
+    if (newStatus) {
+      addXP(user.uid, XP_PER_GOAL);
+      addNotification(user.uid, `Goal completed! +${XP_PER_GOAL} XP`);
+      toast.success(`+${XP_PER_GOAL} XP`);
+    }
+  }
+  return <div className="flex justify-between py-1"><span>{goal.title}</span><input type="checkbox" checked={goal.completed} onChange={toggle}/></div>
+}
+
+// ============ GOALS PAGE ============
+function GoalsPage({ user }: { user: UserType }) {
+  const [goals, setGoals] = useState<GoalType[]>([]);
+  const [title, setTitle] = useState("");
+  const today = new Date().toISOString().split('T')[0];
+
+  useEffect(() => {
+    const q = query(collection(db, "goals"), where("userId", "==", user.uid));
+    return onSnapshot(q, snap => setGoals(snap.docs.map(d => ({ id: d.id,...d.data() } as GoalType))));
+  }, [user]);
+
   const addGoal = async () => {
-    if(!newGoal) return;
-    await addDoc(collection(db,"goals"), {title:newGoal, userId:user?.uid, completed:false, createdAt:serverTimestamp()})
-    setNewGoal(""); setXp(prev=>prev+10);
-  }
-  const completeGoal = async (id) => {
-    await updateDoc(doc(db,"goals",id), {completed:true})
-    setXp(prev=>prev+20);
-  }
+    if (!title) return;
+    await addDoc(collection(db, "goals"), { userId: user.uid, title, category: "Personal", completed: false, date: today, createdAt: serverTimestamp() });
+    setTitle(""); addXP(user.uid, 10);
+  };
+
   return (
     <div className="p-4 space-y-3">
-      <h2 className="text-2xl font-bold">Goals & Challenges</h2>
+      <h2 className="text-2xl font-bold">Goals</h2>
       <div className="flex gap-2">
-        <input value={newGoal} onChange={e=>setNewGoal(e.target.value)} placeholder="Add daily goal" className="flex-1 p-3 border rounded-xl"/>
-        <button onClick={addGoal} className="bg-green-500 text-white px-5 rounded-xl font-bold">+ Add</button>
+        <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Add goal" className="flex-1 p-3 border rounded-xl"/>
+        <button onClick={addGoal} className="bg-primary text-white px-5 rounded-xl"><Plus/></button>
       </div>
       {goals.map(g=>(
         <div key={g.id} className="bg-white p-4 rounded-2xl shadow flex justify-between">
-          <span className={g.completed?"line-through text-gray-400":""}>{g.title}</span>
-          {!g.completed && <button onClick={()=>completeGoal(g.id)} className="text-green-600 font-semibold">Done</button>}
+          <span className={g.completed?"line-through":""}>{g.title}</span>
         </div>
       ))}
     </div>
   )
 }
 
-// ============ 4. SOCIAL + CHAT ============
-function SocialScreen({posts, db, user, chats}){
-  const [postText, setPostText] = useState("");
-  const [chatText, setChatText] = useState("");
-  const chatRef = useRef(null);
+// ============ CHALLENGES PAGE ============
+function ChallengesPage({ user }: { user: UserType }) {
+  const challenges = [
+    { id: "1", title: "Read 20 mins daily", days: 30 },
+    { id: "2", title: "Exercise daily", days: 7 },
+  ];
 
-  const addPost = async () => {
-    if(!postText) return;
-    await addDoc(collection(db,"posts"), {text:postText, userId:user?.uid, likes:[], createdAt:serverTimestamp()})
-    setPostText("");
-  }
-  const sendChat = async () => {
-    if(!chatText) return;
-    await addDoc(collection(db,"chats"), {text:chatText, userId:user?.uid, createdAt:serverTimestamp()})
-    setChatText("");
-  }
-  const likePost = async (id) => {
-    await updateDoc(doc(db,"posts",id), {likes: arrayUnion(user?.uid)})
+  const join = async (id: string) => {
+    await addDoc(collection(db, "challengeParticipants"), { challengeId: id, userId: user.uid });
+    addXP(user.uid, XP_PER_CHALLENGE);
+    addNotification(user.uid, "Challenge Joined! +50 XP");
+    toast.success("Joined! +50 XP");
   }
 
-  return (
-    <div className="p-4 space-y-4">
-      <h2 className="text-2xl font-bold">Social & Chat</h2>
-
-      <div className="flex gap-2">
-        <input value={postText} onChange={e=>setPostText(e.target.value)} placeholder="Share your progress..." className="flex-1 p-3 border rounded-xl"/>
-        <button onClick={addPost} className="bg-blue-500 text-white px-5 rounded-xl">Post</button>
-      </div>
-
-      {posts.map(p=>(
-        <div key={p.id} className="bg-white p-4 rounded-2xl shadow">
-          <p>{p.text}</p>
-          <button onClick={()=>likePost(p.id)} className="flex items-center gap-1 text-sm mt-2 text-gray-600">❤️ {p.likes?.length || 0}</button>
-        </div>
-      ))}
-
-      <div className="bg-white rounded-2xl shadow p-4">
-        <h3 className="font-bold mb-2">💬 Group Chat</h3>
-        <div className="h-64 overflow-y-auto space-y-2 mb-2">
-          {chats.map(c=>(
-            <div key={c.id} className="bg-purple-100 p-2 rounded-lg w-fit">{c.text}</div>
-          ))}
-          <div ref={chatRef}/>
-        </div>
-        <div className="flex gap-2">
-          <input value={chatText} onChange={e=>setChatText(e.target.value)} placeholder="Message..." className="flex-1 p-2 border rounded-lg"/>
-          <button onClick={sendChat} className="bg-[#6366F1] text-white px-4 rounded-lg">📤</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ============ 5. SKILLS ============
-function SkillsScreen(){
   return (
     <div className="p-4 space-y-3">
-      <h2 className="text-2xl font-bold">Skills</h2>
-      <Card title="I Can Teach"><p>React, Public Speaking</p></Card>
-      <Card title="I Want to Learn"><p>Figma, Digital Marketing</p></Card>
-      <button className="w-full bg-purple-500 text-white py-3 rounded-xl font-bold">Find Learning Partner</button>
-    </div>
-  )
-}
-
-// ============ 6. OPPORTUNITIES ============
-function OpportunitiesScreen(){
-  const opps = [
-    {title:"Frontend Intern", type:"Internship", loc:"Remote", company:"Google"},
-    {title:"UI/UX Freelance", type:"Freelance", loc:"Kurnool", company:"Startup"},
-  ]
-  return (
-    <div className="p-4 space-y-3">
-      <h2 className="text-2xl font-bold">Opportunities</h2>
-      {opps.map((o,i)=>(
-        <div key={i} className="bg-white p-4 rounded-2xl shadow">
-          <p className="font-bold text-lg">{o.title}</p>
-          <p className="text-sm text-gray-600">{o.company} | {o.type} | {o.loc}</p>
-          <button className="bg-green-500 text-white px-4 py-2 rounded-xl mt-2">Apply Now</button>
+      <h2 className="text-2xl font-bold">Challenges</h2>
+      {challenges.map(c=>(
+        <div key={c.id} className="bg-white p-4 rounded-2xl shadow">
+          <p className="font-bold">{c.title}</p>
+          <p className="text-sm text-gray-500">{c.days} Days</p>
+          <button onClick={()=>join(c.id)} className="bg-orange-500 text-white px-4 py-2 rounded-xl mt-2">Join</button>
         </div>
       ))}
     </div>
   )
 }
 
-// ============ 7. NEARBY ============
-function NearbyScreen(){
+// ============ DISCOVER & CHAT & PROFILE ============
+function DiscoverPage({ user }: { user: UserType }) {
+  const [people, setPeople] = useState<any[]>([]);
+  useEffect(() => {
+    const q = query(collection(db, "users"));
+    return onSnapshot(q, snap => setPeople(snap.docs.map(d => d.data())));
+  }, []);
   return (
-    <div className="p-4 space-y-3">
-      <h2 className="text-2xl font-bold">Nearby</h2>
-      <Card title="📍 Kurnool Runners Club"><p>5km away - Sunday 6AM</p></Card>
-      <Card title="📍 UI/UX Meetup"><p>Hyderabad - This Saturday</p></Card>
+    <div className="p-4"><h2 className="text-2xl font-bold">Discover</h2>
+      {people.filter((p:any)=>p.uid!==user.uid).map((p:any)=>(
+        <div key={p.uid} className="bg-white p-4 rounded-2xl shadow mt-3">
+          <p className="font-bold">{p.name}</p><p className="text-sm">@{p.username}</p>
+        </div>
+      ))}
     </div>
   )
 }
 
-// ============ 8. REWARDS ============
-function RewardsScreen({xp, streak}){
+function ChatPage({ user }: { user: UserType }) {
+  const [msg, setMsg] = useState("");
+  const [chats, setChats] = useState<any[]>([]);
+  useEffect(() => {
+    const q = query(collection(db, "messages"), orderBy("createdAt"));
+    return onSnapshot(q, snap => setChats(snap.docs.map(d => ({ id: d.id,...d.data() }))));
+  }, []);
+  const send = async () => {
+    if (!msg) return;
+    await addDoc(collection(db, "messages"), { text: msg, userId: user.uid, createdAt: serverTimestamp() });
+    setMsg("");
+  };
   return (
-    <div className="p-4 space-y-3">
-      <h2 className="text-2xl font-bold">Rewards</h2>
-      <div className="bg-gradient-to-r from-yellow-400 to-orange-400 text-white p-5 rounded-2xl">
-        <p className="text-lg">Level 4</p>
-        <p className="text-3xl font-bold">{xp} XP</p>
-        <p>🔥 {streak} Day Streak</p>
+    <div className="p-4 flex-col h-[80vh]">
+      <h2 className="text-2xl font-bold mb-2">Chat</h2>
+      <div className="flex-1 overflow-y-auto space-y-2">
+        {chats.map((c:any) => <div key={c.id} className={`p-2 rounded-lg w-fit ${c.userId===user.uid?"bg-primary text-white ml-auto":"bg-gray-200"}`}>{c.text}</div>)}
       </div>
-      <Card title="🏆 Badges"><p>Consistency King | Skill Learner | Challenge Winner</p></Card>
-      <Card title="🏆 Leaderboard">
-        <p>1. Rahul - 540 XP</p>
-        <p>2. You - {xp} XP</p>
-        <p>3. Priya - 210 XP</p>
-      </Card>
+      <div className="flex gap-2"><input value={msg} onChange={e=>setMsg(e.target.value)} className="flex-1 p-3 border rounded-xl"/><button onClick={send} className="bg-primary text-white p-3 rounded-xl"><Send/></button></div>
     </div>
   )
 }
 
-// ============ 9. PROFILE ============
-function ProfileScreen({user, xp, streak}){
+function ProfilePage({ user }: { user: UserType }) {
   return (
     <div className="p-4 space-y-3">
       <h2 className="text-2xl font-bold">Profile</h2>
       <div className="bg-white p-5 rounded-2xl shadow text-center">
         <div className="w-20 h-20 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full mx-auto flex items-center justify-center text-4xl">😎</div>
-        <p className="font-bold text-xl mt-2">Your Name</p>
-        <p className="text-gray-500">Kurnool, AP</p>
-        <p className="mt-2">Skills: React, Design, Fitness</p>
-        <p className="mt-2 font-bold">🏆 {xp} XP | 🔥 {streak} Streak</p>
+        <p className="font-bold text-xl mt-2">{user.name}</p>
+        <p className="text-gray-500">@{user.username}</p>
+        <p className="mt-2">{user.bio}</p>
+        <p className="mt-2 font-bold">⭐ {user.xp} XP | Level {getLevel(user.xp||0)} | 🔥 {user.streak} Streak</p>
       </div>
-      <button className="w-full bg-gray-200 py-3 rounded-xl">⚙️ Settings</button>
-      <button className="w-full bg-red-100 text-red-600 py-3 rounded-xl">🔒 Privacy & Safety</button>
+      <button onClick={()=>signOut(auth)} className="w-full bg-red-500 text-white py-3 rounded-xl">Logout</button>
     </div>
   )
 }
 
-// ============ REUSABLE CARD ============
-function Card({title, children}){
-  return (
-    <div className="bg-white p-4 rounded-2xl shadow space-y-2">
-      <h3 className="font-bold text-lg">{title}</h3>
-      {children}
-    </div>
-  )
+// ============ HELPERS ============
+async function addXP(uid: string, amount: number) {
+  const userRef = doc(db, "users", uid);
+  const snap = await getDoc(userRef);
+  const currentXP = snap.data()?.xp || 0;
+  await updateDoc(userRef, { xp: currentXP + amount });
 }
+
+async function addNotification(uid: string, text: string) {
+  await addDoc(collection(db, "notifications"), { userId: uid, text, read: false, createdAt: serverTimestamp() });
+}
+
+async function unlockBadge(uid: string, badgeId: string) {
+  await addDoc(collection(db, "userBadges"), { userId: uid, badgeId });
+  addNotification(uid, `Badge Unlocked! 🏆`);
+  toast.success("Badge Unlocked!");
+}
+
+function Card({title, children}: any) {
+  return <div className="bg-white p-4 rounded-2xl shadow space-y-2">
+    <h3 className="font-bold text-lg">{title}</h3>
+    {children}
+  </div>
+}
+
+export default App;

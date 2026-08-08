@@ -29,7 +29,7 @@ const googleProvider = new GoogleAuthProvider();
 
 /* ============ STYLES ============ */
 const styles = {
-  page: {padding:20, maxWidth:900, margin:"0 auto", fontFamily:"sans-serif", background:"#f9fafb"},
+  page: {padding:20, maxWidth:900, margin:"0 auto", fontFamily:"sans-serif", background:"#f9fafb", minHeight:"100vh"},
   btnPrimary: {background:"#4F46E5", color:"white", padding:"10px 16px", borderRadius:8, border:"none", cursor:"pointer", fontWeight:600},
   btnSecondary: {background:"#f3f4f6", padding:"10px 16px", borderRadius:8, border:"none", cursor:"pointer", fontWeight:600},
   btnVoice: {background:"#4F46E5", color:"white", padding:"10px 14px", borderRadius:8, border:"none", fontSize:18, cursor:"pointer"},
@@ -40,7 +40,6 @@ const styles = {
   replyBtn: {position:"absolute", top:5, right:5, background:"none", border:"none", fontSize:12, cursor:"pointer", opacity:0.6},
   reactionBtn: {padding:"2px 6px", borderRadius:12, border:"1px solid #ddd", fontSize:12, cursor:"pointer", background:"white"},
   fileBtn: {background:"#f3f4f6", padding:"10px 12px", borderRadius:8, border:"none", fontSize:16, cursor:"pointer"},
-  onlineDot: {width:8, height:8, borderRadius:"50%", display:"inline-block"},
   deleteBtn: {position:"absolute", top:-5, right:-5, background:"red", color:"white", border:"none", borderRadius:"50%", width:20, height:20, fontSize:10, cursor:"pointer"}
 }
 
@@ -67,7 +66,7 @@ export default function Home() {
 
 function Header({user, tab, setTab}) {
   return <div>
-    <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+    <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10}}>
       <h2>NEXORA 🚀</h2>
       <button onClick={()=>signOut(auth)} style={styles.btnSecondary}>Logout</button>
     </div>
@@ -78,9 +77,9 @@ function Header({user, tab, setTab}) {
 }
 
 function LoginScreen() {
-  return <div style={{textAlign:"center", padding:50}}>
-    <h1>NEXORA 🚀</h1>
-    <p>Goal Rooms + Chat + Focus Timer</p>
+  return <div style={{textAlign:"center", padding:50, marginTop:100}}>
+    <h1 style={{fontSize:40}}>NEXORA 🚀</h1>
+    <p style={{marginBottom:20}}>Goal Rooms + Chat + Focus Timer + Video Call</p>
     <button onClick={()=>signInWithPopup(auth, googleProvider)} style={styles.btnPrimary}>Login with Google</button>
   </div>
 }
@@ -120,7 +119,7 @@ function GoalsTab({user}) {
     setNewGoal("");
   }
   return <div>
-    <div style={{display:"flex", gap:8}}>
+    <div style={{display:"flex", gap:8, marginBottom:10}}>
       <input value={newGoal} onChange={e=>setNewGoal(e.target.value)} placeholder="Add Goal" style={styles.input} />
       <button onClick={addGoal} style={styles.btnPrimary}>Add</button>
     </div>
@@ -218,7 +217,7 @@ function ChatTab({user}) {
             {m.type==="file" && <a href={m.fileUrl} target="_blank" style={{color:m.sender===user.uid?"white":"blue"}}>📎 {m.fileName}</a>}
             <button onClick={()=>setReplyTo({id:m.id,senderName:m.senderName,text:m.text||"🎙️ Voice"})} style={styles.replyBtn}>↩️</button>
           </div>
-          <div style={{display:"flex",gap:4,marginTop:4}}>
+          <div style={{display:"flex",gap:4,marginTop:4, flexWrap:"wrap"}}>
             {emojis.map(e=>m.reactions?.[e]?.length>0 && <button key={e} onClick={()=>addReaction(m.id,e)} style={styles.reactionBtn}>{e} {m.reactions[e].length}</button>)}
           </div>
         </div>
@@ -229,7 +228,7 @@ function ChatTab({user}) {
       <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{display:"none"}} />
       <button onClick={()=>fileInputRef.current.click()} style={styles.fileBtn}>📎</button>
       <input value={newMsg} onChange={e=>setNewMsg(e.target.value)} placeholder={isRecording?`Recording ${formatTime(recordingTime)}`:"Type message..."} style={{...styles.input,flex:1}} />
-      <button onMouseDown={startRecording} onMouseUp={stopRecording} style={{...styles.btnVoice,background:isRecording?"red":"#4F46E5"}}>{isRecording?"⏹️":"🎙️"}</button>
+      <button onMouseDown={startRecording} onMouseUp={stopRecording} onMouseLeave={stopRecording} style={{...styles.btnVoice,background:isRecording?"red":"#4F46E5"}}>{isRecording?"⏹️":"🎙️"}</button>
       <button onClick={()=>sendMessage()} style={styles.btnPrimary}>Send</button>
     </div>
   </div>
@@ -290,4 +289,4 @@ function ProfileTab({user}) {
     <h3>{user.displayName}</h3>
     <p>{user.email}</p>
   </div>
-    }
+                  }

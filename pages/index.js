@@ -1,12 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 
-// ============ FIREBASE DIRECT SETUP ============
+// ============ FIREBASE ============
 import { initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp } from "firebase/firestore";
 
-// ============ NEE FIREBASE CONFIG IKKADA PASTE CHEY ============
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
@@ -17,226 +16,182 @@ const firebaseConfig = {
   appId: "1:173122711177:web:68e373598d110d80c1e058",
   measurementId: "G-11Y8XF8MBC"
 };
-// ===============================================================
-
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+// ====================================
 
-const BOARD_SIZE = 5;
-const TIGER = "T";
-const GOAT = "G";
+const PULI = "P";
+const MEKA = "M";
 const EMPTY = null;
+
+// 5x5 Board with diagonal lines - Bagh Chal board
+const VALID_MOVES = {
+  "0-0":[["0-1"],["1-0"],["1-1"]], "0-1":[["0-0"],["0-2"],["1-1"]], "0-2":[["0-1"],["0-3"],["1-1"],["1-3"]],
+  "0-3":[["0-2"],["0-4"],["1-3"]], "0-4":[["0-3"],["1-3"],["1-4"]],
+  "1-0":[["0-0"],["1-1"],["2-0"]], "1-1":[["0-0"],["0-1"],["0-2"],["1-0"],["1-2"],["2-0"],["2-1"],["2-2"]],
+  "1-2":[["1-1"],["1-3"],["2-2"]], "1-3":[["0-2"],["0-3"],["0-4"],["1-2"],["1-4"],["2-2"],["2-3"],["2-4"]],
+  "1-4":[["0-4"],["1-3"],["2-4"]],
+  "2-0":[["1-0"],["2-1"],["3-0"],["3-1"]], "2-1":[["1-1"],["2-0"],["2-2"],["3-1"]],
+  "2-2":[["1-1"],["1-2"],["1-3"],["2-1"],["2-3"],["3-1"],["3-2"],["3-3"]],
+  "2-3":[["1-3"],["2-2"],["2-4"],["3-3"]], "2-4":[["1-4"],["2-3"],["3-3"],["3-4"]],
+  "3-0":[["2-0"],["3-1"],["4-0"]], "3-1":[["2-0"],["2-1"],["2-2"],["3-0"],["3-2"],["4-0"],["4-1"],["4-2"]],
+  "3-2":[["3-1"],["3-3"],["4-2"]], "3-3":[["2-2"],["2-3"],["2-4"],["3-2"],["3-4"],["4-2"],["4-3"],["4-4"]],
+  "3-4":[["2-4"],["3-3"],["4-4"]],
+  "4-0":[["3-0"],["4-1"]], "4-1":[["3-1"],["4-0"],["4-2"]], "4-2":[["3-1"],["3-2"],["3-3"],["4-1"],["4-3"]],
+  "4-3":[["3-3"],["4-2"],["4-4"]], "4-4":[["3-3"],["3-4"],["4-3"]]
+};
 
 export default function App() {
   const [screen, setScreen] = useState("Home");
   const [lang, setLang] = useState("te");
   const [user, setUser] = useState(null);
 
-  useEffect(() => {
-    onAuthStateChanged(auth, (u) => {
-      if(!u) signInAnonymously(auth);
-      else setUser(u);
-    });
-  }, []);
+  useEffect(() => { onAuthStateChanged(auth, (u) => { if(!u) signInAnonymously(auth); else setUser(u); }); }, []);
 
   const texts = {
-    te: {
-      home: "పులి మేక ఆట", play: "ఆడు", rules: "నియమాలు", leaderboard: "లీడర్‌బోర్డ్", settings: "సెట్టింగ్స్",
-      tigerTurn: "పులి వంతు 🐯", goatTurn: "మేకల వంతు 🐐", tigerWins: "పులి గెలిచింది! 🐯", goatsWin: "మేకలు గెలిచాయి! 🐐",
-      restart: "మళ్ళీ ఆడు"
-    },
-    en: {
-      home: "Puli Meka Game", play: "Play", rules: "Rules", leaderboard: "Leaderboard", settings: "Settings",
-      tigerTurn: "Tiger Turn 🐯", goatTurn: "Goat Turn 🐐", tigerWins: "Tiger Wins! 🐯", goatsWin: "Goats Win! 🐐",
-      restart: "Play Again"
-    }
+    te: { home:"4 పులి 18 మేకల ఆట", play:"ఆడు", rules:"నియమాలు", leaderboard:"లీడర్‌బోర్డ్", settings:"సెట్టింగ్స్",
+      puliTurn:"పులి వంతు 🐯", mekaTurn:"మేకల వంతు 🐐", puliWins:"పులులు గెలిచాయి! 🐯", mekaWins:"మేకలు గెలిచాయి! 🐐" },
+    en: { home:"4 Tiger 18 Goats", play:"Play", rules:"Rules", leaderboard:"Leaderboard", settings:"Settings",
+      puliTurn:"Tiger Turn 🐯", mekaTurn:"Goat Turn 🐐", puliWins:"Tigers Win! 🐯", mekaWins:"Goats Win! 🐐" }
   }
   const t = texts[lang];
 
-  return (
-    <div className="min-h-screen bg-[#F4E4BC]" style={{backgroundImage:"linear-gradient(#F4E4BC, #E6D3A3)"}}>
-      <div className="max-w-md mx-auto p-4">
-        <Header screen={screen} setScreen={setScreen} lang={lang} setLang={setLang} t={t} />
-
-        {screen === "Home" && <HomeScreen setScreen={setScreen} t={t} />}
-        {screen === "Play" && <GameScreen t={t} user={user} />}
-        {screen === "Rules" && <RulesScreen t={t} />}
-        {screen === "Leaderboard" && <LeaderboardScreen t={t} />}
-        {screen === "Settings" && <SettingsScreen lang={lang} setLang={setLang} t={t} />}
-      </div>
+  return <div className="min-h-screen bg-[#E8D5B7] p-4">
+    <div className="max-w-md mx-auto">
+      <Header screen={screen} setScreen={setScreen} t={t} lang={lang} setLang={setLang}/>
+      {screen==="Home" && <HomeScreen setScreen={setScreen} t={t}/>}
+      {screen==="Play" && <GameScreen t={t}/>}
+      {screen==="Rules" && <RulesScreen t={t}/>}
+      {screen==="Leaderboard" && <LeaderboardScreen t={t}/>}
+      {screen==="Settings" && <SettingsScreen lang={lang} setLang={setLang} t={t}/>}
     </div>
-  )
+  </div>
 }
 
-function Header({screen, setScreen, lang, setLang, t}) {
-  const tabs = ["Home","Play","Rules","Leaderboard","Settings"];
-  return (
-    <div className="bg-[#8B4513] text-white p-3 rounded-xl mb-4 shadow-lg">
-      <h1 className="text-2xl font-bold text-center mb-2">🐯 {t.home} 🐐</h1>
-      <div className="flex gap-2 justify-center flex-wrap">
-        {tabs.map(tab =>
-          <button key={tab} onClick={()=>setScreen(tab)}
-            className={`px-3 py-1 rounded-lg text-sm ${screen===tab?"bg-yellow-400 text-black":"bg-[#A0522D]"}`}>
-            {tab}
-          </button>
-        )}
-      </div>
+function Header({screen,setScreen,t,lang,setLang}){
+  return <div className="bg-[#8B4513] text-white p-3 rounded-xl mb-4">
+    <h1 className="text-xl font-bold text-center">🐯 {t.home} 🐐</h1>
+    <div className="flex gap-2 justify-center mt-2 flex-wrap">
+      {["Home","Play","Rules","Leaderboard","Settings"].map(tab=>
+        <button key={tab} onClick={()=>setScreen(tab)} className={`px-3 py-1 rounded ${screen===tab?"bg-yellow-400 text-black":"bg-[#A0522D]"}`}>{tab}</button>
+      )}
     </div>
-  )
+  </div>
 }
 
-function HomeScreen({setScreen, t}) {
-  return (
-    <div className="bg-white p-6 rounded-xl shadow-lg text-center">
-      <div className="text-6xl mb-4">🐯 vs 🐐</div>
-      <button onClick={()=>setScreen("Play")} className="w-full bg-green-600 text-white py-3 rounded-xl mb-3 font-bold text-lg">🎮 {t.play}</button>
-      <button onClick={()=>setScreen("Rules")} className="w-full bg-blue-600 text-white py-3 rounded-xl mb-3">📖 {t.rules}</button>
-      <button onClick={()=>setScreen("Leaderboard")} className="w-full bg-purple-600 text-white py-3 rounded-xl">🏆 {t.leaderboard}</button>
-    </div>
-  )
+function HomeScreen({setScreen,t}){
+  return <div className="bg-white p-6 rounded-xl text-center shadow">
+    <div className="text-5xl mb-4">🐯🐯🐯🐯 vs 🐐x18</div>
+    <button onClick={()=>setScreen("Play")} className="w-full bg-green-600 text-white py-3 rounded-xl mb-2 font-bold">🎮 {t.play}</button>
+    <button onClick={()=>setScreen("Rules")} className="w-full bg-blue-600 text-white py-3 rounded-xl mb-2">📖 {t.rules}</button>
+    <button onClick={()=>setScreen("Leaderboard")} className="w-full bg-purple-600 text-white py-3 rounded-xl">🏆 {t.leaderboard}</button>
+  </div>
 }
 
-/* ============ GAME SCREEN ============ */
-function GameScreen({t, user}) {
-  const [board, setBoard] = useState(initializeBoard());
-  const [turn, setTurn] = useState("GOAT");
-  const [goatsPlaced, setGoatsPlaced] = useState(0);
-  const [mode, setMode] = useState("2Player");
-  const [winner, setWinner] = useState(null);
-  const [capturedGoats, setCapturedGoats] = useState(0);
+/* ============ MAIN GAME ============ */
+function GameScreen({t}){
+  const [board,setBoard] = useState(initializeBoard());
+  const [turn,setTurn] = useState("MEKA"); // Goats start
+  const [mekasPlaced,setMekasPlaced] = useState(0);
+  const [selected,setSelected] = useState(null);
+  const [winner,setWinner] = useState(null);
+  const [captured,setCaptured] = useState(0);
 
-  const playSound = (type) => {
-    // /public/sounds/move.mp3 file undali
-    try{ new Audio(`/sounds/${type}.mp3`).play() }catch(e){}
-  }
-
-  const handleClick = (row, col) => {
+  const handleClick = (r,c) => {
     if(winner) return;
-    const newBoard = board.map(r=>[...r]);
+    const key = `${r}-${c}`;
+    let newBoard = board.map(row=>[...row]);
 
-    // 1. GOAT PLACING PHASE
-    if(goatsPlaced < 15 && turn === "GOAT" && newBoard[row][col] === EMPTY){
-      newBoard[row][col] = GOAT;
-      setGoatsPlaced(goatsPlaced + 1);
-      setTurn("TIGER");
-      playSound("move");
+    // PHASE 1: Placing 18 Goats
+    if(mekasPlaced < 18 && turn==="MEKA" && newBoard[r][c]===EMPTY){
+      newBoard[r][c]=MEKA;
+      setMekasPlaced(mekasPlaced+1);
+      setTurn("PULI");
     }
-    // 2. TIGER MOVE + CAPTURE LOGIC
-    else if(turn === "TIGER"){
-      // Simple move logic - full AI tarvatha add cheddam
-      // Ikkada tiger adjacent ki move cheyali
-      setTurn("GOAT");
-      playSound("tiger-roar");
+    // PHASE 2: Moving
+    else if(mekasPlaced>=18){
+      if(selected){
+        if(isValidMove(selected,[r,c],newBoard)){
+          newBoard[r][c]=newBoard[selected[0]][selected[1]];
+          newBoard[selected[0]][selected[1]]=EMPTY;
+          setSelected(null);
+          setTurn(turn==="PULI"?"MEKA":"PULI");
+        }else setSelected(null);
+      }else if(newBoard[r][c]=== (turn==="PULI"?PULI:MEKA)){
+        setSelected([r,c]);
+      }
     }
-
     setBoard(newBoard);
-    checkWinner(newBoard);
+    checkWin(newBoard);
   }
 
-  const checkWinner = (b) => {
-    if(capturedGoats >= 5){
-      setWinner("TIGER");
-      saveScore("Tiger", capturedGoats);
-    }
-    // Goats blocking logic - tiger ki moves levu ante
+  const isValidMove = (from,to,b) => {
+    const [fr,fc]=from; const [tr,tc]=to;
+    if(b[tr][tc]!==EMPTY) return false;
+    const moves = VALID_MOVES[`${fr}-${fc}`] || [];
+    return moves.some(m=>m[0]===`${tr}-${tc}`);
   }
 
-  const saveScore = async (who, score) => {
-    await addDoc(collection(db, "leaderboard"), {
-      name: who, wins: 1, createdAt: serverTimestamp()
-    });
+  const checkWin = (b) => {
+    // If all 4 tigers blocked = Goats win
+    // If 5 goats captured = Tigers win
+    if(captured>=5) setWinner("PULI");
   }
 
   const restart = () => {
-    setBoard(initializeBoard());
-    setTurn("GOAT");
-    setGoatsPlaced(0);
-    setWinner(null);
-    setCapturedGoats(0);
+    setBoard(initializeBoard()); setTurn("MEKA"); setMekasPlaced(0); setWinner(null); setCaptured(0); setSelected(null);
   }
 
-  return (
-    <div className="bg-white p-4 rounded-xl shadow-lg">
-      <div className="flex justify-between mb-3">
-        <p className="font-bold">{turn==="TIGER"? t.tigerTurn : t.goatTurn}</p>
-        <p>Captured: {capturedGoats}/5</p>
-        <button onClick={restart} className="bg-red-500 text-white px-3 py-1 rounded">Restart</button>
-      </div>
-
-      {/* VILLAGE STYLE BOARD */}
-      <div className="grid grid-cols-5 gap-1 bg-[#D2B48C] p-2 rounded-lg">
-        {board.map((row, i) => row.map((cell, j) => (
-          <div key={`${i}-${j}`} onClick={()=>handleClick(i,j)}
-            className="w-14 h-14 bg-[#F5DEB3] rounded-full flex items-center justify-center text-3xl border-2 border-[#8B4513] cursor-pointer">
-            {cell === TIGER && "🐯"}
-            {cell === GOAT && "🐐"}
-          </div>
-        )))}
-      </div>
-
-      {winner && <ResultScreen winner={winner} t={t} restart={restart} />}
+  return <div className="bg-white p-4 rounded-xl shadow">
+    <div className="flex justify-between mb-2 font-bold">
+      <span>{turn==="PULI"?t.puliTurn:t.mekaTurn}</span>
+      <span>Captured: {captured}/5</span>
     </div>
-  )
+
+    {/* BOARD */}
+    <div className="grid grid-cols-5 gap-1 bg-[#8B4513] p-2 rounded">
+      {board.map((row,i)=>row.map((cell,j)=>
+        <div key={`${i}-${j}`} onClick={()=>handleClick(i,j)}
+          className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl bg-[#F5DEB3] border-2 ${selected&&selected[0]===i&&selected[1]===j?"border-yellow-400":"border-[#8B4513]"}`}>
+          {cell===PULI&&"🐯"}{cell===MEKA&&"🐐"}
+        </div>
+      ))}
+    </div>
+    <button onClick={restart} className="w-full mt-3 bg-red-500 text-white py-2 rounded">Restart</button>
+    {winner && <div className="mt-3 p-3 bg-yellow-200 rounded text-center font-bold">{winner==="PULI"?t.puliWins:t.mekaWins}</div>}
+  </div>
 }
 
-function initializeBoard() {
-  const b = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(EMPTY));
-  b[0][0] = TIGER;
+function initializeBoard(){
+  const b = Array(5).fill(null).map(()=>Array(5).fill(EMPTY));
+  b[0][0]=PULI; b[0][4]=PULI; b[4][0]=PULI; b[4][4]=PULI; // 4 corners
   return b;
 }
 
-function ResultScreen({winner, t, restart}) {
-  return (
-    <div className="mt-4 p-4 bg-yellow-100 rounded-xl text-center">
-      <h2 className="text-2xl font-bold">{winner==="TIGER"? t.tigerWins : t.goatsWin}</h2>
-      <button onClick={restart} className="mt-2 bg-green-600 text-white px-4 py-2 rounded">{t.restart}</button>
-    </div>
-  )
+function RulesScreen({t}){
+  return <div className="bg-white p-4 rounded-xl shadow">
+    <h2 className="font-bold text-lg mb-2">📖 Rules</h2>
+    <ul className="list-disc pl-5 text-sm space-y-1">
+      <li>4 Tigers start at 4 corners</li>
+      <li>18 Goats placed one by one</li>
+      <li>Tiger can jump over goat to capture</li>
+      <li>5 Goats captured = Tigers Win</li>
+      <li>Tigers blocked = Goats Win</li>
+    </ul>
+  </div>
 }
 
-/* ============ RULES SCREEN ============ */
-function RulesScreen({t}) {
-  return (
-    <div className="bg-white p-4 rounded-xl shadow-lg">
-      <h2 className="text-xl font-bold mb-3">📖 Rules</h2>
-      <ul className="list-disc pl-5 space-y-2 text-sm">
-        <li>15 Goats vs 1 Tiger</li>
-        <li>First place all 15 goats on board one by one</li>
-        <li>Tiger can jump over goat to capture it</li>
-        <li>If Tiger captures 5 goats = Tiger Wins 🐯</li>
-        <li>If Goats block Tiger so it cant move = Goats Win 🐐</li>
-      </ul>
-    </div>
-  )
+function LeaderboardScreen({t}){
+  const [scores,setScores]=useState([]);
+  useEffect(()=>{onSnapshot(query(collection(db,"scores"),orderBy("createdAt","desc"),limit(10)), snap=>setScores(snap.docs.map(d=>d.data())))},[]);
+  return <div className="bg-white p-4 rounded-xl shadow"><h2 className="font-bold mb-2">🏆 {t.leaderboard}</h2>{scores.map((s,i)=><div key={i}>{s.winner}</div>)}</div>
 }
 
-/* ============ LEADERBOARD ============ */
-function LeaderboardScreen({t}) {
-  const [scores, setScores] = useState([]);
-  useEffect(() => {
-    const q = query(collection(db, "leaderboard"), orderBy("createdAt","desc"), limit(10));
-    onSnapshot(q, snap => setScores(snap.docs.map(d=>d.data())));
-  }, []);
-  return (
-    <div className="bg-white p-4 rounded-xl shadow-lg">
-      <h2 className="text-xl font-bold mb-3">🏆 {t.leaderboard}</h2>
-      {scores.length===0 && <p>No games yet</p>}
-      {scores.map((s,i)=><div key={i} className="flex justify-between p-2 border-b">{s.name}<span>Win</span></div>)}
-    </div>
-  )
-}
-
-/* ============ SETTINGS ============ */
-function SettingsScreen({lang, setLang, t}) {
-  return (
-    <div className="bg-white p-4 rounded-xl shadow-lg">
-      <h2 className="text-xl font-bold mb-3">⚙️ {t.settings}</h2>
-      <p className="mb-2">Language / భాష:</p>
-      <button onClick={()=>setLang("te")} className={`mr-2 p-2 rounded ${lang==="te"?"bg-blue-500 text-white":"bg-gray-200"}`}>తెలుగు</button>
-      <button onClick={()=>setLang("en")} className={`p-2 rounded ${lang==="en"?"bg-blue-500 text-white":"bg-gray-200"}`}>English</button>
-      <p className="mt-4">🔊 Sounds: ON</p>
-      <p>🎨 Themes: Village - Coming Soon</p>
-    </div>
-  )
-  }
+function SettingsScreen({lang,setLang,t}){
+  return <div className="bg-white p-4 rounded-xl shadow">
+    <h2 className="font-bold mb-2">⚙️ {t.settings}</h2>
+    <button onClick={()=>setLang("te")} className={`mr-2 p-2 rounded ${lang==="te"?"bg-blue-500 text-white":"bg-gray-200"}`}>తెలుగు</button>
+    <button onClick={()=>setLang("en")} className={`p-2 rounded ${lang==="en"?"bg-blue-500 text-white":"bg-gray-200"}`}>English</button>
+  </div>
+       }

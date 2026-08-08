@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 
-// ============ FIREBASE ============
 import { initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
@@ -19,19 +18,17 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-// ====================================
 
 const PULI = "P";
 const MEKA = "M";
 const EMPTY = null;
 
-// 17 POINTS - Real Bagh Chal
 const POINTS = [
-  [50,10], [150,10], [250,10], // 0,1,2
-  [10,70], [90,70], [170,70], [250,70], // 3,4,5,6
-  [50,130], [130,130], [210,130], // 7,8,9
-  [10,190], [90,190], [170,190], [250,190], // 10,11,12,13
-  [50,250], [150,250], [250,250] // 14,15,16
+  [50,10], [150,10], [250,10],
+  [10,70], [90,70], [170,70], [250,70],
+  [50,130], [130,130], [210,130],
+  [10,190], [90,190], [170,190], [250,190],
+  [50,250], [150,250], [250,250]
 ];
 
 const LINES = [
@@ -40,9 +37,8 @@ const LINES = [
   [1,5],[5,11],[11,15], [3,7],[7,14], [6,9],[9,15]
 ];
 
-// FIXED: All 17 points connections
 const CONNECTIONS = {
-  0:[1,4], 1:[0,2,5], 2:[1,5],
+ 0:[1,4], 1:[0,2,5], 2:[1,5],
  3:[4,7], 4:[0,3,5,8], 5:[1,2,4,6,9], 6:[5,9],
  7:[3,8,14], 8:[4,7,9,12], 9:[5,6,8,10,13],
  10:[9,13], 11:[12,15], 12:[8,11,13,16], 13:[9,10,12],
@@ -50,25 +46,21 @@ const CONNECTIONS = {
 };
 
 export default function App() {
-  const [screen, setScreen] = useState("Home");
+  const [screen, setScreen] = useState("Play"); // Direct ga Play ki pampisthunna
   const [lang, setLang] = useState("te");
 
   useEffect(() => { onAuthStateChanged(auth, (u) => { if(!u) signInAnonymously(auth); }); }, []);
 
   const texts = {
-    te: { home:"పులి మేక ఆట", play:"ఆడు", puliTurn:"పులి వంతు 🐯", mekaTurn:"మేకల వంతు 🐐", puliWins:"పులులు గెలిచాయి! 🐯", mekaWins:"మేకలు గెలిచాయి! 🐐" },
-    en: { home:"Puli Meka Game", play:"Play", puliTurn:"Tiger Turn 🐯", mekaTurn:"Goat Turn 🐐", puliWins:"Tigers Win! 🐯", mekaWins:"Goats Win! 🐐" }
+    te: { puliTurn:"పులి వంతు 🐯", mekaTurn:"మేకల వంతు 🐐", placing:"మేకను పెట్టు", moving:"కదిలించు" },
+    en: { puliTurn:"Tiger Turn 🐯", mekaTurn:"Goat Turn 🐐", placing:"Place Goat", moving:"Move" }
   }
   const t = texts[lang];
 
   return (
     <div style={{minHeight:"100vh", background:"#D4A76A", padding:16}}>
       <div style={{maxWidth:420, margin:"0 auto"}}>
-        <div style={{background:"#8B4513", color:"white", padding:12, borderRadius:12, marginBottom:16, textAlign:"center"}}>
-          <h1>🐯 {t.home} 🐐</h1>
-          <button onClick={()=>setScreen("Play")} style={{padding:"8px 16px", background:"#22C55E", color:"white", border:"none", borderRadius:8}}>{t.play}</button>
-        </div>
-        {screen==="Play" && <GameScreen t={t}/>}
+        <GameScreen t={t}/>
       </div>
     </div>
   )
@@ -76,7 +68,8 @@ export default function App() {
 
 function GameScreen({t}){
   const [board,setBoard] = useState(initializeBoard());
-  const [turn,setTurn] = useState("MEKA");
+  const [phase,setPhase] = useState("PLACING"); // PLACING or MOVING
+  const [turn,setTurn] = useState("MEKA"); // MEKA starts placing
   const [mekasPlaced,setMekasPlaced] = useState(0);
   const [selected,setSelected] = useState(null);
   const [captured,setCaptured] = useState(0);
@@ -84,55 +77,63 @@ function GameScreen({t}){
   const handleClick = (index) => {
     let newBoard = [...board];
 
-    // PHASE 1: Placing 18 Goats
-    if(mekasPlaced < 18 && turn==="MEKA" && newBoard[index]===EMPTY){
-      newBoard[index]=MEKA;
-      setMekasPlaced(mekasPlaced+1);
-      setTurn("PULI");
+    // PHASE 1: PLACING 18 GOATS
+    if(phase === "PLACING"){
+      if(turn==="MEKA" && newBoard[index]===EMPTY){
+        newBoard[index]=MEKA;
+        const newCount = mekasPlaced+1;
+        setMekasPlaced(newCount);
+
+        if(newCount >= 18){
+          setPhase("MOVING"); // 18 ayyaka moving phase
+          setTurn("PULI"); // Tiger starts moving
+        }else{
+          setTurn("PULI"); // Next tiger turn - but tiger can't move in placing
+        }
+      }
+      // Tiger can't do anything in placing phase
     }
-    // PHASE 2: Moving
-    else if(mekasPlaced >= 18){
+
+    // PHASE 2: MOVING
+    else if(phase === "MOVING"){
       if(selected!== null){
         const result = tryMove(selected, index, newBoard);
         if(result.valid){
           newBoard = result.board;
           if(result.captured) setCaptured(captured + 1);
           setSelected(null);
-          setTurn(turn==="PULI"?"MEKA":"PULI");
+          setTurn(turn==="PULI"?"MEKA":"PULI"); // Turn change
         }else{
-          // If clicked on own piece, select it
           if(newBoard[index] === (turn==="PULI"?PULI:MEKA)) setSelected(index);
           else setSelected(null);
         }
       }else if(newBoard[index] === (turn==="PULI"?PULI:MEKA)){
-        setSelected(index); // Select piece
+        setSelected(index); // Select your piece
       }
     }
     setBoard(newBoard);
   }
 
   const tryMove = (from, to, b) => {
-    console.log("Trying move from", from, "to", to); // debug kosam
-
-    // 1. Normal move
-    if(CONNECTIONS[from] && CONNECTIONS[from].includes(to) && b[to]===EMPTY){
+    // Normal move
+    if(CONNECTIONS[from].includes(to) && b[to]===EMPTY){
       let newB = [...b];
       newB[to] = newB[from];
       newB[from] = EMPTY;
       return {valid:true, board:newB, captured:false};
     }
 
-    // 2. Capture move - Tiger
+    // Capture move - Tiger only
     if(b[from]===PULI){
-      for(let mid of CONNECTIONS[from] || []){
+      for(let mid of CONNECTIONS[from]){
         if(b[mid]===MEKA){
-          // check if we can jump over mid to reach to
-          for(let jump of CONNECTIONS[mid] || []){
+          // Check if 'to' is 2 steps away from 'from' via 'mid'
+          for(let jump of CONNECTIONS[mid]){
             if(jump===to && b[to]===EMPTY){
               let newB = [...b];
               newB[to] = PULI;
               newB[from] = EMPTY;
-              newB[mid] = EMPTY;
+              newB[mid] = EMPTY; // Goat captured
               return {valid:true, board:newB, captured:true};
             }
           }
@@ -143,14 +144,22 @@ function GameScreen({t}){
   }
 
   const restart = () => {
-    setBoard(initializeBoard()); setTurn("MEKA"); setMekasPlaced(0); setCaptured(0); setSelected(null);
+    setBoard(initializeBoard());
+    setPhase("PLACING");
+    setTurn("MEKA");
+    setMekasPlaced(0);
+    setCaptured(0);
+    setSelected(null);
   }
+
+  const statusText = phase==="PLACING"
+   ? `${t.mekaTurn} - ${t.placing}: ${mekasPlaced}/18`
+    : turn==="PULI"? t.puliTurn : t.mekaTurn;
 
   return (
     <div style={{background:"#F5DEB3", padding:16, borderRadius:12}}>
-      <div style={{display:"flex", justifyContent:"space-between", marginBottom:12, fontWeight:"bold"}}>
-        <span>{turn==="PULI"?t.puliTurn:t.mekaTurn}</span>
-        <span>Placed: {mekasPlaced}/18</span>
+      <div style={{display:"flex", justifyContent:"space-between", marginBottom:12, fontWeight:"bold", fontSize:14}}>
+        <span>{statusText}</span>
         <span>Captured: {captured}/5</span>
       </div>
 
@@ -166,13 +175,13 @@ function GameScreen({t}){
               width:30, height:30, borderRadius:"50%",
               background: selected===i? "#FFD700" : "#F5DEB3",
               border:"3px solid #8B4513", display:"flex", alignItems:"center", justifyContent:"center",
-              fontSize:20, cursor:"pointer", zIndex:10
+              fontSize:22, cursor:"pointer", zIndex:10
             }}>
             {board[i]===PULI&&"🐯"}{board[i]===MEKA&&"🐐"}
           </div>
         ))}
       </div>
-      <button onClick={restart} style={{width:"100%", marginTop:12, background:"red", color:"white", padding:10, borderRadius:8, border:"none"}}>Restart</button>
+      <button onClick={restart} style={{width:"100%", marginTop:12, background:"red", color:"white", padding:12, borderRadius:8, border:"none", fontWeight:"bold"}}>Restart</button>
     </div>
   )
 }
@@ -181,4 +190,4 @@ function initializeBoard(){
   const b = Array(17).fill(EMPTY);
   b[0]=PULI; b[2]=PULI; b[14]=PULI; b[16]=PULI; // 4 corners
   return b;
-}
+  }

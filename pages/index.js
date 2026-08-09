@@ -1,53 +1,34 @@
-import React, { useEffect, useState, useRef } from "react";
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
-import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signOut, onAuthStateChanged, sendPasswordResetEmail } from "firebase/auth";
-import { getFirestore, collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, setDoc } from "firebase/firestore";
-import { Home, Search, Target, Flame, MessageCircle, User, Bell, Plus, X, Send, Award, Trophy } from "lucide-react";
-import { motion } from "framer-motion";
+import React, { useEffect, useState } from "react";
+import { initializeApp, getApps } from "firebase/app";
+import { getAuth, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { getFirestore, collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, getDoc, setDoc, getDocs } from "firebase/firestore";
+import { Home, Search, Target, Flame, MessageCircle, User, Bell, Plus, Send, DollarSign, QrCode } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 
 // ============ FIREBASE ============
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
-  authDomain: "nexoraai-75ae2.firebaseapp.com",
-  projectId: "nexoraai-75ae2",
-  storageBucket: "nexoraai-75ae2.firebasestorage.app",
-  messagingSenderId: "173122711177",
-  appId: "1:173122711177:web:68e373598d110d80c1e058",
-  measurementId: "G-11Y8XF8MBC"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+if (!getApps().length) initializeApp(firebaseConfig);
+const auth = getAuth();
+const db = getFirestore();
 const googleProvider = new GoogleAuthProvider();
 
 // ============ TYPES ============
-type UserType = { uid: string; email: string; name?: string; username?: string; xp?: number; streak?: number; level?: number; bio?: string; city?: string };
-type GoalType = { id: string; title: string; category: string; completed: boolean; userId: string; date: string };
-type BadgeType = { id: string; name: string; icon: string; unlocked: boolean };
-type NotificationType = { id: string; text: string; read: boolean; userId: string; createdAt: any };
-
-// ============ XP & LEVEL SYSTEM ============
-const XP_PER_GOAL = 20;
-const XP_PER_CHALLENGE = 50;
-const XP_PER_STREAK = 10;
-const getLevel = (xp: number) => Math.floor(xp / 100) + 1;
-const xpToNextLevel = (xp: number) => 100 - (xp % 100);
-
-// ============ BADGES ============
-const BADGES: BadgeType[] = [
-  { id: "first_goal", name: "First Goal", icon: "🎯", unlocked: false },
-  { id: "first_challenge", name: "First Challenge", icon: "🔥", unlocked: false },
-  { id: "streak_7", name: "7 Day Streak", icon: "🏆", unlocked: false },
-  { id: "streak_30", name: "30 Day Streak", icon: "👑", unlocked: false },
-];
+type UserType = { uid: string; email: string; name?: string; username?: string; xp?: number; streak?: number; upiId?: string };
+type GoalType = { id: string; title: string; completed: boolean; userId: string };
+type PaymentType = { id: string; from: string; to: string; fromName: string; toName: string; amount: number; note: string; emoji: string; createdAt: any };
 
 // ============ MAIN APP ============
-function App() {
+export default function LifeLoop() {
   const [user, setUser] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("Home");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -63,47 +44,43 @@ function App() {
   if (loading) return <div className="h-screen flex items-center justify-center">Loading...</div>;
 
   return (
-    <BrowserRouter>
+    <div className="font-sans bg-gray-50">
       <Toaster position="top-center"/>
-      {user? user.name? <MainApp user={user}/> : <Onboarding user={user} setUser={setUser}/> : <AuthPage setUser={setUser}/>}
-    </BrowserRouter>
+      {user? user.name? <MainApp user={user} tab={tab} setTab={setTab}/> : <Onboarding user={user} setUser={setUser}/> : <AuthPage/>}
+    </div>
   );
 }
 
-// ============ A. ONBOARDING ============
+// ============ ONBOARDING + UPI ID ============
 function Onboarding({ user, setUser }: any) {
-  const [form, setForm] = useState({ name: "", username: "", bio: "", city: "", interests: "" });
+  const [form, setForm] = useState({ name: "", username: "", upiId: "" });
+
   const save = async () => {
-    if (!form.name ||!form.username) return toast.error("Name & Username required");
-
-    // Check username unique
+    if (!form.name ||!form.username ||!form.upiId) return toast.error("All fields required");
     const q = query(collection(db, "users"), where("username", "==", form.username));
-    const snap = await getDocs(q);
-    if (!snap.empty) return toast.error("Username already taken");
+    if (!(await getDocs(q)).empty) return toast.error("Username taken");
 
-    await setDoc(doc(db, "users", user.uid), {...user,...form, xp: 0, level: 1, streak: 0 });
+    await setDoc(doc(db, "users", user.uid), {...user,...form, xp: 0, streak: 0 });
     setUser({...user,...form });
     toast.success("Profile Created! +50 XP");
-    addXP(user.uid, 50);
-    addNotification(user.uid, "Welcome to LIFELOOP! 🎉");
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary to-purple-500 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-500 to-blue-600 p-4">
       <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm">
         <h2 className="text-2xl font-bold mb-4">Complete Profile</h2>
-        <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Name" className="w-full p-3 border rounded-xl mb-3"/>
+        <input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Full Name" className="w-full p-3 border rounded-xl mb-3"/>
         <input value={form.username} onChange={e=>setForm({...form,username:e.target.value})} placeholder="Username" className="w-full p-3 border rounded-xl mb-3"/>
-        <input value={form.city} onChange={e=>setForm({...form,city:e.target.value})} placeholder="City" className="w-full p-3 border rounded-xl mb-3"/>
-        <textarea value={form.bio} onChange={e=>setForm({...form,bio:e.target.value})} placeholder="Bio" className="w-full p-3 border rounded-xl mb-3"/>
-        <button onClick={save} className="w-full bg-primary text-white py-3 rounded-xl font-bold">Save & Continue</button>
+        <input value={form.upiId} onChange={e=>setForm({...form,upiId:e.target.value})} placeholder="UPI ID: name@upi" className="w-full p-3 border rounded-xl mb-3"/>
+        <p className="text-xs text-gray-500 mb-3">Example: 9876543210@paytm</p>
+        <button onClick={save} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold">Save</button>
       </div>
     </div>
   )
 }
 
-// ============ AUTH PAGE ============
-function AuthPage({ setUser }: any) {
+// ============ AUTH ============
+function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -115,238 +92,207 @@ function AuthPage({ setUser }: any) {
     } catch (e: any) { toast.error(e.message); }
   };
 
-  const googleLogin = async () => await signInWithPopup(auth, googleProvider);
-
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary to-purple-500 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-500 to-blue-600 p-4">
       <div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm">
-        <h2 className="text-2xl font-bold text-center mb-4">LIFELOOP</h2>
+        <h2 className="text-2xl font-bold text-center mb-2 text-green-600">LIFELOOP</h2>
+        <p className="text-center text-gray-500 mb-6">Live Better. Together. Pay Better.</p>
         <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" className="w-full p-3 border rounded-xl mb-3"/>
         <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" className="w-full p-3 border rounded-xl mb-3"/>
-        <button onClick={handleAuth} className="w-full bg-primary text-white py-3 rounded-xl font-bold mb-2">{isLogin?"Login":"Sign Up"}</button>
-        <button onClick={googleLogin} className="w-full bg-red-500 text-white py-3 rounded-xl font-bold mb-2">Google</button>
-        <p className="text-center cursor-pointer" onClick={()=>setIsLogin(!isLogin)}>
-          {isLogin?"New? Sign Up":"Login"}
-        </p>
+        <button onClick={handleAuth} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold mb-2">{isLogin?"Login":"Sign Up"}</button>
+        <button onClick={()=>signInWithPopup(auth, googleProvider)} className="w-full bg-red-500 text-white py-3 rounded-xl font-bold mb-2">Google</button>
+        <p className="text-center cursor-pointer text-green-600" onClick={()=>setIsLogin(!isLogin)}>{isLogin?"New? Sign Up":"Login"}</p>
       </div>
     </div>
   )
 }
 
-// ============ MAIN APP ============
-function MainApp({ user }: { user: UserType }) {
-  const [notifications, setNotifications] = useState<NotificationType[]>([]);
-
-  useEffect(() => {
-    const q = query(collection(db, "notifications"), where("userId","==",user.uid), orderBy("createdAt","desc"));
-    return onSnapshot(q, snap => setNotifications(snap.docs.map(d=>({id:d.id,...d.data()} as NotificationType))));
-  }, [user]);
-
+// ============ MAIN WITH TABS ============
+function MainApp({ user, tab, setTab }: any) {
+  const tabs: any = {
+    Home: <HomePage user={user} />,
+    Discover: <DiscoverPage user={user} />,
+    Pay: <PayPage user={user} />,
+    Goals: <GoalsPage user={user} />,
+    Chat: <ChatPage user={user} />,
+    Profile: <ProfilePage user={user} />
+  }
   return (
     <div className="max-w-[500px] mx-auto bg-gray-50 min-h-screen pb-20">
-      <Header notifications={notifications}/>
-      <Routes>
-        <Route path="/" element={<HomePage user={user}/>}/>
-        <Route path="/discover" element={<DiscoverPage user={user}/>}/>
-        <Route path="/goals" element={<GoalsPage user={user}/>}/>
-        <Route path="/challenges" element={<ChallengesPage user={user}/>}/>
-        <Route path="/chat" element={<ChatPage user={user}/>}/>
-        <Route path="/profile" element={<ProfilePage user={user}/>}/>
-      </Routes>
-      <BottomNav/>
+      <Header/>
+      {tabs[tab]}
+      <BottomNav tab={tab} setTab={setTab} />
     </div>
   )
 }
 
-// ============ HEADER WITH NOTIFICATIONS ============
-function Header({ notifications }: any) {
-  const [show, setShow] = useState(false);
-  const unread = notifications.filter((n:NotificationType)=>!n.read).length;
-
-  const markRead = async (id: string) => {
-    await updateDoc(doc(db,"notifications",id), {read:true});
-  }
-
-  return (
-    <div className="sticky top-0 bg-white/80 backdrop-blur p-4 flex justify-between items-center border-b z-10">
-      <h1 className="text-xl font-bold text-primary">LIFELOOP</h1>
-      <div className="relative">
-        <Bell className="w-6 h-6 cursor-pointer" onClick={()=>setShow(!show)}/>
-        {unread>0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">{unread}</span>}
-        {show && <div className="absolute right-0 mt-2 w-72 bg-white shadow-xl rounded-xl p-3">
-          {notifications.length===0?<p>No notifications</p>:notifications.map((n:NotificationType)=>(
-            <div key={n.id} onClick={()=>markRead(n.id)} className={`p-2 ${n.read?"text-gray-400":"font-bold"}`}>{n.text}</div>
-          ))}
-        </div>}
-      </div>
-    </div>
-  )
+function Header() {
+  return <div className="sticky top-0 bg-white/80 backdrop-blur p-4 flex justify-between items-center border-b z-10">
+    <h1 className="text-xl font-bold text-green-600">LIFELOOP</h1>
+    <Bell className="w-6 h-6"/>
+  </div>
 }
 
-// ============ BOTTOM NAV ============
-function BottomNav() {
-  const nav = useNavigate();
-  const loc = useLocation();
+function BottomNav({ tab, setTab }: any) {
   const tabs = [
-    { path: "/", icon: Home }, { path: "/discover", icon: Search },
-    { path: "/goals", icon: Target }, { path: "/challenges", icon: Flame },
-    { path: "/chat", icon: MessageCircle }, { path: "/profile", icon: User },
+    { id: "Home", icon: Home }, { id: "Discover", icon: Search },
+    { id: "Pay", icon: DollarSign }, { id: "Goals", icon: Target },
+    { id: "Chat", icon: MessageCircle }, { id: "Profile", icon: User },
   ];
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around py-2 max-w-[500px] mx-auto">
       {tabs.map(t => (
-        <button key={t.path} onClick={() => nav(t.path)}
-          className={`flex flex-col items-center ${loc.pathname===t.path?"text-primary":"text-gray-400"}`}>
-          <t.icon className="w-6 h-6"/>
+        <button key={t.id} onClick={() => setTab(t.id)} className={`flex flex-col items-center text-xs ${tab === t.id? "text-green-600" : "text-gray-400"}`}>
+          <t.icon className="w-6 h-6" />{t.id}
         </button>
       ))}
     </div>
   )
 }
 
-// ============ HOME PAGE ============
+// ============ HOME + SOCIAL PAYMENT FEED ============
 function HomePage({ user }: { user: UserType }) {
   const [goals, setGoals] = useState<GoalType[]>([]);
-  const [badges, setBadges] = useState<BadgeType[]>(BADGES);
+  const [payments, setPayments] = useState<PaymentType[]>([]);
 
   useEffect(() => {
-    const q = query(collection(db, "goals"), where("userId", "==", user.uid));
-    return onSnapshot(q, snap => setGoals(snap.docs.map(d => ({ id: d.id,...d.data() } as GoalType))));
+    const q1 = query(collection(db, "goals"), where("userId", "==", user.uid));
+    const unsub1 = onSnapshot(q1, snap => setGoals(snap.docs.map(d => ({ id: d.id,...d.data() } as GoalType))));
+
+    const q2 = query(collection(db, "payments"), orderBy("createdAt","desc"));
+    const unsub2 = onSnapshot(q2, snap => setPayments(snap.docs.map(d => ({ id: d.id,...d.data() } as PaymentType))));
+    return () => { unsub1(); unsub2(); }
   }, [user]);
-
-  // B. BADGE UNLOCK LOGIC
-  useEffect(() => {
-    if (goals.length>=1 &&!badges[0].unlocked) unlockBadge(user.uid, "first_goal");
-    if (user.streak>=7 &&!badges[2].unlocked) unlockBadge(user.uid, "streak_7");
-  }, [goals, user.streak]);
 
   const completed = goals.filter(g => g.completed).length;
   const percent = goals.length? Math.round(completed / goals.length * 100) : 0;
 
   return (
     <div className="p-4 space-y-4">
-      <motion.div className="bg-gradient-to-r from-primary to-purple-500 text-white p-5 rounded-2xl">
+      <div className="bg-gradient-to-r from-green-500 to-blue-600 text-white p-5 rounded-2xl">
         <p>Good Morning 👋</p>
         <h2 className="text-2xl font-bold">Live Better. Together.</h2>
-        <div className="flex gap-4 mt-2">🔥 {user.streak} Streak | ⭐ {user.xp} XP | Level {getLevel(user.xp||0)}</div>
-        <div className="w-full bg-white/30 rounded-full h-2 mt-2">
-          <div className="bg-white h-2 rounded-full" style={{width: `${xpToNextLevel(user.xp||0)}%`}}/>
-        </div>
-      </motion.div>
+        <div className="flex gap-4 mt-2">🔥 {user.streak} Streak | ⭐ {user.xp} XP</div>
+      </div>
 
       <Card title="🎯 Today's Goals">
         <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-          <div className="bg-primary h-2 rounded-full" style={{width: `${percent}%`}}/>
+          <div className="bg-green-600 h-2 rounded-full" style={{ width: `${percent}%` }} />
         </div>
-        {goals.map(g => <GoalItem key={g.id} goal={g} user={user}/>)}
+        {goals.map(g => <GoalItem key={g.id} goal={g} />)}
       </Card>
 
-      <Card title="🏆 Badges">
-        <div className="flex gap-3">
-          {badges.map(b=>(
-            <div key={b.id} className={`text-center ${b.unlocked?"opacity-100":"opacity-30"}`}>
-              <div className="text-3xl">{b.icon}</div>
-              <p className="text-xs">{b.name}</p>
+      <Card title="💸 Friend Activity - Venmo Style">
+        {payments.length===0? <p className="text-gray-500">No payments yet</p> : payments.slice(0,5).map(p => (
+          <div key={p.id} className="flex justify-between py-2 border-b">
+            <div>
+              <p><b>{p.fromName}</b> → <b>{p.toName}</b></p>
+              <p className="text-sm">{p.emoji} {p.note}</p>
             </div>
-          ))}
-        </div>
+            <p className="font-bold text-green-600">₹{p.amount}</p>
+          </div>
+        ))}
       </Card>
     </div>
   )
 }
 
-function GoalItem({ goal, user }: any) {
+function GoalItem({ goal }: { goal: GoalType }) {
   const toggle = async () => {
-    const newStatus =!goal.completed;
-    await updateDoc(doc(db, "goals", goal.id), { completed: newStatus });
-    if (newStatus) {
-      addXP(user.uid, XP_PER_GOAL);
-      addNotification(user.uid, `Goal completed! +${XP_PER_GOAL} XP`);
-      toast.success(`+${XP_PER_GOAL} XP`);
-    }
+    await updateDoc(doc(db, "goals", goal.id), { completed:!goal.completed });
+    if(!goal.completed) toast.success("+20 XP");
   }
-  return <div className="flex justify-between py-1"><span>{goal.title}</span><input type="checkbox" checked={goal.completed} onChange={toggle}/></div>
+  return <div className="flex justify-between py-1"><span className={goal.completed? "line-through" : ""}>{goal.title}</span><input type="checkbox" checked={goal.completed} onChange={toggle} /></div>
 }
 
-// ============ GOALS PAGE ============
+// ============ VENMO STYLE PAY PAGE ============
+function PayPage({ user }: { user: UserType }) {
+  const [people, setPeople] = useState<any[]>([]);
+  const [selected, setSelected] = useState<any>(null);
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    const q = query(collection(db, "users"));
+    return onSnapshot(q, snap => setPeople(snap.docs.map(d => d.data())));
+  }, []);
+
+  const payUPI = async () => {
+    if (!amount ||!selected?.upiId) return toast.error("Select person and amount");
+
+    // 1. UPI Intent open cheyadam
+    const upiLink = `upi://pay?pa=${selected.upiId}&pn=${selected.name}&am=${amount}&cu=INR&tn=${note}`;
+    window.location.href = upiLink;
+
+    // 2. Social Feed lo post cheyadam
+    await addDoc(collection(db, "payments"), {
+      from: user.uid, to: selected.uid,
+      fromName: user.name, toName: selected.name,
+      amount: Number(amount), note, emoji: "💸",
+      createdAt: serverTimestamp()
+    });
+    toast.success(`Payment initiated to ${selected.name}`);
+    setAmount(""); setNote(""); setSelected(null);
+  }
+
+  return (
+    <div className="p-4 space-y-3">
+      <h2 className="text-2xl font-bold">Pay Friends</h2>
+
+      {!selected? people.filter((p:any)=>p.uid!==user.uid).map((p:any)=>(
+        <div key={p.uid} onClick={()=>setSelected(p)} className="bg-white p-4 rounded-2xl shadow flex justify-between cursor-pointer">
+          <div><p className="font-bold">{p.name}</p><p className="text-sm text-gray-500">{p.upiId}</p></div>
+          <button className="bg-green-600 text-white px-4 rounded-xl">Pay</button>
+        </div>
+      )) : (
+        <div className="bg-white p-4 rounded-2xl shadow">
+          <button onClick={()=>setSelected(null)} className="text-sm text-gray-500 mb-2">← Back</button>
+          <h3 className="font-bold text-lg">Paying {selected.name}</h3>
+          <input value={amount} onChange={e=>setAmount(e.target.value)} placeholder="₹ Amount" type="number" className="w-full p-3 border rounded-xl my-2"/>
+          <input value={note} onChange={e=>setNote(e.target.value)} placeholder="What's this for? 🍕" className="w-full p-3 border rounded-xl my-2"/>
+          <button onClick={payUPI} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2"><QrCode/> Pay with UPI</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============ GOALS ============
 function GoalsPage({ user }: { user: UserType }) {
   const [goals, setGoals] = useState<GoalType[]>([]);
   const [title, setTitle] = useState("");
-  const today = new Date().toISOString().split('T')[0];
-
   useEffect(() => {
     const q = query(collection(db, "goals"), where("userId", "==", user.uid));
     return onSnapshot(q, snap => setGoals(snap.docs.map(d => ({ id: d.id,...d.data() } as GoalType))));
   }, [user]);
-
   const addGoal = async () => {
     if (!title) return;
-    await addDoc(collection(db, "goals"), { userId: user.uid, title, category: "Personal", completed: false, date: today, createdAt: serverTimestamp() });
-    setTitle(""); addXP(user.uid, 10);
+    await addDoc(collection(db, "goals"), { userId: user.uid, title, completed: false, createdAt: serverTimestamp() });
+    setTitle("");
   };
-
   return (
     <div className="p-4 space-y-3">
       <h2 className="text-2xl font-bold">Goals</h2>
       <div className="flex gap-2">
         <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Add goal" className="flex-1 p-3 border rounded-xl"/>
-        <button onClick={addGoal} className="bg-primary text-white px-5 rounded-xl"><Plus/></button>
+        <button onClick={addGoal} className="bg-green-600 text-white px-5 rounded-xl"><Plus/></button>
       </div>
-      {goals.map(g=>(
-        <div key={g.id} className="bg-white p-4 rounded-2xl shadow flex justify-between">
-          <span className={g.completed?"line-through":""}>{g.title}</span>
-        </div>
-      ))}
+      {goals.map(g=><div key={g.id} className="bg-white p-4 rounded-2xl shadow">{g.title}</div>)}
     </div>
   )
 }
 
-// ============ CHALLENGES PAGE ============
-function ChallengesPage({ user }: { user: UserType }) {
-  const challenges = [
-    { id: "1", title: "Read 20 mins daily", days: 30 },
-    { id: "2", title: "Exercise daily", days: 7 },
-  ];
-
-  const join = async (id: string) => {
-    await addDoc(collection(db, "challengeParticipants"), { challengeId: id, userId: user.uid });
-    addXP(user.uid, XP_PER_CHALLENGE);
-    addNotification(user.uid, "Challenge Joined! +50 XP");
-    toast.success("Joined! +50 XP");
-  }
-
-  return (
-    <div className="p-4 space-y-3">
-      <h2 className="text-2xl font-bold">Challenges</h2>
-      {challenges.map(c=>(
-        <div key={c.id} className="bg-white p-4 rounded-2xl shadow">
-          <p className="font-bold">{c.title}</p>
-          <p className="text-sm text-gray-500">{c.days} Days</p>
-          <button onClick={()=>join(c.id)} className="bg-orange-500 text-white px-4 py-2 rounded-xl mt-2">Join</button>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ============ DISCOVER & CHAT & PROFILE ============
+// ============ DISCOVER ============
 function DiscoverPage({ user }: { user: UserType }) {
   const [people, setPeople] = useState<any[]>([]);
   useEffect(() => {
     const q = query(collection(db, "users"));
     return onSnapshot(q, snap => setPeople(snap.docs.map(d => d.data())));
   }, []);
-  return (
-    <div className="p-4"><h2 className="text-2xl font-bold">Discover</h2>
-      {people.filter((p:any)=>p.uid!==user.uid).map((p:any)=>(
-        <div key={p.uid} className="bg-white p-4 rounded-2xl shadow mt-3">
-          <p className="font-bold">{p.name}</p><p className="text-sm">@{p.username}</p>
-        </div>
-      ))}
-    </div>
-  )
+  return <div className="p-4"><h2 className="text-2xl font-bold">Discover</h2>{people.filter((p:any)=>p.uid!==user.uid).map((p:any)=><div key={p.uid} className="bg-white p-4 rounded-2xl shadow mt-3"><p className="font-bold">{p.name}</p><p className="text-sm">@{p.username}</p></div>)}</div>
 }
 
+// ============ CHAT ============
 function ChatPage({ user }: { user: UserType }) {
   const [msg, setMsg] = useState("");
   const [chats, setChats] = useState<any[]>([]);
@@ -360,55 +306,36 @@ function ChatPage({ user }: { user: UserType }) {
     setMsg("");
   };
   return (
-    <div className="p-4 flex-col h-[80vh]">
+    <div className="p-4 flex flex-col h-[80vh]">
       <h2 className="text-2xl font-bold mb-2">Chat</h2>
       <div className="flex-1 overflow-y-auto space-y-2">
-        {chats.map((c:any) => <div key={c.id} className={`p-2 rounded-lg w-fit ${c.userId===user.uid?"bg-primary text-white ml-auto":"bg-gray-200"}`}>{c.text}</div>)}
+        {chats.map((c: any) => <div key={c.id} className={`p-2 rounded-lg w-fit ${c.userId === user.uid? "bg-green-600 text-white ml-auto" : "bg-gray-200"}`}>{c.text}</div>)}
       </div>
-      <div className="flex gap-2"><input value={msg} onChange={e=>setMsg(e.target.value)} className="flex-1 p-3 border rounded-xl"/><button onClick={send} className="bg-primary text-white p-3 rounded-xl"><Send/></button></div>
+      <div className="flex gap-2"><input value={msg} onChange={e=>setMsg(e.target.value)} className="flex-1 p-3 border rounded-xl" /><button onClick={send} className="bg-green-600 text-white p-3 rounded-xl"><Send /></button></div>
     </div>
   )
 }
 
+// ============ PROFILE ============
 function ProfilePage({ user }: { user: UserType }) {
   return (
     <div className="p-4 space-y-3">
       <h2 className="text-2xl font-bold">Profile</h2>
       <div className="bg-white p-5 rounded-2xl shadow text-center">
-        <div className="w-20 h-20 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full mx-auto flex items-center justify-center text-4xl">😎</div>
+        <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-blue-400 rounded-full mx-auto flex items-center justify-center text-4xl">😎</div>
         <p className="font-bold text-xl mt-2">{user.name}</p>
         <p className="text-gray-500">@{user.username}</p>
-        <p className="mt-2">{user.bio}</p>
-        <p className="mt-2 font-bold">⭐ {user.xp} XP | Level {getLevel(user.xp||0)} | 🔥 {user.streak} Streak</p>
+        <p className="mt-2 text-sm">UPI: {user.upiId}</p>
+        <p className="mt-2 font-bold">⭐ {user.xp} XP | 🔥 {user.streak} Streak</p>
       </div>
-      <button onClick={()=>signOut(auth)} className="w-full bg-red-500 text-white py-3 rounded-xl">Logout</button>
+      <button onClick={() => signOut(auth)} className="w-full bg-red-500 text-white py-3 rounded-xl">Logout</button>
     </div>
   )
 }
 
-// ============ HELPERS ============
-async function addXP(uid: string, amount: number) {
-  const userRef = doc(db, "users", uid);
-  const snap = await getDoc(userRef);
-  const currentXP = snap.data()?.xp || 0;
-  await updateDoc(userRef, { xp: currentXP + amount });
-}
-
-async function addNotification(uid: string, text: string) {
-  await addDoc(collection(db, "notifications"), { userId: uid, text, read: false, createdAt: serverTimestamp() });
-}
-
-async function unlockBadge(uid: string, badgeId: string) {
-  await addDoc(collection(db, "userBadges"), { userId: uid, badgeId });
-  addNotification(uid, `Badge Unlocked! 🏆`);
-  toast.success("Badge Unlocked!");
-}
-
-function Card({title, children}: any) {
+function Card({ title, children }: any) {
   return <div className="bg-white p-4 rounded-2xl shadow space-y-2">
     <h3 className="font-bold text-lg">{title}</h3>
     {children}
   </div>
-}
-
-export default App;
+       }

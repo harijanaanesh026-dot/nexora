@@ -11,27 +11,20 @@ body {
   overflow-x: hidden;
 }
 
-/* Glowing effect for cards */
 .glow-card {
-  box-shadow: 0 0 15px rgba(239, 68, 68, 0.2);
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.1);
   transition: all 0.3s ease;
 }
 .glow-card:hover {
-  box-shadow: 0 0 25px rgba(239, 68, 68, 0.5);
-  transform: translateY(-2px);
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.3);
+  transform: translateY(-3px);
 }
 
-/* Tree Animation */
 .tree {
   font-size: 8rem;
-  animation: grow 2s ease-in-out;
+  animation: grow 1s ease-in-out;
 }
 @keyframes grow {
- 0% { transform: scale(0.5); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-/* Progress Ring */
-.progress-ring {
-  transform: rotate(-90deg);
+ 0% { transform: scale(0.5); }
+  100% { transform: scale(1); }
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { auth, db } from './firebaseConfig'
+import { auth, db } from '../firebaseConfig'
 import { onAuthStateChanged, signInAnonymously, GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore'
 

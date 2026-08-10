@@ -4,7 +4,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signO
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { Home, Timer, Target, BarChart3, User, Flame, Trophy, Play, Check } from 'lucide-react';
 
-// FIREBASE SETUP
+// 1. FIREBASE SETUP
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
   authDomain: "nexoraai-75ae2.firebaseapp.com",
@@ -22,6 +22,7 @@ export default function QUITTR_MVP() {
   const [tab, setTab] = useState('home');
   const [loading, setLoading] = useState(true);
 
+  // DATA STATE
   const [data, setData] = useState({
     screenTime: 0, timeSaved: 0, streak: 7, lifeScore: 78,
     focusTime: 0, xp: 250, level: 3, missionsDone: 1, challengeDay: 3,
@@ -31,6 +32,7 @@ export default function QUITTR_MVP() {
   const [isFocusing, setIsFocusing] = useState(false);
   const [focusTimer, setFocusTimer] = useState(0);
 
+  // AUTH
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -44,6 +46,7 @@ export default function QUITTR_MVP() {
     return () => unsubscribe();
   }, []);
 
+  // MAIN TIMER
   useEffect(() => {
     if(!user) return;
     const interval = setInterval(() => {
@@ -58,12 +61,14 @@ export default function QUITTR_MVP() {
     return () => clearInterval(interval);
   }, [user, isFocusing]);
 
+  // FOCUS TIMER
   useEffect(() => {
     if(!isFocusing) return;
     const i = setInterval(() => setFocusTimer(prev => prev + 1), 1000);
     return () => clearInterval(i);
   }, [isFocusing]);
 
+  // SAVE TO FIREBASE
   useEffect(() => {
     if(user) setDoc(doc(db, "users", user.uid), {...data, last: serverTimestamp()}, {merge:true});
   }, [data, user]);
@@ -107,6 +112,7 @@ export default function QUITTR_MVP() {
 
       <div className="p-4 max-w-2xl mx-auto">
 
+        {/* 1. HOME SCREEN */}
         {tab==='home' && <div className="space-y-4">
           <h2 className="text-2xl font-bold">Today</h2>
           <div className="grid grid-cols-2 gap-4">
@@ -120,6 +126,7 @@ export default function QUITTR_MVP() {
           </button>
         </div>}
 
+        {/* 2. FOCUS SCREEN */}
         {tab==='focus' && <div className="space-y-6 text-center">
           <h2 className="text-2xl font-bold">Focus Mode</h2>
           {isFocusing? (
@@ -140,9 +147,11 @@ export default function QUITTR_MVP() {
           )}
         </div>}
 
+                {/* 3. CHALLENGES SCREEN */}
         {tab==='challenges' && <div className="space-y-4">
           <h2 className="text-2xl font-bold">Challenges</h2>
-          <div className="bg-gray-900/50 p-5 rounded-2xl border border-gray-800">
+
+          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
             <h3 className="font-bold text-lg mb-2">Daily Mission</h3>
             <p className="text-gray-400">Complete 1 Focus Session</p>
             <div className="flex justify-between items-center mt-3">
@@ -150,7 +159,8 @@ export default function QUITTR_MVP() {
               <button className="bg-green-600 px-4 py-2 rounded flex items-center gap-1"><Check size={16}/> Done</button>
             </div>
           </div>
-          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
+
+          <div className="bg-gray-900/50 p-5 rounded-2xl border border-gray-800">
             <h3 className="font-bold text-lg mb-2">7-Day Challenge</h3>
             <p className="text-gray-400">Screen Time < 2 Hours Daily</p>
             <div className="w-full bg-gray-800 rounded-full h-2.5 mt-3">
@@ -160,13 +170,24 @@ export default function QUITTR_MVP() {
           </div>
         </div>}
 
+        {/* 4. PROGRESS SCREEN */}
         {tab==='progress' && <div className="space-y-4">
           <h2 className="text-2xl font-bold">Your Progress</h2>
-          <div className="bg-gray-900/50 p-5 rounded-2xl border border-gray-800"><p className="text-gray-400">Daily Screen Time</p><p className="text-3xl font-bold">{fmt(data.screenTime)}</p></div>
-          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800"><p className="text-gray-400">Focus Hours</p><p className="text-3xl font-bold">{fmt(data.focusTime)}</p></div>
-          <div className="bg-gray-900/50 p-5 rounded-2xl border border-gray-800"><p className="text-gray-400">Time Saved</p><p className="text-3xl font-bold text-green-400">{fmt(data.timeSaved)}</p></div>
+          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
+            <p className="text-gray-400">Daily Screen Time</p>
+            <p className="text-3xl font-bold">{fmt(data.screenTime)}</p>
+          </div>
+          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
+            <p className="text-gray-400">Focus Hours</p>
+            <p className="text-3xl font-bold">{fmt(data.focusTime)}</p>
+          </div>
+          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
+            <p className="text-gray-400">Time Saved</p>
+            <p className="text-3xl font-bold text-green-400">{fmt(data.timeSaved)}</p>
+          </div>
         </div>}
 
+        {/* 5. PROFILE SCREEN */}
         {tab==='profile' && <div className="space-y-4">
           <h2 className="text-2xl font-bold">Profile</h2>
           <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800 text-center">
@@ -183,6 +204,7 @@ export default function QUITTR_MVP() {
 
       </div>
 
+      {/* BOTTOM NAV */}
       <nav className="fixed bottom-0 left-0 right-0 bg-gray-900/80 backdrop-blur-sm border-t border-gray-800 flex justify-around p-2">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} className={`flex flex-col items-center gap-1 ${tab===t.id? 'text-red-500' : 'text-gray-400'}`}>
@@ -195,6 +217,7 @@ export default function QUITTR_MVP() {
   );
 }
 
+// COMPONENT
 const StatCard = ({title, value, color="", icon}:any) => (
   <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
     {icon}

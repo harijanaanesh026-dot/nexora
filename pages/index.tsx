@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
-import { initializeApp, getApps } from "firebase/app";
-import { getAuth, onAuthStateChanged, signInAnonymously } from "firebase/auth";
-import { getFirestore, collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, getDoc, setDoc, increment } from "firebase/firestore";
-import { Home, Target, BarChart3, Flame, Users, TreePine, Coins, Bell, BookOpen, Heart, Trophy, Shield, TrendingDown } from "lucide-react";
-import toast, { Toaster } from "react-hot-toast";
+import { useState, useEffect } from 'react'
+import { auth, db } from '../firebaseConfig' // <-- idi chala important
+import { signInAnonymously, onAuthStateChanged } from 'firebase/auth'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { toast, Toaster } from 'react-hot-toast'
+import { Clock } from 'lucide-react'
 
 // ============ FIREBASE ============
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional

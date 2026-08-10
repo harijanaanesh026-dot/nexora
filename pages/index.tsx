@@ -1,89 +1,52 @@
 import { useState, useEffect } from 'react'
-import { auth, db } from '../firebaseConfig'
+import { auth, db } from '../lib/firebaseConfig' // <-- IDHE IMPORTANT
 import { onAuthStateChanged, signInAnonymously, GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore'
+import { motion } from 'framer-motion'
+import toast, { Toaster } from 'react-hot-toast'
 
-// ********** TYPES **********
-type UserType = {
-  uid: string; 
-  coins: number; 
-  xp: number; 
-  level: number; 
-  streak: number;
-  timeBank: number; 
-  lifeScore: number; 
-  scrollTimeToday: number; 
-  focusTimeToday: number;
-};
-
-// ********** MAIN COMPONENT **********
 export default function Home() {
-  const [user, setUser] = useState<UserType | null>(null)
+  const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Auth check
-    const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const userRef = doc(db, 'users', firebaseUser.uid)
-        const unsubSnap = onSnapshot(userRef, (snap) => {
-          if (snap.exists()) {
-            setUser(snap.data() as UserType)
-          } else {
-            // New user - create profile
-            const newUser: UserType = {
-              uid: firebaseUser.uid,
-              coins: 10,
-              xp: 0,
-              level: 1,
-              streak: 0,
-              timeBank: 0,
-              lifeScore: 100,
-              scrollTimeToday: 0,
-              focusTimeToday: 0,
-            }
-            setDoc(userRef, newUser)
-            setUser(newUser)
-          }
-          setLoading(false)
-        })
-        return () => unsubSnap()
-      } else {
-        // No user - sign in anonymously for now
-        signInAnonymously(auth)
-        setLoading(false)
-      }
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser)
+      setLoading(false)
     })
-    return () => unsubAuth()
+    return () => unsubscribe()
   }, [])
 
-  const handleGoogleLogin = async () => {
-    const provider = new GoogleAuthProvider()
-    await signInWithPopup(auth, provider)
+  const handleLogin = async () => {
+    try {
+      await signInAnonymously(auth)
+      toast.success('Logged in!')
+    } catch (err) {
+      toast.error('Login failed')
+    }
   }
 
-  if (loading) return <div style={{padding: 20}}>Loading QUITTR 2.0...</div>
-
-  if (!user) return (
-    <div style={{padding: 20}}>
-      <h1>QUITTR 2.0</h1>
-      <button onClick={handleGoogleLogin}>Login with Google</button>
-    </div>
-  )
+  if (loading) return <div className="bg-black text-white h-screen flex items-center justify-center">Loading...</div>
 
   return (
-    <div style={{padding: 20}}>
-      <h1>QUITTR 2.0 🔥</h1>
-      <p>Welcome, {user.uid.slice(0,6)}!</p>
-      <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
-        <div>🪙 Coins: {user.coins}</div>
-        <div>⭐ XP: {user.xp}</div>
-        <div>🏆 Level: {user.level}</div>
-        <div>🔥 Streak: {user.streak}</div>
-        <div>⏳ TimeBank: {user.timeBank} min</div>
-        <div>💚 LifeScore: {user.lifeScore}</div>
-      </div>
-      <p style={{marginTop: 20}}>Scroll Tax & Focus Timer coming next...</p>
+    <div className="bg-black text-white min-h-screen">
+      <Toaster />
+      {!user ? (
+        <div className="flex items-center justify-center h-screen">
+          <motion.button 
+            whileTap={{ scale: 0.9 }}
+            onClick={handleLogin}
+            className="bg-red-600 px-8 py-4 rounded-lg text-xl font-bold"
+          >
+            QUITTR 2.0 - Login
+          </motion.button>
+        </div>
+      ) : (
+        <div className="p-8">
+          <h1 className="text-3xl font-bold">Welcome to QUITTR 2.0 🔥</h1>
+          <p className="mt-4">You are logged in: {user.uid}</p>
+        </div>
+      )}
     </div>
   )
 }

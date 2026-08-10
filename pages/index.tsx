@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, serverTimestamp, doc, setDoc, getDoc } from 'firebase/firestore';
 
-// Nuv ichina config
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
   authDomain: "nexoraai-75ae2.firebaseapp.com",
@@ -14,84 +13,130 @@ const firebaseConfig = {
   measurementId: "G-11Y8XF8MBC"
 };
 
-// Initialize Firebase
 const app =!getApps().length? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(app);
 const db = getFirestore(app);
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
-  const [scrollTax, setScrollTax] = useState(0);
+  const [points, setPoints] = useState(0);
+  const [treeStage, setTreeStage] = useState(0);
+  const [instaTime, setInstaTime] = useState(0);
+  const [youtubeTime, setYoutubeTime] = useState(0);
+  const [focusMode, setFocusMode] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // User login status check
+  const INSTA_LIMIT = 30 * 60; // 30 mins in seconds
+  const YT_LIMIT = 45 * 60; // 45 mins
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if(currentUser){
+        // Load data from Firestore
+        const docRef = doc(db, "users", currentUser.uid);
+        const docSnap = await getDoc(docRef);
+        if(docSnap.exists()){
+          setPoints(docSnap.data().points || 0);
+          setTreeStage(docSnap.data().treeStage || 0);
+        }
+      }
     });
     return () => unsubscribe();
   }, []);
 
-  // SCROLL TAX LOGIC
+  // OFFLINE TIMER = POINTS + TREE
   useEffect(() => {
-    if (!user) return; // Login aithe matrame count
+    if(!user || focusMode) return;
+    
+    intervalRef.current = setInterval(async () => {
+      setPoints(prev => prev + 10); // 1 sec = 10 points
+      setTreeStage(prev => Math.min(prev + 0.1, 100)); // Tree grows
+      
+      // Save to Firestore
+      await setDoc(doc(db, "users", user.uid), {
+        points: points + 10,
+        treeStage: treeStage + 0.1,
+        lastUpdated: serverTimestamp()
+      }, {merge: true});
 
-    const handleScroll = async () => {
-      const newTax = scrollTax + 1;
-      setScrollTax(newTax);
+    }, 1000);
+    return () => clearInterval(intervalRef.current!);
+  }, [user, focusMode, points, treeStage]);
 
-      // Firestore lo save chey
-      try {
-        await addDoc(collection(db, "scrolls"), {
-          userId: user.uid,
-          tax: newTax,
-          timestamp: serverTimestamp()
-        });
-      } catch (e) {
-        console.error("Error adding scroll: ", e);
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [user, scrollTax]);
+  // SIMULATED APP TIMERS
+  useEffect(() => {
+    if(!user) return;
+    const appTimer = setInterval(() => {
+      setInstaTime(prev => prev + 1);
+      setYoutubeTime(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(appTimer);
+  }, [user]);
 
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error(error);
-    }
+    await signInWithPopup(auth, provider);
   };
 
-  const handleLogout = async () => {
-    await signOut(auth);
-    setScrollTax(0);
-  };
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s`;
+  }
+
+  if(!user){
+    return (
+      <main className="bg-black text-white min-h-screen flex items-center justify-center">
+        <button onClick={handleLogin} className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-8 rounded-lg text-2xl">
+          QUITTR 2.0 - Login
+        </button>
+      </main>
+    )
+  }
 
   return (
-    <main className="bg-black text-white min-h-screen flex flex-col items-center justify-center p-4">
-      {!user? (
-        <button 
-          onClick={handleLogin}
-          className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-8 rounded-lg text-2xl transition duration-300"
-        >
-          QUITTR 2.0 - Login with Google
-        </button>
-      ) : (
-        <div className="text-center">
-          <h1 className="text-3xl font-bold mb-2">Welcome, {user.displayName}</h1>
-          <p className="text-xl mb-4">Your Scroll Tax: <span className="text-red-500 font-bold">{scrollTax}</span></p>
-          <p className="text-gray-400 mb-8">Keep scrolling to increase tax... ↓</p>
-          <button 
-            onClick={handleLogout}
-            className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded"
-          >
-            Logout
-          </button>
-          <div className="h-[200vh]"></div> {/* Scroll cheyadaniki space */}
+    <main className="bg-black text-white min-h-screen p-6">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-4xl font-bold text-center mb-2">QUITTR 2.0</h1>
+        <p className="text-center text-gray-400 mb-8">Welcome {user.displayName}</p>
+        
+        {/* STATS */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="bg-gray-900 p-4 rounded-lg text-center">
+            <p className="text-gray-400">Points</p>
+            <p className="text-2xl font-bold text-green-400">{Math.floor(points)}</p>
+          </div>
+          <div className="bg-gray-900 p-4 rounded-lg text-center">
+            <p className="text-gray-400">Tree Growth</p>
+            <p className="text-2xl font-bold text-green-400">{Math.floor(treeStage)}%</p>
+          </div>
+          <div className="bg-gray-900 p-4 rounded-lg text-center">
+            <p className="text-gray-400">Instagram</p>
+            <p className={`text-2xl font-bold ${instaTime > INSTA_LIMIT? 'text-red-500' : 'text-white'}`}>{formatTime(instaTime)} / 30m</p>
+          </div>
+          <div className="bg-gray-900 p-4 rounded-lg text-center">
+            <p className="text-gray-400">YouTube</p>
+            <p className={`text-2xl font-bold ${youtubeTime > YT_LIMIT? 'text-red-500' : 'text-white'}`}>{formatTime(youtubeTime)} / 45m</p>
+          </div>
         </div>
-      )}
+
+        {/* NEXT LEVEL TWIST */}
+        <div className="bg-gray-900 p-6 rounded-lg mb-8">
+          <h2 className="text-2xl font-bold mb-4">🔥 Next-Level Twist</h2>
+          {instaTime > INSTA_LIMIT && <p className="text-red-500">🚫 Instagram limit reached! 30 min ayipoyindi.</p>}
+          {youtubeTime > YT_LIMIT && <p className="text-red-500">🚫 YouTube limit reached! 45 min ayipoyindi.</p>}
+          <button 
+            onClick={() => setFocusMode(!focusMode)}
+            className={`mt-4 w-full py-3 rounded-lg font-bold ${focusMode? 'bg-green-600' : 'bg-blue-600'}`}
+          >
+            {focusMode? 'Focus Mode ON' : 'Start Focus Mode'}
+          </button>
+          {focusMode && <p className="text-green-400 mt-2">All social apps locked. Tree is growing fast 🌳</p>}
+        </div>
+
+        <button onClick={() => signOut(auth)} className="bg-gray-600 px-4 py-2 rounded">Logout</button>
+      </div>
     </main>
   );
-}
+                                                }

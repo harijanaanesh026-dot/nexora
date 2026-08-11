@@ -92,7 +92,7 @@ export default function QUITTR_MVP() {
     <main className="bg-gradient-to-b from-black to-red-950 text-white min-h-screen flex flex-col items-center justify-center">
       <h1 className="text-6xl font-extrabold bg-gradient-to-r from-red-500 to-orange-400 bg-clip-text text-transparent">QUITTR</h1>
       <p className="text-gray-400 mb-10">Break the Scroll</p>
-      <button onClick={handleLogin} className="bg-red-600 hover:bg-red-700 font-bold py-4 px-10 rounded-xl text-xl">Google తో Login</button>
+      <button onClick={handleLogin} className="bg-red-600 hover:bg-red-700 font-bold py-4 px-10 rounded-xl text-xl">Google tho Login</button>
     </main>
   );
 
@@ -146,7 +146,6 @@ export default function QUITTR_MVP() {
             </div>
           )}
         </div>}
-
                 {/* 3. CHALLENGES SCREEN */}
         {tab==='challenges' && <div className="space-y-4">
           <h2 className="text-2xl font-bold">Challenges</h2>
@@ -162,7 +161,7 @@ export default function QUITTR_MVP() {
 
           <div className="bg-gray-900/50 p-5 rounded-2xl border border-gray-800">
             <h3 className="font-bold text-lg mb-2">7-Day Challenge</h3>
-            <p className="text-gray-400">Screen Time < 2 Hours Daily</p>
+            <p className="text-gray-400">Screen Time {"<"} 2 Hours Daily</p>
             <div className="w-full bg-gray-800 rounded-full h-2.5 mt-3">
               <div className="bg-blue-600 h-2.5 rounded-full" style={{width: `${(data.challengeDay/7)*100}%`}}></div>
             </div>
@@ -173,7 +172,7 @@ export default function QUITTR_MVP() {
         {/* 4. PROGRESS SCREEN */}
         {tab==='progress' && <div className="space-y-4">
           <h2 className="text-2xl font-bold">Your Progress</h2>
-          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
+          <div className="bg-gray-900/50 p-5 rounded-2xl border border-gray-800">
             <p className="text-gray-400">Daily Screen Time</p>
             <p className="text-3xl font-bold">{fmt(data.screenTime)}</p>
           </div>
@@ -219,9 +218,10 @@ export default function QUITTR_MVP() {
 
 // COMPONENT
 const StatCard = ({title, value, color="", icon}:any) => (
-  <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
+  <div className="bg-gray-900/50 p-5 rounded-2xl border border-gray-800">
     {icon}
     <p className="text-gray-400 text-sm">{title}</p>
     <p className={`text-2xl font-bold ${color}`}>{value}</p>
   </div>
 );
+        

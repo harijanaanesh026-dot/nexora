@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
+import AgoraRTC, { IAgoraRTCClient, IAgoraRTCRemoteUser, ICameraVideoTrack, IMicrophoneAudioTrack } from "agora-rtc-sdk-ng";
+import { getStorage } from "firebase/storage";
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from 'firebase/auth';
-import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, updateDoc, arrayUnion, arrayRemove, setDoc, getDocs, where } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Home, MessageCircle, Users, User, Edit, Save, X, Camera, Send, Heart, LogOut } from 'lucide-react';
-import AgoraRTC, { useRTCClient, useMicrophoneAndCameraTracks, useJoin, useLocalMicrophoneTrack, useLocalCameraTrack, usePublish, useRemoteUsers, useScreenCapture } from 'agora-rtc-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff } from "lucide-react";
 
-// ========== FIREBASE CONFIG - NEE KEYS ==========
+// ---------------- FIREBASE CONFIG ----------------
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
   authDomain: "nexoraai-75ae2.firebaseapp.com",
@@ -16,183 +15,83 @@ const firebaseConfig = {
   appId: "1:173122711177:web:68e373598d110d80c1e058",
   measurementId: "G-11Y8XF8MBC"
 };
-
-const app = getApps().length? getApps()[0] : initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+const app = getApps().length === 0? initializeApp(firebaseConfig) : getApps()[0];
 const storage = getStorage(app);
 
-// ========== AGORA CONFIG ==========
-const appId = "d87fed45cfe943caa09bcd88116d9974"; // ikkada nee full Agora App ID pettu
+// ---------------- AGORA CONFIG ----------------
+const appId = process.env.d87fed45cfe943caa09bcd88116d9974 || "";
+const client: IAgoraRTCClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
-export default function NexoraApp() {
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>({});
-  const [tab, setTab] = useState('feed');
-  const [posts, setPosts] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [postText, setPostText] = useState('');
-  const [inGroupCall, setInGroupCall] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState<any>({});
+export default function HomePage() {
+  const [page, setPage] = useState<"landing" | "auth" | "dashboard" | "video">("landing");
+  const [channelName, setChannelName] = useState("test");
+  const [joined, setJoined] = useState(false);
+  const [localTracks, setLocalTracks] = useState<[IMicrophoneAudioTrack, ICameraVideoTrack] | null>(null);
+  const [remoteUsers, setRemoteUsers] = useState<IAgoraRTCRemoteUser[]>([]);
+  const [micOn, setMicOn] = useState(true);
+  const [camOn, setCamOn] = useState(true);
 
-  // AUTH CHECK
+  const handleJoin = async () => {
+    if (!appId) return alert("Agora App ID missing in Vercel Env");
+    setPage("video");
+    const [micTrack, camTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+    setLocalTracks([micTrack, camTrack]);
+    await client.join(appId, channelName, null, null);
+    await client.publish([micTrack, camTrack]);
+    setJoined(true);
+  };
+
+  const handleLeave = async () => {
+    localTracks?.forEach(track => track.close());
+    await client.leave();
+    setJoined(false);
+    setRemoteUsers([]);
+    setPage("dashboard");
+  };
+
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (currentUser) => {
-      if(currentUser){
-        setUser(currentUser);
-        const userRef = doc(db, "users", currentUser.uid);
-        const snap = await getDocs(query(collection(db, "users"), where("uid", "==", currentUser.uid)));
-        if(snap.empty){
-          await setDoc(userRef, {
-            uid: currentUser.uid,
-            name: currentUser.displayName || "User",
-            photo: currentUser.photoURL || "",
-            coverPhoto: "",
-            isVerified: false,
-            username: "",
-            bio: "",
-            followers: [],
-            following: [],
-            xp: 0,
-            createdAt: serverTimestamp()
-          });
-        }
-        onSnapshot(userRef, (d) => setProfile(d.data()));
-      } else { setUser(null); }
+    client.on("user-published", async (user, mediaType) => {
+      await client.subscribe(user, mediaType);
+      if (mediaType === "video") {
+        setRemoteUsers((prev) => [...prev.filter(u => u.uid!== user.uid), user]);
+      }
     });
-    return unsub;
+    client.on("user-left", (user) => {
+      setRemoteUsers((prev) => prev.filter((u) => u.uid!== user.uid));
+    });
   }, []);
 
-  // GET POSTS + USERS
   useEffect(() => {
-    if(!user) return;
-    onSnapshot(query(collection(db, "posts"), orderBy("createdAt", "desc")), snap => setPosts(snap.docs.map(d => ({id:d.id,...d.data()}))));
-    onSnapshot(collection(db, "users"), snap => setUsers(snap.docs.map(d => d.data())));
-  }, [user]);
+    if (localTracks?.[1]) {
+      localTracks[1].play("local-player");
+    }
+  }, [localTracks]);
 
-  // FUNCTIONS
-  const login = async () => { await signInWithEmailAndPassword(auth, email, password); }
-  const googleLogin = async () => { await signInWithPopup(auth, new GoogleAuthProvider()); }
-  const logout = () => signOut(auth);
-
-  const createPost = async () => {
-    if(!postText.trim()) return;
-    await addDoc(collection(db, "posts"), {
-      text: postText,
-      authorId: user.uid,
-      authorName: profile.name,
-      authorPhoto: profile.photo,
-      likes: [],
-      createdAt: serverTimestamp()
+  useEffect(() => {
+    remoteUsers.forEach(user => {
+      if (user.videoTrack) {
+        user.videoTrack.play(`remote-${user.uid}`);
+      }
     });
-    setPostText('');
-  }
+  }, [remoteUsers]);
 
-  const toggleLike = async (postId:string, likes:string[]) => {
-    const postRef = doc(db, "posts", postId);
-    if(likes.includes(user.uid)) await updateDoc(postRef, {likes: arrayRemove(user.uid)});
-    else await updateDoc(postRef, {likes: arrayUnion(user.uid)});
-  }
+  const toggleMic = () => { localTracks?.[0].setEnabled(!micOn); setMicOn(!micOn); };
+  const toggleCam = () => { localTracks?.[1].setEnabled(!camOn); setCamOn(!camOn); };
 
-  const handlePhotoUpload = async (e: any) => {
-    const file = e.target.files[0]; if(!file) return;
-    const snap = await uploadBytes(ref(storage, `profilePhotos/${user.uid}`), file);
-    const url = await getDownloadURL(snap.ref);
-    await updateDoc(doc(db, "users", user.uid), { photo: url });
-  }
-
-  const saveProfile = async () => {
-    await updateDoc(doc(db, "users", user.uid), editData);
-    setIsEditing(false);
-  }
-
-  // AGORA GROUP VIDEO CALL COMPONENT
-  function GroupVideoCall({ channelName, onLeave }: any) {
-    const client = useRTCClient(AgoraRTC.createClient({ codec: "vp8", mode: "rtc" }));
-    const { isLoading, localMicrophoneTrack, localCameraTrack } = useMicrophoneAndCameraTracks();
-    const { join } = useJoin({ appid: appId, channel: channelName, token: null }, true);
-    const { isMuted: isMicMuted, toggle: toggleMic } = useLocalMicrophoneTrack(localMicrophoneTrack);
-    const { isMuted: isCamMuted, toggle: toggleCam } = useLocalCameraTrack(localCameraTrack);
-    const { screenTrack, isScreenSharing, startScreenShare, stopScreenShare } = useScreenCapture();
-    const remoteUsers = useRemoteUsers();
-    usePublish(isScreenSharing? [screenTrack] : [localCameraTrack, localMicrophoneTrack]);
-    useEffect(() => { if (!isLoading) join(); }, [isLoading]);
-
-    return (
-      <div className="fixed inset-0 bg-black z-50">
-        <div className="grid grid-cols-2 gap-2 p-2 h-[80vh]">
-          <video ref={node => { if (node) { if(isScreenSharing && screenTrack) screenTrack.play(node); else if(localCameraTrack) localCameraTrack.play(node); }}} autoPlay muted className="w-full h-full object-cover rounded"/>
-          {remoteUsers.map((user) => <video key={user.uid} ref={node => {if(node) user.videoTrack?.play(node);}} autoPlay className="w-full h-full object-cover rounded" />)}
-        </div>
-        <div className="flex justify-center gap-3 p-4">
-          <button onClick={toggleMic} className="p-3 bg-gray-700 rounded-full">{isMicMuted? '🔇' : '🎤'}</button>
-          <button onClick={toggleCam} className="p-3 bg-gray-700 rounded-full">{isCamMuted? '📷❌' : '📷'}</button>
-          <button onClick={async () => isScreenSharing? stopScreenShare() : startScreenShare()} className="p-3 bg-blue-600 rounded-full">🖥️</button>
-          <button onClick={() => { client.leave(); onLeave(); }} className="p-3 bg-red-600 rounded-full">📞</button>
-        </div>
+  if (page === "landing") return (<div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 text-white flex-col items-center justify-center p-8"><h1 className="text-5xl font-bold mb-4">Nexora</h1><button onClick={() => setPage("auth")} className="bg-white text-purple-600 px-8 py-3 rounded-full font-bold">Get Started</button></div>);
+  if (page === "auth") return (<div className="min-h-screen bg-gray-100 flex items-center justify-center"><div className="bg-white p-8 rounded-lg shadow-md w-96"><h2 className="text-2xl font-bold mb-4">Login</h2><button onClick={() => setPage("dashboard")} className="w-full bg-purple-600 text-white py-2 rounded">Continue</button></div></div>);
+  if (page === "dashboard") return (<div className="min-h-screen bg-gray-50"><header className="bg-white shadow p-4"><h1 className="text-2xl font-bold text-purple-600">Nexora</h1></header><main className="p-8"><h2 className="text-3xl font-bold mb-6">Dashboard</h2><div className="bg-white p-6 rounded-lg shadow"><input value={channelName} onChange={(e) => setChannelName(e.target.value)} className="border p-2 rounded w-full mb-4" placeholder="Enter Room Name"/><button onClick={handleJoin} className="bg-green-600 text-white px-6 py-2 rounded font-bold">Join Video Room</button></div></main></div>);
+  if (page === "video") return (
+    <div className="relative h-screen bg-black">
+      <div className="grid grid-cols-2 gap-4 p-4 h-[90vh]">
+        <div className="bg-gray-800 rounded-lg"><div id="local-player" className="h-full w-full"></div><p className="text-white text-center">You</p></div>
+        {remoteUsers.map((user) => (<div key={user.uid} className="bg-gray-800 rounded-lg"><div id={`remote-${user.uid}`} className="h-full w-full"></div><p className="text-white text-center">User {user.uid}</p></div>))}
       </div>
-    );
-  }
-
-  // LOGIN SCREEN
-  if(!user) return (
-    <div className="min-h-screen flex items-center justify-center bg-black text-white">
-      <div className="bg-gray-900 p-8 rounded-2xl w-80">
-        <h1 className="text-2xl font-bold mb-4 text-center">NEXORA Login</h1>
-        <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="Email" className="bg-black p-2 rounded w-full mb-2"/>
-        <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Password" className="bg-black p-2 rounded w-full mb-4"/>
-        <button onClick={login} className="w-full bg-purple-600 p-2 rounded mb-2">Login</button>
-        <button onClick={googleLogin} className="w-full bg-red-600 p-2 rounded">Google Login</button>
+      <div className="absolute bottom-0 w-full bg-gray-900 p-4 flex justify-center gap-4">
+        <button onClick={toggleMic} className="bg-gray-700 p-3 rounded-full text-white">{micOn? <Mic /> : <MicOff />}</button>
+        <button onClick={toggleCam} className="bg-gray-700 p-3 rounded-full text-white">{camOn? <Video /> : <VideoOff />}</button>
+        <button onClick={handleLeave} className="bg-red-600 p-3 rounded-full text-white"><PhoneOff /></button>
       </div>
     </div>
   );
-
-  // MAIN APP
-  return (
-    <div className="min-h-screen bg-black text-white pb-20">
-      <header className="p-4 border-b border-gray-800 sticky top-0 bg-black"><h1 className="font-bold text-xl">NEXORA</h1></header>
-
-      {tab==='feed' && <div className="p-4">
-        <div className="bg-gray-900 p-3 rounded-2xl mb-4">
-          <textarea value={postText} onChange={e=>setPostText(e.target.value)} placeholder="What's on your mind?" className="w-full bg-black p-3 rounded"/>
-          <button onClick={createPost} className="bg-purple-600 px-4 py-2 rounded mt-2">Post</button>
-        </div>
-        {posts.map(p => (
-          <div key={p.id} className="bg-gray-900/50 p-4 mt-4 rounded-2xl">
-            <div className="flex items-center gap-2 mb-2"><img src={p.authorPhoto} className="w-8 h-8 rounded-full"/><p className="font-bold">{p.authorName}</p></div>
-            <p>{p.text}</p>
-            <button onClick={() => toggleLike(p.id, p.likes)} className="flex items-center gap-1 mt-2 text-red-500"><Heart size={18}/> {p.likes.length}</button>
-          </div>
-        ))}
-      </div>}
-
-      {tab==='rooms' && <div className="p-4">
-        <h2 className="text-xl font-bold mb-4">Group Video Room</h2>
-        <button onClick={() => setInGroupCall(true)} className="bg-green-600 p-3 rounded w-full">Join Video Room</button>
-        {inGroupCall && <GroupVideoCall channelName="General" onLeave={() => setInGroupCall(false)} />}
-      </div>}
-
-      {tab==='profile' && <div className="p-4">
-        <div className="relative mb-4">
-          <img src={profile.photo || 'https://via.placeholder.com/150'} className="w-20 h-20 rounded-full"/>
-          <label className="absolute bottom-0 left-12 bg-purple-600 p-1 rounded-full cursor-pointer"><Camera size={16}/><input type="file" onChange={handlePhotoUpload} className="hidden"/></label>
-        </div>
-        <p className="text-2xl font-bold">{profile.name}</p>
-        {isEditing?
-          <div><input value={editData.name} onChange={e=>setEditData({...editData, name: e.target.value})} className="bg-gray-800 p-2 rounded w-full"/><button onClick={saveProfile} className="mt-2 bg-green-600 p-2 rounded"><Save/></button></div>
-          : <button onClick={() => {setEditData(profile); setIsEditing(true);}} className="mt-2 bg-gray-700 p-2 rounded"><Edit/></button>
-        }
-        <button onClick={logout} className="w-full bg-red-600 py-3 rounded-xl font-bold mt-4 flex items-center justify-center gap-2"><LogOut/> Logout</button>
-      </div>}
-
-      <nav className="fixed bottom-0 w-full flex justify-around bg-black p-3 border-t border-gray-800">
-        <button onClick={()=>setTab('feed')}><Home/></button>
-        <button onClick={()=>setTab('rooms')}><Users/></button>
-        <button onClick={()=>setTab('profile')}><User/></button>
-      </nav>
-    </div>
-  );
-  }
+  return null;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            

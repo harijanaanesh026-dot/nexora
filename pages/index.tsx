@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import AgoraRTC, { IAgoraRTCClient, IAgoraRTCRemoteUser, ICameraVideoTrack, IMicrophoneAudioTrack } from "agora-rtc-sdk-ng";
 import { getStorage } from "firebase/storage";
 import { initializeApp, getApps } from "firebase/app";
 import { Mic, MicOff, Video, VideoOff, PhoneOff } from "lucide-react";
+import dynamic from "next/dynamic";
 
 // ---------------- FIREBASE CONFIG ----------------
 const firebaseConfig = {
@@ -18,19 +18,27 @@ const app = getApps().length === 0? initializeApp(firebaseConfig) : getApps()[0]
 const storage = getStorage(app);
 
 // ---------------- AGORA CONFIG ----------------
-const appId = "d87fed45cfe943caa09bcd88116d9974"; // NUV ICHINA AGORA APP ID
-const client: IAgoraRTCClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+const appId = "d87fed45cfe943caa09bcd88116d9974"; 
+
+let AgoraRTC: any = null;
+let client: any = null;
+
+if (typeof window!== "undefined") {
+  AgoraRTC = require("agora-rtc-sdk-ng");
+  client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+}
 
 export default function HomePage() {
   const [page, setPage] = useState<"landing" | "auth" | "dashboard" | "video">("landing");
   const [channelName, setChannelName] = useState("test");
   const [joined, setJoined] = useState(false);
-  const [localTracks, setLocalTracks] = useState<[IMicrophoneAudioTrack, ICameraVideoTrack] | null>(null);
-  const [remoteUsers, setRemoteUsers] = useState<IAgoraRTCRemoteUser[]>([]);
+  const [localTracks, setLocalTracks] = useState<any>(null);
+  const [remoteUsers, setRemoteUsers] = useState<any[]>([]);
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
 
   const handleJoin = async () => {
+    if (!client) return;
     setPage("video");
     const [micTrack, camTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
     setLocalTracks([micTrack, camTrack]);
@@ -40,7 +48,8 @@ export default function HomePage() {
   };
 
   const handleLeave = async () => {
-    localTracks?.forEach(track => track.close());
+    if (!client) return;
+    localTracks?.forEach((track: any) => track.close());
     await client.leave();
     setJoined(false);
     setRemoteUsers([]);
@@ -48,13 +57,14 @@ export default function HomePage() {
   };
 
   useEffect(() => {
-    client.on("user-published", async (user, mediaType) => {
+    if (!client) return;
+    client.on("user-published", async (user: any, mediaType: string) => {
       await client.subscribe(user, mediaType);
       if (mediaType === "video") {
         setRemoteUsers((prev) => [...prev.filter(u => u.uid!== user.uid), user]);
       }
     });
-    client.on("user-left", (user) => {
+    client.on("user-left", (user: any) => {
       setRemoteUsers((prev) => prev.filter((u) => u.uid!== user.uid));
     });
   }, []);
@@ -78,7 +88,7 @@ export default function HomePage() {
 
   if (page === "landing") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 text-white flex-col items-center justify-center p-8">
+      <div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 text-white flex flex-col items-center justify-center p-8">
         <h1 className="text-5xl font-bold mb-4">Nexora</h1>
         <p className="text-xl mb-8">AI Powered Social Platform</p>
         <button onClick={() => setPage("auth")} className="bg-white text-purple-600 px-8 py-3 rounded-full font-bold">Get Started</button>
@@ -130,4 +140,4 @@ export default function HomePage() {
   }
   
   return null;
-      }
+}

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { Home, Timer, Target, BarChart3, User, Flame, Clock, Trophy, Play, Check, Settings } from 'lucide-react';
+import { Home, Timer, Target, BarChart3, User, Flame, Clock, Trophy, Play, Check, Settings, X, Shield } from 'lucide-react';
 
 // FIREBASE
 const firebaseConfig = {
@@ -21,6 +21,7 @@ export default function QUITTR_MVP() {
   const [user, setUser] = useState<any>(null);
   const [tab, setTab] = useState('home');
   const [loading, setLoading] = useState(true);
+  const [showRelapse, setShowRelapse] = useState(false); // MANADHI RELAPSE WALL
 
   const [data, setData] = useState({
     screenTime: 0,
@@ -33,12 +34,17 @@ export default function QUITTR_MVP() {
     missionsDone: 1,
     challengeDay: 3,
     badges: ["7 Day Streak", "Focus King"],
-    goal: "Screen Time < 2h Daily"
+    goal: "Screen Time < 2h Daily",
+    instaLimit: 30*60, // 30min
+    ytLimit: 45*60, // 45min
+    instaUsed: 0,
+    ytUsed: 0
   });
 
   const [isFocusing, setIsFocusing] = useState(false);
   const [focusTimer, setFocusTimer] = useState(0);
   const [selectedFocus, setSelectedFocus] = useState(25);
+  const [relapseTimer, setRelapseTimer] = useState(5);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -53,25 +59,46 @@ export default function QUITTR_MVP() {
     return () => unsubscribe();
   }, []);
 
+  // MAIN TIMER LOGIC
   useEffect(() => {
     if(!user) return;
     const interval = setInterval(() => {
       setData(prev => {
+        const newData = {...prev};
+
         if(isFocusing){
-          return {...prev, focusTime: prev.focusTime + 1, timeSaved: prev.timeSaved + 1 }
+          newData.focusTime += 1;
+          newData.timeSaved += 1;
         } else {
-          return {...prev, screenTime: prev.screenTime + 1, lifeScore: Math.max(0, 100 - Math.floor(prev.screenTime/600))}
+          // Simulate app usage - real lo extension nundi vastundi
+          newData.screenTime += 1;
+          newData.instaUsed += 1;
+          newData.ytUsed += 1;
+          newData.lifeScore = Math.max(0, 100 - Math.floor(newData.screenTime/600));
         }
+
+        // MANADHI BLOCKER LOGIC - APP LOPALE
+        const shouldBlock = newData.instaUsed > newData.instaLimit || newData.ytUsed > newData.ytLimit;
+        if(shouldBlock &&!showRelapse){
+          setShowRelapse(true);
+          setRelapseTimer(5);
+        }
+
+        newData.level = Math.floor(newData.xp / 100) + 1;
+        return newData;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [user, isFocusing]);
+  }, [user, isFocusing, showRelapse]);
 
+  // RELAPSE WALL TIMER
   useEffect(() => {
-    if(!isFocusing) return;
-    const i = setInterval(() => setFocusTimer(prev => prev + 1), 1000);
+    if(!showRelapse) return;
+    const i = setInterval(() => {
+      setRelapseTimer(prev => prev > 0? prev - 1 : 0);
+    }, 1000);
     return () => clearInterval(i);
-  }, [isFocusing]);
+  }, [showRelapse]);
 
   useEffect(() => {
     if(user) setDoc(doc(db, "users", user.uid), {...data, last: serverTimestamp()}, {merge:true});
@@ -83,9 +110,11 @@ export default function QUITTR_MVP() {
   const startFocus = () => {
     setFocusTimer(0);
     setIsFocusing(true);
+    setShowRelapse(false); // Focus start ayithe block off
+    setData(prev => ({...prev, instaUsed: 0, ytUsed: 0})); // Reset usage
     setTimeout(() => {
       setIsFocusing(false);
-      setData(prev => ({...prev, xp: prev.xp + selectedFocus, level: Math.floor((prev.xp + selectedFocus)/100)+1 }));
+      setData(prev => ({...prev, xp: prev.xp + selectedFocus }));
       alert(`Session completed! +${selectedFocus} XP`);
     }, selectedFocus * 60 * 1000);
   }
@@ -93,7 +122,7 @@ export default function QUITTR_MVP() {
   if(loading) return <div className="bg-black h-screen flex items-center justify-center text-white">Loading...</div>;
 
   if(!user) return (
-    <main className="bg-gradient-to-b from-black to-red-950 text-white min-h-screen flex-col items-center justify-center">
+    <main className="bg-gradient-to-b from-black to-red-950 text-white min-h-screen flex flex-col items-center justify-center">
       <h1 className="text-6xl font-extrabold bg-gradient-to-r from-red-500 to-orange-400 bg-clip-text text-transparent">QUITTR</h1>
       <p className="text-gray-400 mb-10">Break the Scroll</p>
       <button onClick={handleLogin} className="bg-red-600 hover:bg-red-700 font-bold py-4 px-10 rounded-xl text-xl">Google tho Login</button>
@@ -115,6 +144,27 @@ export default function QUITTR_MVP() {
         <button onClick={()=>setTab('profile')}><Settings/></button>
       </header>
 
+      {/* MANADHI RELAPSE WALL - APP LOPALE */}
+      {showRelapse && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-red-500/50 p-8 rounded-2xl text-center max-w-md">
+            <Shield size={48} className="text-red-500 mx-auto mb-4"/>
+            <h1 className="text-3xl font-bold text-red-500 mb-2">WAIT!</h1>
+            <p className="text-gray-300 mb-4">QUITTR gurtuchestundi...</p>
+            <p>Nuv focus cheyalanukunnav kada?</p>
+            <p className="text-xl font-mono my-4">{relapseTimer}s</p>
+            <button
+              onClick={() => setShowRelapse(false)}
+              disabled={relapseTimer > 0}
+              className={`w-full py-3 rounded-lg font-bold ${relapseTimer > 0? 'bg-gray-700' : 'bg-red-600'}`}
+            >
+              {relapseTimer > 0? 'Aagu...' : 'I Know, Proceed'}
+            </button>
+            <button onClick={startFocus} className="w-full mt-3 bg-green-600 py-3 rounded-lg font-bold">Start Focus Instead</button>
+          </div>
+        </div>
+      )}
+
       <div className="p-4 max-w-2xl mx-auto">
 
         {/* 1. HOME SCREEN */}
@@ -125,6 +175,12 @@ export default function QUITTR_MVP() {
             <StatCard title="Time Saved" value={fmt(data.timeSaved)} color="text-green-400" />
             <StatCard title="Streak" value={`${data.streak} Days`} icon={<Flame className="text-orange-400"/>} />
             <StatCard title="Life Score" value={`${data.lifeScore}/100`} color="text-blue-400" />
+          </div>
+          <div className="bg-gray-900/50 p-4 rounded-xl">
+            <p>Instagram: {fmt(data.instaUsed)} / {fmt(data.instaLimit)}</p>
+            <div className="w-full bg-gray-800 rounded-full h-2 mt-1">
+              <div className="bg-red-600 h-2 rounded-full" style={{width: `${(data.instaUsed/data.instaLimit)*100}%`}}></div>
+            </div>
           </div>
           <button onClick={() => setTab('focus')} className="w-full bg-red-600 py-4 rounded-xl text-xl font-bold flex items-center justify-center gap-2">
             <Play/> Start Focus
@@ -154,14 +210,12 @@ export default function QUITTR_MVP() {
               <button onClick={startFocus} className="w-full bg-red-600 py-4 rounded-xl text-xl font-bold">Start Focus</button>
             </div>
           )}
-          <p className="text-sm text-gray-500">Session completed → XP</p>
         </div>}
 
         {/* 3. CHALLENGES SCREEN */}
         {tab==='challenges' && <div className="space-y-4">
           <h2 className="text-2xl font-bold">Challenges</h2>
-
-          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
+          <div className="bg-gray-900/50 p-5 rounded-2xl">
             <h3 className="font-bold text-lg mb-2">Daily Mission</h3>
             <p className="text-gray-400">Complete 1 Focus Session</p>
             <div className="flex justify-between items-center mt-3">
@@ -169,8 +223,7 @@ export default function QUITTR_MVP() {
               <button className="bg-green-600 px-4 py-2 rounded flex items-center gap-1"><Check size={16}/> Done</button>
             </div>
           </div>
-
-          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
+          <div className="bg-gray-900/50 p-5 rounded-2xl">
             <h3 className="font-bold text-lg mb-2">7-Day Challenge</h3>
             <p className="text-gray-400">Screen Time {"<"} 2 Hours Daily</p>
             <div className="w-full bg-gray-800 rounded-full h-2.5 mt-3">
@@ -183,45 +236,30 @@ export default function QUITTR_MVP() {
         {/* 4. PROGRESS SCREEN */}
         {tab==='progress' && <div className="space-y-4">
           <h2 className="text-2xl font-bold">Your Progress</h2>
-          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
-            <p className="text-gray-400">Daily Screen Time</p>
-            <p className="text-3xl font-bold">{fmt(data.screenTime)}</p>
-          </div>
-          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
-            <p className="text-gray-400">Weekly Screen Time</p>
-            <p className="text-3xl font-bold">{fmt(data.screenTime * 7)}</p>
-          </div>
-          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
-            <p className="text-gray-400">Focus Hours</p>
-            <p className="text-3xl font-bold">{fmt(data.focusTime)}</p>
-          </div>
-          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
-            <p className="text-gray-400">Time Saved</p>
-            <p className="text-3xl font-bold text-green-400">{fmt(data.timeSaved)}</p>
-          </div>
-          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
-            <p className="text-gray-400">Streak History</p>
-            <p className="text-3xl font-bold">{data.streak} Days Current</p>
-          </div>
+          <StatCard title="Daily Screen Time" value={fmt(data.screenTime)} />
+          <StatCard title="Weekly Screen Time" value={fmt(data.screenTime * 7)} />
+          <StatCard title="Focus Hours" value={fmt(data.focusTime)} />
+          <StatCard title="Time Saved" value={fmt(data.timeSaved)} color="text-green-400" />
+          <StatCard title="Streak History" value={`${data.streak} Days Current`} />
         </div>}
 
         {/* 5. PROFILE SCREEN */}
         {tab==='profile' && <div className="space-y-4">
           <h2 className="text-2xl font-bold">Profile</h2>
-          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800 text-center">
+          <div className="bg-gray-900/50 p-5 rounded-2xl text-center">
             <p className="text-gray-400">Level</p>
             <p className="text-5xl font-bold">{data.level}</p>
             <p className="text-gray-400 mt-2">{data.xp} XP</p>
           </div>
-          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
+          <div className="bg-gray-900/50 p-5 rounded-2xl">
             <h3 className="font-bold mb-2 flex items-center gap-2"><Trophy/> Badges</h3>
             {data.badges.map(b => <span key={b} className="bg-yellow-600/20 text-yellow-400 px-3 py-1 rounded-full inline-block mr-2 mb-2">{b}</span>)}
           </div>
-          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
+          <div className="bg-gray-900/50 p-5 rounded-2xl">
             <h3 className="font-bold mb-2">Goals</h3>
             <p>{data.goal}</p>
           </div>
-          <div className="bg-gray-900/50 p-5 rounded-2xl border-gray-800">
+          <div className="bg-gray-900/50 p-5 rounded-2xl">
             <h3 className="font-bold mb-2">Settings</h3>
             <button onClick={() => signOut(auth)} className="w-full bg-red-600 py-2 rounded">Logout</button>
           </div>

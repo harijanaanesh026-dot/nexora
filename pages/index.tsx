@@ -1,43 +1,53 @@
 import { useState, useEffect, useRef } from "react";
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
-import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { Heart, MessageCircle, Share, Bookmark, LogOut, User, Users, Bell, Image as ImageIcon, Send, Mic, MicOff, Video, VideoOff, PhoneOff, Home, PlusSquare, BadgeCheck } from "lucide-react";
-import AgoraRTC from "agora-rtc-sdk-ng";
+import { Heart, LogOut, Users, BadgeCheck, Image as ImageIcon, Mic, MicOff, Video, VideoOff, PhoneOff } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import toast, { Toaster } from "react-hot-toast";
 import { motion } from "framer-motion";
 
-// FIREBASE CONFIG
+// FIREBASE CONFIG - NUVVU ICHE ID PETTU
 const firebaseConfig = {
   apiKey: "AIzaSyATgYb90gVCrAzhuz2a3k10kdy8bqB4",
   authDomain: "nexoraai-75aez.firebaseapp.com",
   projectId: "nexoraai-75aez",
   storageBucket: "nexoraai-75aez.appspot.com",
   messagingSenderId: "713122171177",
-  appId: "1:713122171177:wb:8b6a73598b10b0b0c8ed85P",
+  appId: "1:713122171177:wb:8b6a73598b10b0c8ed85P",
 };
 
 const app = getApps().length === 0? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
-const googleProvider = new GoogleAuthProvider();
 
-// AGORA CONFIG
-const agoraClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-const AGORA_APP_ID = "0e76b7daaa4b47cba8e18d1697d72"; // NEE AGORA ID AKKADA PETTU
+// AGORA CONFIG - NEE AGORA APP ID AKKADA PETTU
+const AGORA_APP_ID = "0e76b7daaa4b47cba8e18d1697d72";
 
-// VIDEOROOM COMPONENT
+// VIDEOROOM COMPONENT - SSR ERROR RAAKUNDA FIX CHESA
 function VideoRoom({ channel, onLeave, isPaid }: { channel: string; onLeave: () => void; isPaid: boolean }) {
+  const [AgoraRTC, setAgoraRTC] = useState<any>(null);
+  const [agoraClient, setAgoraClient] = useState<any>(null);
   const [localTracks, setLocalTracks] = useState<any>({ audio: null, video: null });
   const [remoteUsers, setRemoteUsers] = useState<any[]>([]);
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const localRef = useRef<HTMLDivElement>(null);
 
+  // CLIENT SIDE LO MATRAM AGORA LOAD CHEY
   useEffect(() => {
+    import("agora-rtc-sdk-ng").then((Agora) => {
+      const client = Agora.default.createClient({ mode: "rtc", codec: "vp8" });
+      setAgoraRTC(Agora.default);
+      setAgoraClient(client);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!agoraClient ||!AgoraRTC) return;
+    
     const init = async () => {
       await agoraClient.join(AGORA_APP_ID, channel, null, null);
       const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
@@ -46,7 +56,7 @@ function VideoRoom({ channel, onLeave, isPaid }: { channel: string; onLeave: () 
       if(localRef.current) videoTrack.play(localRef.current);
     };
 
-    agoraClient.on("user-published", async (user, mediaType) => {
+    agoraClient.on("user-published", async (user: any, mediaType: string) => {
       await agoraClient.subscribe(user, mediaType);
       if (mediaType === "video") {
         setRemoteUsers((prev) => [...prev, user]);
@@ -58,7 +68,7 @@ function VideoRoom({ channel, onLeave, isPaid }: { channel: string; onLeave: () 
       if (mediaType === "audio") user.audioTrack?.play();
     });
     
-    agoraClient.on("user-unpublished", (user) => {
+    agoraClient.on("user-unpublished", (user: any) => {
       setRemoteUsers((prev) => prev.filter((u) => u.uid!== user.uid));
     });
 
@@ -68,25 +78,19 @@ function VideoRoom({ channel, onLeave, isPaid }: { channel: string; onLeave: () 
       localTracks.video?.close();
       agoraClient.leave();
     };
-  }, [channel]);
+  }, [agoraClient, AgoraRTC, channel]);
 
-  const toggleMic = async () => {
-    await localTracks.audio.setEnabled(!micOn);
-    setMicOn(!micOn);
-  };
-  const toggleCam = async () => {
-    await localTracks.video.setEnabled(!camOn);
-    setCamOn(!camOn);
-  };
+  const toggleMic = async () => { await localTracks.audio.setEnabled(!micOn); setMicOn(!micOn); };
+  const toggleCam = async () => { await localTracks.video.setEnabled(!camOn); setCamOn(!camOn); };
+
+  if (!AgoraRTC) return <div className="h-screen flex items-center justify-center bg-black">Loading Video...</div>
 
   return (
     <div className="relative h-screen bg-black text-white">
-      {isPaid && <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-yellow-500 text-black px-3 py-1 rounded-full text-sm">Premium Room</div>}
+      {isPaid && <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-yellow-500 text-black px-3 py-1 rounded-full text-sm z-20">Premium Room</div>}
       <div ref={localRef} className="absolute top-4 right-4 w-40 h-56 bg-gray-800 rounded-lg z-10"></div>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 h-[85vh] overflow-y-auto pt-24">
-        {remoteUsers.map((user) => (
-          <div key={user.uid} id={`player-${user.uid}`} className="bg-gray-900 rounded-lg aspect-video"></div>
-        ))}
+        {remoteUsers.map((user) => (<div key={user.uid} id={`player-${user.uid}`} className="bg-gray-900 rounded-lg aspect-video"></div>))}
       </div>
       <div className="absolute bottom-0 w-full bg-gray-900 p-4 flex justify-center gap-4">
         <button onClick={toggleMic} className="bg-gray-700 p-3 rounded-full">{micOn? <Mic /> : <MicOff />}</button>
@@ -102,7 +106,6 @@ export default function Nexora() {
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [page, setPage] = useState("feed");
   const [posts, setPosts] = useState<any[]>([]);
   const [newPost, setNewPost] = useState("");
   const [postImage, setPostImage] = useState<File | null>(null);
@@ -112,35 +115,19 @@ export default function Nexora() {
   const [isPaidRoom, setIsPaidRoom] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-    });
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => { setUser(currentUser); setLoading(false); });
     return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     if(!user) return;
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setPosts(snapshot.docs.map(doc => ({ id: doc.id,...doc.data() })));
-    });
+    const unsubscribe = onSnapshot(q, (snapshot) => { setPosts(snapshot.docs.map(doc => ({ id: doc.id,...doc.data() }))); });
     return () => unsubscribe();
   }, [user]);
 
-  const handleLogin = async () => {
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      toast.success("Login Successful!");
-    } catch { toast.error("Login Failed"); }
-  };
-
-  const handleSignUp = async () => {
-    try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      toast.success("Account Created!");
-    } catch { toast.error("Signup Failed"); }
-  };
+  const handleLogin = async () => { try { await signInWithEmailAndPassword(auth, email, password); toast.success("Login Successful!"); } catch { toast.error("Login Failed"); } };
+  const handleSignUp = async () => { try { await createUserWithEmailAndPassword(auth, email, password); toast.success("Account Created!"); } catch { toast.error("Signup Failed"); } };
 
   const handlePost = async () => {
     if (!newPost &&!postImage) return;
@@ -151,33 +138,26 @@ export default function Nexora() {
       const snap = await uploadBytes(storageRef, postImage);
       imageUrl = await getDownloadURL(snap.ref);
     }
-    await addDoc(collection(db, "posts"), {
-      text: newPost, image: imageUrl, userId: user.uid,
-      userEmail: user.email, likes: [], createdAt: serverTimestamp()
-    });
-    setNewPost(""); setPostImage(null); setUploading(false);
-    toast.success("Posted!");
+    await addDoc(collection(db, "posts"), { text: newPost, image: imageUrl, userId: user.uid, userEmail: user.email, likes: [], createdAt: serverTimestamp() });
+    setNewPost(""); setPostImage(null); setUploading(false); toast.success("Posted!");
   };
 
   const handleLike = async (postId: string, likes: string[]) => {
     const postRef = doc(db, "posts", postId);
-    if (likes.includes(user.uid)) {
-      await updateDoc(postRef, { likes: arrayRemove(user.uid) });
-    } else {
-      await updateDoc(postRef, { likes: arrayUnion(user.uid) });
-    }
+    if (likes.includes(user.uid)) { await updateDoc(postRef, { likes: arrayRemove(user.uid) }); } 
+    else { await updateDoc(postRef, { likes: arrayUnion(user.uid) }); }
   };
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-black text-white">Loading...</div>;
   
   if (!user) return (
-    <div className="h-screen flex items-center justify-center bg-black text-white">
-      <motion.div initial={{opacity:0}} animate={{opacity:1}} className="w-80 p-6 bg-gray-900 rounded-xl">
+    <div className="h-screen flex items-center justify-center bg-black text-white p-4">
+      <motion.div initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} className="w-full max-w-sm p-6 bg-gray-900 rounded-xl">
         <h1 className="text-3xl font-bold text-center mb-6">Nexora</h1>
-        <input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full p-2 mb-3 bg-gray-800 rounded"/>
-        <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full p-2 mb-4 bg-gray-800 rounded"/>
-        <button onClick={handleLogin} className="w-full bg-blue-600 p-2 rounded mb-2">Login</button>
-        <button onClick={handleSignUp} className="w-full bg-gray-700 p-2 rounded">Sign Up</button>
+        <input type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full p-3 mb-3 bg-gray-800 rounded"/>
+        <input type="password" placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full p-3 mb-4 bg-gray-800 rounded"/>
+        <button onClick={handleLogin} className="w-full bg-blue-600 p-3 rounded mb-2 font-bold">Login</button>
+        <button onClick={handleSignUp} className="w-full bg-gray-700 p-3 rounded font-bold">Sign Up</button>
       </motion.div>
     </div>
   );
@@ -186,36 +166,39 @@ export default function Nexora() {
 
   return (
     <div className="bg-black text-white min-h-screen">
-      <Toaster />
-      <header className="sticky top-0 bg-gray-900 p-4 flex justify-between items-center z-20">
+      <Toaster position="top-right" />
+      <header className="sticky top-0 bg-gray-900/80 backdrop-blur p-4 flex justify-between items-center z-20 border-b border-gray-800">
         <h1 className="text-2xl font-bold">Nexora</h1>
-        <div className="flex gap-4">
-          <button onClick={() => {setRoomChannel("free-room"); setIsPaidRoom(false); setInRoom(true)}}><Users /></button>
-          <button onClick={() => {setRoomChannel("paid-room"); setIsPaidRoom(true); setInRoom(true)}}><BadgeCheck /></button>
-          <button onClick={() => signOut(auth)}><LogOut /></button>
+        <div className="flex gap-4 items-center">
+          <button onClick={() => {setRoomChannel("free-room"); setIsPaidRoom(false); setInRoom(true)}} className="p-2 bg-gray-800 rounded-full"><Users /></button>
+          <button onClick={() => {setRoomChannel("paid-room"); setIsPaidRoom(true); setInRoom(true)}} className="p-2 bg-yellow-600 rounded-full"><BadgeCheck /></button>
+          <button onClick={() => signOut(auth)} className="p-2 bg-gray-800 rounded-full"><LogOut /></button>
         </div>
       </header>
 
       <main className="max-w-2xl mx-auto p-4">
-        <div className="bg-gray-900 p-4 rounded-xl mb-6">
-          <textarea value={newPost} onChange={e=>setNewPost(e.target.value)} placeholder="What's on your mind?" className="w-full bg-gray-800 p-2 rounded mb-2"/>
-          <input type="file" onChange={e=>setPostImage(e.target.files?.[0] || null)} className="mb-2"/>
-          <button onClick={handlePost} disabled={uploading} className="bg-blue-600 px-4 py-2 rounded">{uploading? "Posting..." : "Post"}</button>
+        <div className="bg-gray-900 p-4 rounded-xl mb-6 border-gray-800">
+          <textarea value={newPost} onChange={e=>setNewPost(e.target.value)} placeholder="What's on your mind?" className="w-full bg-gray-800 p-3 rounded mb-2 border border-gray-700"/>
+          <div className="flex justify-between items-center">
+            <label className="cursor-pointer p-2"><ImageIcon /></label>
+            <input type="file" onChange={e=>setPostImage(e.target.files?.[0] || null)} className="hidden"/>
+            <button onClick={handlePost} disabled={uploading} className="bg-blue-600 px-5 py-2 rounded-lg font-bold disabled:bg-gray-600">{uploading? "Posting..." : "Post"}</button>
+          </div>
         </div>
 
         {posts.map(post => (
-          <div key={post.id} className="bg-gray-900 p-4 rounded-xl mb-4">
+          <motion.div key={post.id} initial={{opacity:0}} animate={{opacity:1}} className="bg-gray-900 p-4 rounded-xl mb-4 border-gray-800">
             <p className="font-bold">{post.userEmail}</p>
             <p className="my-2">{post.text}</p>
-            {post.image && <img src={post.image} className="rounded-lg mb-2"/>}
-            <div className="flex gap-4">
-              <button onClick={()=>handleLike(post.id, post.likes)} className="flex items-center gap-1">
+            {post.image && <img src={post.image} className="rounded-lg mb-2 w-full"/>}
+            <div className="flex gap-4 text-gray-400">
+              <button onClick={()=>handleLike(post.id, post.likes || [])} className="flex items-center gap-1 hover:text-red-500">
                 <Heart className={post.likes?.includes(user.uid)? "fill-red-500 text-red-500" : ""}/> {post.likes?.length || 0}
               </button>
             </div>
-          </div>
+          </motion.div>
         ))}
       </main>
     </div>
   );
-    }
+                                   }

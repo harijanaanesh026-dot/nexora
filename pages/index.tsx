@@ -1,17 +1,30 @@
 import { useState, useEffect, useRef } from "react";
-import { Heart, Users, BadgeCheck, Image as ImageIcon, Mic, MicOff, Video, VideoOff, PhoneOff, Send } from "lucide-react";
+import { initializeApp, getApps } from "firebase/app";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { Heart, LogOut, Users, BadgeCheck, Image as ImageIcon, Mic, MicOff, Video, VideoOff, PhoneOff } from "lucide-react";
 import toast, { Toaster } from "react-hot-toast";
 import { motion } from "framer-motion";
 
+// FIREBASE CONFIG
+const firebaseConfig = {
+  apiKey: "AIzaSyATgYb90gVCrAzhuz2a3k10kdy8bqB4",
+  authDomain: "nexoraai-75aez.firebaseapp.com",
+  projectId: "nexoraai-75aez",
+  storageBucket: "nexoraai-75aez.appspot.com",
+  messagingSenderId: "713122171177",
+  appId: "1:713122171177:wb:8b6a73598b10b0c8ed85P",
+};
+
+const app = getApps().length === 0? initializeApp(firebaseConfig) : getApps()[0];
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
+const googleProvider = new GoogleAuthProvider();
+
 // AGORA CONFIG - NEE AGORA APP ID AKKADA PETTU
 const AGORA_APP_ID = "0e76b7daaa4b47cba8e18d1697d72";
-
-// DUMMY POSTS DATA
-const initialPosts = [
-  { id: "1", user: "Anesh", text: "Nexora launch chesam guys! 🔥", image: "https://picsum.photos/seed/1/600/400", likes: 12 },
-  { id: "2", user: "Priya", text: "First post in Nexora", image: "", likes: 5 },
-  { id: "3", user: "Rahul", text: "Video rooms super unnayi", image: "https://picsum.photos/seed/2/600/400", likes: 28 },
-];
 
 // VIDEOROOM COMPONENT
 function VideoRoom({ channel, onLeave, isPaid }: { channel: string; onLeave: () => void; isPaid: boolean }) {
@@ -33,10 +46,9 @@ function VideoRoom({ channel, onLeave, isPaid }: { channel: string; onLeave: () 
 
   useEffect(() => {
     if (!agoraClient ||!AgoraRTC) return;
-    
+
     const init = async () => {
-      const uid = Math.floor(Math.random() * 100000); // Random user ID
-      await agoraClient.join(AGORA_APP_ID, channel, null, uid);
+      await agoraClient.join(AGORA_APP_ID, channel, null, null);
       const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
       setLocalTracks({ audio: audioTrack, video: videoTrack });
       await agoraClient.publish([audioTrack, videoTrack]);
@@ -54,7 +66,7 @@ function VideoRoom({ channel, onLeave, isPaid }: { channel: string; onLeave: () 
       }
       if (mediaType === "audio") user.audioTrack?.play();
     });
-    
+
     agoraClient.on("user-unpublished", (user: any) => {
       setRemoteUsers((prev) => prev.filter((u) => u.uid!== user.uid));
     });
@@ -89,23 +101,71 @@ function VideoRoom({ channel, onLeave, isPaid }: { channel: string; onLeave: () 
 }
 
 export default function Nexora() {
-  const [posts, setPosts] = useState<any[]>(initialPosts);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [posts, setPosts] = useState<any[]>([]);
   const [newPost, setNewPost] = useState("");
+  const [postImage, setPostImage] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [inRoom, setInRoom] = useState(false);
   const [roomChannel, setRoomChannel] = useState("main-room");
   const [isPaidRoom, setIsPaidRoom] = useState(false);
 
-  const handlePost = () => {
-    if (!newPost) return;
-    const post = { id: Date.now().toString(), user: "Guest", text: newPost, image: "", likes: 0 };
-    setPosts([post,...posts]);
-    setNewPost("");
-    toast.success("Posted!");
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => { setUser(currentUser); setLoading(false); });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if(!user) return;
+    const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => { setPosts(snapshot.docs.map(doc => ({ id: doc.id,...doc.data() }))); });
+    return () => unsubscribe();
+  }, [user]);
+
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+      toast.success("Login Successful!");
+    } catch {
+      toast.error("Login Failed");
+    }
   };
 
-  const handleLike = (postId: string) => {
-    setPosts(posts.map(p => p.id === postId? {...p, likes: p.likes + 1} : p));
+  const handlePost = async () => {
+    if (!newPost &&!postImage) return;
+    setUploading(true);
+    let imageUrl = "";
+    if (postImage) {
+      const storageRef = ref(storage, `posts/${Date.now()}-${postImage.name}`);
+      const snap = await uploadBytes(storageRef, postImage);
+      imageUrl = await getDownloadURL(snap.ref);
+    }
+    await addDoc(collection(db, "posts"), { text: newPost, image: imageUrl, userId: user.uid, userEmail: user.email, likes: [], createdAt: serverTimestamp() });
+    setNewPost(""); setPostImage(null); setUploading(false); toast.success("Posted!");
   };
+
+  const handleLike = async (postId: string, likes: string[]) => {
+    const postRef = doc(db, "posts", postId);
+    if (likes.includes(user.uid)) { await updateDoc(postRef, { likes: arrayRemove(user.uid) }); }
+    else { await updateDoc(postRef, { likes: arrayUnion(user.uid) }); }
+  };
+
+  if (loading) return <div className="h-screen flex items-center justify-center bg-black text-white">Loading...</div>;
+
+  // LOGIN CHEYAKAPOTHE EE SCREEN MATRAM CHUPINCHU
+  if (!user) return (
+    <div className="h-screen flex items-center justify-center bg-black text-white p-4">
+      <motion.div initial={{opacity:0, y:20}} animate={{opacity:1, y:0}} className="w-full max-w-sm p-6 bg-gray-900 rounded-xl text-center">
+        <h1 className="text-3xl font-bold mb-2">Welcome to Nexora</h1>
+        <p className="text-gray-400 mb-6">Continue with Google to join</p>
+        <button onClick={handleGoogleLogin} className="w-full bg-white text-black p-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-gray-200">
+          <svg className="w-5 h-5" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 2.053 29.268 0 24 0 10.745 0 10.745 0 24s10.745 24 24 24 24-10.745 24-24c0-1.658-.188-3.27-.533-4.917z"/></svg>
+          Sign in with Google
+        </button>
+      </motion.div>
+    </div>
+  );
 
   if (inRoom) return <VideoRoom channel={roomChannel} onLeave={() => setInRoom(false)} isPaid={isPaidRoom} />;
 
@@ -115,31 +175,30 @@ export default function Nexora() {
       <header className="sticky top-0 bg-gray-900/80 backdrop-blur p-4 flex justify-between items-center z-20 border-b border-gray-800">
         <h1 className="text-2xl font-bold">Nexora</h1>
         <div className="flex gap-4 items-center">
-          <button onClick={() => {setRoomChannel("free-room"); setIsPaidRoom(false); setInRoom(true)}} className="flex items-center gap-2 p-2 bg-gray-800 rounded-lg hover:bg-gray-700">
-            <Users size={18} /> Free Room
-          </button>
-          <button onClick={() => {setRoomChannel("paid-room"); setIsPaidRoom(true); setInRoom(true)}} className="flex items-center gap-2 p-2 bg-yellow-600 text-black rounded-lg hover:bg-yellow-500">
-            <BadgeCheck size={18} /> Premium
-          </button>
+          <button onClick={() => {setRoomChannel("free-room"); setIsPaidRoom(false); setInRoom(true)}} className="p-2 bg-gray-800 rounded-full"><Users /></button>
+          <button onClick={() => {setRoomChannel("paid-room"); setIsPaidRoom(true); setInRoom(true)}} className="p-2 bg-yellow-600 rounded-full"><BadgeCheck /></button>
+          <button onClick={() => signOut(auth)} className="p-2 bg-gray-800 rounded-full"><LogOut /></button>
         </div>
       </header>
 
       <main className="max-w-2xl mx-auto p-4">
         <div className="bg-gray-900 p-4 rounded-xl mb-6 border-gray-800">
-          <textarea value={newPost} onChange={e=>setNewPost(e.target.value)} placeholder="What's on your mind, Guest?" className="w-full bg-gray-800 p-3 rounded mb-2 border border-gray-700"/>
-          <button onClick={handlePost} className="bg-blue-600 px-5 py-2 rounded-lg font-bold flex items-center gap-2">
-            <Send size={16}/> Post
-          </button>
+          <textarea value={newPost} onChange={e=>setNewPost(e.target.value)} placeholder="What's on your mind?" className="w-full bg-gray-800 p-3 rounded mb-2 border-gray-700"/>
+          <div className="flex justify-between items-center">
+            <label className="cursor-pointer p-2"><ImageIcon /></label>
+            <input type="file" onChange={e=>setPostImage(e.target.files?.[0] || null)} className="hidden"/>
+            <button onClick={handlePost} disabled={uploading} className="bg-blue-600 px-5 py-2 rounded-lg font-bold disabled:bg-gray-600">{uploading? "Posting..." : "Post"}</button>
+          </div>
         </div>
 
         {posts.map(post => (
-          <motion.div key={post.id} initial={{opacity:0, y:10}} animate={{opacity:1, y:0}} className="bg-gray-900 p-4 rounded-xl mb-4 border border-gray-800">
-            <p className="font-bold">@{post.user}</p>
+          <motion.div key={post.id} initial={{opacity:0}} animate={{opacity:1}} className="bg-gray-900 p-4 rounded-xl mb-4 border-gray-800">
+            <p className="font-bold">{post.userEmail}</p>
             <p className="my-2">{post.text}</p>
             {post.image && <img src={post.image} className="rounded-lg mb-2 w-full"/>}
             <div className="flex gap-4 text-gray-400">
-              <button onClick={()=>handleLike(post.id)} className="flex items-center gap-1 hover:text-red-500">
-                <Heart size={18}/> {post.likes}
+              <button onClick={()=>handleLike(post.id, post.likes || [])} className="flex items-center gap-1 hover:text-red-500">
+                <Heart className={post.likes?.includes(user.uid)? "fill-red-500 text-red-500" : ""}/> {post.likes?.length || 0}
               </button>
             </div>
           </motion.div>
@@ -147,4 +206,4 @@ export default function Nexora() {
       </main>
     </div>
   );
-}
+  }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Heart, MessageCircle, Send, LogIn, Sun, Moon, Image as ImageIcon, LogOut, Target, Users, Flame, Bell, MessageSquare, Search, Plus, Trash2, Edit, Save, X, Github, Link, Award, UserPlus, UserMinus, Hash, Bookmark, BookmarkCheck } from "lucide-react";
+import { Heart, MessageCircle, Send, LogIn, Image as ImageIcon, LogOut, Target, Users, Flame, Bell, MessageSquare, Search, Plus, Trash2, Edit, Save, X, Github, Link, Award, UserPlus, UserMinus, Hash, Bookmark, BookmarkCheck } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
 
 import { initializeApp, getApps } from "firebase/app";
@@ -7,7 +7,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signO
 import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, where, getDocs, deleteDoc, setDoc, getDoc, increment, limit } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
-// YOUR FIREBASE CONFIG - DIRECT HERE
+// YOUR FIREBASE CONFIG
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
   authDomain: "nexoraai-75ae2.firebaseapp.com",
@@ -47,15 +47,12 @@ const createNotification = async (toUserId: string, type: string, fromUser: any,
 export default function NexoraApp() {
   const [tab, setTab] = useState(getFromStorage("nexora_tab", "feed"));
   const [user, setUser] = useState<User | null>(null);
-  const [theme, setTheme] = useState(getFromStorage("nexora_theme", "dark"));
   const [usernameSetup, setUsernameSetup] = useState(false);
   const [activeHashtag, setActiveHashtag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if(!isBrowser()) return;
-    document.documentElement.classList.toggle("dark", theme === "dark");
-    saveToStorage("nexora_theme", theme);
     saveToStorage("nexora_tab", tab);
 
     return onAuthStateChanged(auth, async (u) => {
@@ -70,33 +67,32 @@ export default function NexoraApp() {
         }, { merge: true });
       }
     });
-  }, [theme, tab]);
+  }, [tab]);
 
-  const toggleTheme = () => setTheme(theme === "dark"? "light" : "dark");
   const handleHashtagClick = (tag: string) => { setActiveHashtag(tag); setTab("feed"); toast(`Showing ${tag}`); };
 
   return (
-    <div className={`min-h-screen flex-col ${theme === "dark"? "bg-black text-white" : "bg-gray-100 text-black"}`}>
+    <div className="min-h-screen flex-col bg-black text-white">
       <Toaster position="bottom-center" />
-      <Navbar user={user} theme={theme} toggleTheme={toggleTheme} setTab={setTab} tab={tab} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+      <Navbar user={user} setTab={setTab} tab={tab} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
       <div className="max-w-4xl mx-auto p-4 flex-1 w-full">
         {usernameSetup && <UsernameSetup user={user} setUsernameSetup={setUsernameSetup} />}
         {searchQuery && <SearchResults query={searchQuery} setSearchQuery={setSearchQuery} setTab={setTab} />}
-        {tab === "feed" && <FeedTab user={user} theme={theme} activeHashtag={activeHashtag} setActiveHashtag={setActiveHashtag} />}
-        {tab === "discover" && <DiscoverTab user={user} theme={theme} setTab={setTab} />}
-        {tab === "trending" && <TrendingTab user={user} theme={theme} onHashtagClick={handleHashtagClick} />}
-        {tab === "messages" && <MessagesTab user={user} theme={theme} />}
-        {tab === "profile" && <ProfileTab user={user} theme={theme} />}
-        {tab === "bookmarks" && <BookmarksTab user={user} theme={theme} />}
+        {tab === "feed" && <FeedTab user={user} activeHashtag={activeHashtag} setActiveHashtag={setActiveHashtag} />}
+        {tab === "discover" && <DiscoverTab user={user} setTab={setTab} />}
+        {tab === "trending" && <TrendingTab user={user} onHashtagClick={handleHashtagClick} />}
+        {tab === "messages" && <MessagesTab user={user} />}
+        {tab === "profile" && <ProfileTab user={user} />}
+        {tab === "bookmarks" && <BookmarksTab user={user} />}
       </div>
-      <Footer theme={theme} />
+      <Footer />
     </div>
   );
 }
 
-function Footer({theme}: any) {
+function Footer() {
   return (
-    <footer className={`border-t mt-10 py-6 ${theme === "dark"? "bg-black border-gray-800" : "bg-white border-gray-200"}`}>
+    <footer className="border-t mt-10 py-6 bg-black border-gray-800">
       <div className="max-w-4xl mx-auto px-4 text-center">
         <h2 className="text-xl font-bold text-blue-500 mb-2">NEXORA</h2>
         <p className="text-sm opacity-70 mb-3">Share Goals. Build Skills. Grow Together.</p>
@@ -127,7 +123,7 @@ function UsernameSetup({user, setUsernameSetup}: any) {
   );
 }
 
-function Navbar({user, theme, toggleTheme, setTab, tab, searchQuery, setSearchQuery}: any) {
+function Navbar({user, setTab, tab, searchQuery, setSearchQuery}: any) {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
   useEffect(() => {
@@ -138,10 +134,10 @@ function Navbar({user, theme, toggleTheme, setTab, tab, searchQuery, setSearchQu
   const unreadCount = notifications.filter(n =>!n.read).length;
   const handleRead = async (id: string) => await updateDoc(doc(db, "notifications", id), { read: true });
   return (
-    <header className={`sticky top-0 z-50 p-4 border-b ${theme === "dark"? "bg-black/80 border-gray-800" : "bg-white/80 border-gray-200"} backdrop-blur-md`}>
+    <header className="sticky top-0 z-50 p-4 border-b bg-black/80 border-gray-800 backdrop-blur-md">
       <div className="max-w-4xl mx-auto flex justify-between items-center gap-2">
         <h1 onClick={() => setTab("feed")} className="text-2xl font-bold text-blue-500 cursor-pointer">NEXORA</h1>
-        <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search users, #tags" className={`hidden md:block flex-1 max-w-xs bg-gray-800 px-3 py-2 rounded-lg text-sm`} />
+        <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search users, #tags" className="hidden md:block flex-1 max-w-xs bg-gray-800 px-3 py-2 rounded-lg text-sm" />
         <div className="flex gap-1 md:gap-2 items-center">
           {["feed","discover","trending","messages","bookmarks","profile"].map(t => (
             <button key={t} onClick={() => setTab(t)} className={`p-2 rounded ${tab === t? "bg-blue-500" : "hover:bg-gray-800"}`}>
@@ -151,14 +147,13 @@ function Navbar({user, theme, toggleTheme, setTab, tab, searchQuery, setSearchQu
               {t === "profile" && (user?.photoURL? <img src={user.photoURL} className="w-6 h-6 rounded-full" /> : <Users size={20}/>)}
             </button>
           ))}
-          <button onClick={toggleTheme}>{theme === "dark"? <Sun size={20} /> : <Moon size={20} />}</button>
           {user && (
             <div className="relative">
               <button onClick={() => setShowNotifs(!showNotifs)} className="relative p-2">
                 <Bell />{unreadCount > 0 && <span className="absolute top-0 right-0 bg-red-500 text-xs rounded-full w-4 h-4">{unreadCount}</span>}
               </button>
               {showNotifs && (
-                <div className={`absolute right-0 mt-2 w-72 border rounded-lg shadow-lg ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
+                <div className="absolute right-0 mt-2 w-72 border rounded-lg shadow-lg bg-gray-900 border-gray-800">
                   {notifications.length === 0 && <p className="p-3 text-sm opacity-70">No notifications</p>}
                   {notifications.slice(0,5).map(n => (
                     <div key={n.id} onClick={() => handleRead(n.id)} className={`p-2 border-b text-sm cursor-pointer ${!n.read? "bg-blue-900/20" : ""}`}>
@@ -174,9 +169,9 @@ function Navbar({user, theme, toggleTheme, setTab, tab, searchQuery, setSearchQu
       </div>
     </header>
   );
-      }
+                            }
 
-function FeedTab({user, theme, activeHashtag, setActiveHashtag}: any) {
+function FeedTab({user, activeHashtag, setActiveHashtag}: any) {
   const [posts, setPosts] = useState<any[]>([]);
   const [newPost, setNewPost] = useState(getFromStorage("nexora_draft", ""));
   const [image, setImage] = useState<File | null>(null);
@@ -244,7 +239,7 @@ function FeedTab({user, theme, activeHashtag, setActiveHashtag}: any) {
         </div>
       )}
       {user && (
-        <div className={`border rounded-xl p-4 mb-6 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
+        <div className="border rounded-xl p-4 mb-6 bg-gray-900 border-gray-800">
           <div className="flex gap-3">
             <img src={user.photoURL || ""} className="w-10 h-10 rounded-full" />
             <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="Share your goal progress... use #AI #Startup" className="w-full bg-transparent outline-none resize-none" rows={3} />
@@ -269,12 +264,12 @@ function FeedTab({user, theme, activeHashtag, setActiveHashtag}: any) {
           </div>
         </div>
       )}
-      {posts.map((post) => <PostCard key={post.id} post={post} user={user} theme={theme} renderText={renderTextWithHashtags} />)}
+      {posts.map((post) => <PostCard key={post.id} post={post} user={user} renderText={renderTextWithHashtags} />)}
     </div>
   );
 }
 
-function PostCard({post, user, theme, renderText}: any) {
+function PostCard({post, user, renderText}: any) {
   const [comments, setComments] = useState<any[]>([]);
   const [commentText, setCommentText] = useState("");
   const [showComments, setShowComments] = useState(false);
@@ -309,7 +304,7 @@ function PostCard({post, user, theme, renderText}: any) {
   const handleEdit = async () => { if(!editText.trim()) return; await updateDoc(doc(db, "posts", post.id), { text: editText, hashtags: editText.match(/#\w+/g) || [] }); setIsEditing(false); toast("Post Updated ✏️"); };
 
   return (
-    <div className={`border rounded-xl p-4 mb-6 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
+    <div className="border rounded-xl p-4 mb-6 bg-gray-900 border-gray-800">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <img src={post.userPhoto} className="w-10 h-10 rounded-full" />
@@ -326,12 +321,12 @@ function PostCard({post, user, theme, renderText}: any) {
         <button onClick={handleLike} className="flex items-center gap-2"><Heart fill={post.likes.includes(user?.uid)? "red" : "none"} color={post.likes.includes(user?.uid)? "red" : "currentColor"} />{post.likes.length}</button>
         <button onClick={() => setShowComments(!showComments)} className="flex items-center gap-2"><MessageCircle /> {comments.length}</button>
       </div>
-      {showComments && (<div className="mt-3 space-y-2">{comments.map((c) => (<div key={c.id} className="flex gap-2"><img src={c.userPhoto} className="w-8 h-8 rounded-full" /><div className={`p-2 rounded-lg ${theme === "dark"? "bg-gray-800" : "bg-gray-100"}`}><p className="font-semibold text-sm">{c.userName}</p><p className="text-sm">{c.text}</p></div></div>))}{user && (<div className="flex gap-2 mt-3"><input value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Add a comment..." className="flex-1 bg-transparent border-b outline-none" /><button onClick={handleComment}><Send size={18} /></button></div>)}</div>)}
+      {showComments && (<div className="mt-3 space-y-2">{comments.map((c) => (<div key={c.id} className="flex gap-2"><img src={c.userPhoto} className="w-8 h-8 rounded-full" /><div className="p-2 rounded-lg bg-gray-800"><p className="font-semibold text-sm">{c.userName}</p><p className="text-sm">{c.text}</p></div></div>))}{user && (<div className="flex gap-2 mt-3"><input value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Add a comment..." className="flex-1 bg-transparent border-b outline-none" /><button onClick={handleComment}><Send size={18} /></button></div>)}</div>)}
     </div>
   );
 }
 
-function BookmarksTab({user, theme}: any) {
+function BookmarksTab({user}: any) {
   const [bookmarkedPosts, setBookmarkedPosts] = useState<any[]>([]);
   useEffect(() => {
     if(!user) return;
@@ -348,12 +343,12 @@ function BookmarksTab({user, theme}: any) {
     <div>
       <h1 className="text-2xl font-bold mb-4 flex items-center gap-2"><Bookmark /> My Bookmarks</h1>
       {bookmarkedPosts.length === 0 && <p className="opacity-70">No bookmarks yet</p>}
-      {bookmarkedPosts.map((post) => <PostCard key={post.id} post={post} user={user} theme={theme} renderText={(t:string) => t} />)}
+      {bookmarkedPosts.map((post) => <PostCard key={post.id} post={post} user={user} renderText={(t:string) => t} />)}
     </div>
   );
-          }
+        }
 
-function DiscoverTab({user, theme, setTab}: any) {
+function DiscoverTab({user, setTab}: any) {
   const [users, setUsers] = useState<any[]>([]);
   const skills = ["Coding", "Design", "Marketing", "AI", "Startup", "Fitness"];
   const searchSkill = async (skill: string) => {
@@ -364,13 +359,13 @@ function DiscoverTab({user, theme, setTab}: any) {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4 flex items-center gap-2"><Users /> Discover by Skills</h1>
-      <div className="flex gap-2 mb-6 flex-wrap">{skills.map(skill => (<button key={skill} onClick={() => searchSkill(skill)} className="px-4 py-2 rounded-full border hover:bg-blue-500">{skill}</button>))}</div>
-      <div className="space-y-4">{users.map(u => (<UserCard key={u.id} u={u} user={user} theme={theme} setTab={setTab} />))}</div>
+      <div className="flex gap-2 mb-6 flex-wrap">{skills.map(skill => (<button key={skill} onClick={() => searchSkill(skill)} className="px-4 py-2 rounded-full border-gray-800 hover:bg-blue-500">{skill}</button>))}</div>
+      <div className="space-y-4">{users.map(u => (<UserCard key={u.id} u={u} user={user} setTab={setTab} />))}</div>
     </div>
   );
 }
 
-function UserCard({u, user, theme, setTab}: any) {
+function UserCard({u, user, setTab}: any) {
   const [isFollowing, setIsFollowing] = useState(false);
   useEffect(() => { if(user) getDocs(query(collection(db, "follows"), where("followerId", "==", user.uid), where("followingId", "==", u.uid))).then(s => setIsFollowing(!s.empty)) },[user,u]);
   const toggleFollow = async () => {
@@ -386,7 +381,7 @@ function UserCard({u, user, theme, setTab}: any) {
     setTab("messages");
   };
   return (
-    <div className={`border rounded-xl p-4 ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>
+    <div className="border rounded-xl p-4 border-gray-800">
       <div className="flex justify-between items-start">
         <div className="flex items-center gap-3"><img src={u.photoURL} className="w-12 h-12 rounded-full" /><div><p className="font-bold">@{u.username}</p><p className="text-sm font-semibold text-blue-500">{u.futureGoal}</p><p className="text-sm opacity-70">{u.bio}</p></div></div>
         <div className="flex items-center gap-1 text-yellow-500"><Award size={16} /><span className="font-bold">{u.growthScore || 0}</span></div>
@@ -397,7 +392,7 @@ function UserCard({u, user, theme, setTab}: any) {
   );
 }
 
-function TrendingTab({user, theme, onHashtagClick}: any) {
+function TrendingTab({user, onHashtagClick}: any) {
   const [trending, setTrending] = useState<any[]>([]);
   useEffect(() => {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(200));
@@ -415,7 +410,7 @@ function TrendingTab({user, theme, onHashtagClick}: any) {
       {trending.length === 0 && <p className="opacity-70">Inka hashtags levu. Post chesi #AI #Startup try cheyi</p>}
       <div className="space-y-3">
         {trending.map((t, i) => (
-          <div key={t.tag} onClick={() => onHashtagClick(t.tag)} className={`p-4 border rounded-xl cursor-pointer hover:bg-blue-500/10 ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>
+          <div key={t.tag} onClick={() => onHashtagClick(t.tag)} className="p-4 border rounded-xl cursor-pointer hover:bg-blue-500/10 border-gray-800">
             <p className="text-sm opacity-70">#{i+1} Trending</p>
             <p className="text-xl font-bold text-blue-500">{t.tag}</p>
             <p className="text-sm">{t.count} posts</p>
@@ -458,22 +453,22 @@ function SearchResults({query, setSearchQuery, setTab}: any) {
       ))}
     </div>
   );
-                   }
+    }
 
-function MessagesTab({user, theme}: any) {
+function MessagesTab({user}: any) {
   const [chats, setChats] = useState<any[]>([]);
   const [activeChat, setActiveChat] = useState<any>(null);
   useEffect(() => { if (!user) return; const q = query(collection(db, "chats"), where("members", "array-contains", user.uid), orderBy("updatedAt", "desc")); return onSnapshot(q, (snap) => setChats(snap.docs.map(d => ({ id: d.id,...d.data() })))) }, [user]);
   return (
     <div className="grid md:grid-cols-3 gap-4 h-[70vh]">
-      <div className={`md:col-span-1 border rounded-xl p-2 overflow-y-auto ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>
+      <div className="md:col-span-1 border rounded-xl p-2 overflow-y-auto border-gray-800">
         {chats.length === 0 && <p className="p-3 opacity-70">No chats yet</p>}
         {chats.map(c => <div key={c.id} onClick={() => setActiveChat(c)} className={`p-3 rounded cursor-pointer ${activeChat?.id === c.id? "bg-blue-500" : "hover:bg-gray-800"}`}>
           <p className="font-semibold">Chat</p>
           <p className="text-xs opacity-70 truncate">{c.lastMessage}</p>
         </div>)}
       </div>
-      <div className={`md:col-span-2 border rounded-xl p-3 flex-col ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>
+      <div className="md:col-span-2 border rounded-xl p-3 flex-col border-gray-800">
         {activeChat? <ChatRoom chat={activeChat} user={user} /> : <p className="m-auto opacity-70">Select a chat</p>}
       </div>
     </div>
@@ -512,9 +507,9 @@ function ChatRoom({chat, user}: any) {
       </div>
     </>
   );
-}
+        }
 
-function ProfileTab({user, theme}: any) {
+function ProfileTab({user}: any) {
   const [profile, setProfile] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState("");
@@ -558,9 +553,7 @@ function ProfileTab({user, theme}: any) {
   const handleSave = async () => {
     setLoading(true);
     await updateDoc(doc(db, "users", user.uid), {
-      name,
-      bio,
-      futureGoal,
+      name, bio, futureGoal,
       skills: skills.split(",").map(s => s.trim()).filter(s => s!== ""),
       projects
     });
@@ -581,7 +574,7 @@ function ProfileTab({user, theme}: any) {
   if(loading ||!profile) return <p className="text-center">Loading...</p>;
 
   return (
-    <div className={`border rounded-xl p-6 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
+    <div className="border rounded-xl p-6 bg-gray-900 border-gray-800">
       <div className="flex justify-between items-start">
         <div>
           <img src={profile.photoURL} className="w-24 h-24 rounded-full" />
@@ -601,7 +594,6 @@ function ProfileTab({user, theme}: any) {
         <div className="flex items-center gap-1 text-yellow-500"><Award size={16} /><b>{profile.growthScore || 0} Growth Score</b></div>
       </div>
 
-      {/* TABS */}
       <div className="flex gap-2 border-b border-gray-800 mb-4">
         <button onClick={() => setActiveTab("about")} className={`px-4 py-2 ${activeTab === "about"? "border-b-2 border-blue-500" : ""}`}>About</button>
         <button onClick={() => setActiveTab("posts")} className={`px-4 py-2 ${activeTab === "posts"? "border-b-2 border-blue-500" : ""}`}>My Posts</button>
@@ -652,9 +644,9 @@ function ProfileTab({user, theme}: any) {
       {activeTab === "posts" && (
         <div className="space-y-4">
           {myPosts.length === 0 && <p className="opacity-70">No posts yet</p>}
-          {myPosts.map(post => <PostCard key={post.id} post={post} user={user} theme={theme} renderText={(t:string) => t} />)}
+          {myPosts.map(post => <PostCard key={post.id} post={post} user={user} renderText={(t:string) => t} />)}
         </div>
       )}
     </div>
   );
-          }
+}

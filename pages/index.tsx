@@ -14,6 +14,19 @@ const getFromStorage = (key: string, defaultValue: any) => {
   return item? JSON.parse(item) : defaultValue;
 };
 
+// NOTIFICATION HELPER
+const createNotification = async (toUserId: string, type: string, fromUser: any, postId?: string) => {
+  if (!toUserId || toUserId === fromUser.uid) return;
+  await addDoc(collection(db, "notifications"), {
+    to: toUserId,
+    type,
+    from: { uid: fromUser.uid, name: fromUser.displayName, photo: fromUser.photoURL },
+    postId: postId || null,
+    read: false,
+    createdAt: serverTimestamp()
+  });
+};
+
 export default function NexoraApp() {
   const [tab, setTab] = useState(getFromStorage("nexora_tab", "feed"));
   const [user, setUser] = useState<User | null>(null);
@@ -26,7 +39,7 @@ export default function NexoraApp() {
     document.documentElement.classList.toggle("dark", theme === "dark");
     saveToStorage("nexora_theme", theme);
     saveToStorage("nexora_tab", tab);
-    
+
     return onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
@@ -47,7 +60,7 @@ export default function NexoraApp() {
   const handleHashtagClick = (tag: string) => { setActiveHashtag(tag); setTab("feed"); toast(`Showing ${tag}`); };
 
   return (
-    <div className={`min-h-screen flex flex-col ${theme === "dark"? "bg-black text-white" : "bg-gray-100 text-black"}`}>
+    <div className={`min-h-screen flex-col ${theme === "dark"? "bg-black text-white" : "bg-gray-100 text-black"}`}>
       <Toaster position="bottom-center" />
       <Navbar user={user} theme={theme} toggleTheme={toggleTheme} setTab={setTab} tab={tab} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
       <div className="max-w-4xl mx-auto p-4 flex-1 w-full">
@@ -149,7 +162,7 @@ function Navbar({user, theme, toggleTheme, setTab, tab, searchQuery, setSearchQu
       </div>
     </header>
   );
-                                              }
+                             }
 
 function FeedTab({user, theme, activeHashtag, setActiveHashtag}: any) {
   const [posts, setPosts] = useState<any[]>([]);
@@ -257,14 +270,14 @@ function PostCard({post, user, theme, renderText}: any) {
   const [editText, setEditText] = useState(post.text);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const isOwner = user?.uid === post.userId;
-  
+
   useEffect(() => {
     if(!user) return;
     getDoc(doc(db, "users", user.uid)).then(d => setIsBookmarked(d.data()?.bookmarks?.includes(post.id)));
     const q = query(collection(db, "comments"), where("postId", "==", post.id), orderBy("createdAt", "asc"));
     return onSnapshot(q, (snap) => setComments(snap.docs.map((d) => ({ id: d.id,...d.data() }))));
   }, [post.id, user]);
-  
+
   const handleLike = async () => {
     if (!user) return toast("Login cheyi");
     await updateDoc(doc(db, "posts", post.id), { likes: post.likes.includes(user.uid)? arrayRemove(user.uid) : arrayUnion(user.uid) });
@@ -283,7 +296,7 @@ function PostCard({post, user, theme, renderText}: any) {
   };
   const handleDelete = async () => { if(!confirm("Delete this post?")) return; await deleteDoc(doc(db, "posts", post.id)); toast("Post Deleted 🗑️"); };
   const handleEdit = async () => { if(!editText.trim()) return; await updateDoc(doc(db, "posts", post.id), { text: editText, hashtags: editText.match(/#\w+/g) || [] }); setIsEditing(false); toast("Post Updated ✏️"); };
-  
+
   return (
     <div className={`border rounded-xl p-4 mb-6 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
       <div className="flex items-center justify-between mb-3">
@@ -327,7 +340,7 @@ function BookmarksTab({user, theme}: any) {
       {bookmarkedPosts.map((post) => <PostCard key={post.id} post={post} user={user} theme={theme} renderText={(t:string) => t} />)}
     </div>
   );
-                        }
+                }
 
 // ===== DISCOVER TAB =====
 function DiscoverTab({user, theme, setTab}: any) {
@@ -374,7 +387,7 @@ function UserCard({u, user, theme, setTab}: any) {
   );
 }
 
-// ===== TRENDING TAB - REAL =====
+// ===== TRENDING TAB =====
 function TrendingTab({user, theme, onHashtagClick}: any) {
   const [trending, setTrending] = useState<any[]>([]);
   useEffect(() => {
@@ -404,7 +417,7 @@ function TrendingTab({user, theme, onHashtagClick}: any) {
   );
 }
 
-// ===== SEARCH RESULTS =====
+// ===== SEARCH RESULTS - TYPESCRIPT ERROR FIX =====
 function SearchResults({query, setSearchQuery, setTab}: any) {
   const [results, setResults] = useState<any[]>([]);
   useEffect(() => {
@@ -412,7 +425,17 @@ function SearchResults({query, setSearchQuery, setTab}: any) {
     const searchUsers = async () => {
       const q = query(collection(db, "users"), where("username", ">=", query), where("username", "<=", query + '\uf8ff'), limit(5));
       const snap = await getDocs(q);
-      setResults(snap.docs.map(d => ({ type: "user",...d.data() })));
+      const users = snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          type: "user",
+          username: data.username,
+          photoURL: data.photoURL,
+          name: data.name
+        }
+      });
+      setResults(users);
     }
     searchUsers();
   }, [query]);
@@ -424,15 +447,16 @@ function SearchResults({query, setSearchQuery, setTab}: any) {
         <h3 className="font-bold">Search Results for "{query}"</h3>
         <button onClick={() => setSearchQuery("")} className="text-sm underline">Close</button>
       </div>
-      {results.map((r, i) => (
-        <div key={i} className="flex items-center gap-2 p-2 hover:bg-gray-800 rounded">
+      {results.length === 0 && <p className="opacity-70">No users found</p>}
+      {results.map((r) => (
+        <div key={r.id} className="flex items-center gap-2 p-2 hover:bg-gray-800 rounded">
           <img src={r.photoURL} className="w-8 h-8 rounded-full" />
           <p>@{r.username}</p>
         </div>
       ))}
     </div>
   );
-    }
+        }
 
 // ===== MESSAGES TAB =====
 function MessagesTab({user, theme}: any) {
@@ -487,9 +511,9 @@ function ChatRoom({chat, user}: any) {
       </div>
     </>
   );
-                                                       }
+}
 
-// ===== PROFILE TAB - SAVE FIXED + MY POSTS =====
+// ===== PROFILE TAB - FULL =====
 function ProfileTab({user, theme}: any) {
   const [profile, setProfile] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -542,7 +566,7 @@ function ProfileTab({user, theme}: any) {
     });
     setIsEditing(false);
     toast("Profile Updated! ✅");
-    await fetchProfile(); // Save chesina ventane update
+    await fetchProfile(); // Save chesina ventane refresh
   };
 
   const handleAddProject = () => {
@@ -609,6 +633,7 @@ function ProfileTab({user, theme}: any) {
                 <button onClick={handleAddProject} className="bg-blue-500 p-2 rounded"><Plus /></button>
               </div>
             )}
+            {projects.length === 0 &&!isEditing && <p className="opacity-70">No projects added</p>}
             {projects.map(p => (
               <div key={p.id} className="flex justify-between items-center bg-gray-800 p-2 rounded mb-2">
                 <a href={p.link} target="_blank" className="flex items-center gap-2 hover:underline"><Github size={14} /> {p.title}</a>
@@ -632,18 +657,4 @@ function ProfileTab({user, theme}: any) {
       )}
     </div>
   );
-}
-
-// ===== NOTIFICATION HELPER =====
-const createNotification = async (toUserId: string, type: string, fromUser: any, postId?: string) => {
-  if (!toUserId || toUserId === fromUser.uid) return;
-  await addDoc(collection(db, "notifications"), {
-    to: toUserId,
-    type,
-    from: { uid: fromUser.uid, name: fromUser.displayName, photo: fromUser.photoURL },
-    postId: postId || null,
-    read: false,
-    createdAt: serverTimestamp()
-  });
-};
-
+                                                                                                                    }

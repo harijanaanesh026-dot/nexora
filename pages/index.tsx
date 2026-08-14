@@ -85,20 +85,7 @@ export default function NexoraApp() {
         {tab === "profile" && <ProfileTab user={user} />}
         {tab === "bookmarks" && <BookmarksTab user={user} />}
       </div>
-      <Footer />
     </div>
-  );
-}
-
-function Footer() {
-  return (
-    <footer className="border-t mt-10 py-6 bg-black border-gray-800">
-      <div className="max-w-4xl mx-auto px-4 text-center">
-        <h2 className="text-xl font-bold text-blue-500 mb-2">NEXORA</h2>
-        <p className="text-sm opacity-70 mb-3">Share Goals. Build Skills. Grow Together.</p>
-        <p className="text-xs opacity-50 mt-3">© 2026 NEXORA. Built by <span className="font-bold text-blue-500">Anesh Production</span> 🇮🇳</p>
-      </div>
-    </footer>
   );
 }
 
@@ -169,7 +156,7 @@ function Navbar({user, setTab, tab, searchQuery, setSearchQuery}: any) {
       </div>
     </header>
   );
-          }
+        }
 
 function FeedTab({user, activeHashtag, setActiveHashtag}: any) {
   const [posts, setPosts] = useState<any[]>([]);
@@ -346,7 +333,7 @@ function BookmarksTab({user}: any) {
       {bookmarkedPosts.map((post) => <PostCard key={post.id} post={post} user={user} renderText={(t:string) => t} />)}
     </div>
   );
-              }
+                                                                                                                       }
 
 function DiscoverTab({user, setTab}: any) {
   const [users, setUsers] = useState<any[]>([]);
@@ -359,7 +346,7 @@ function DiscoverTab({user, setTab}: any) {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4 flex items-center gap-2"><Users /> Discover by Skills</h1>
-      <div className="flex gap-2 mb-6 flex-wrap">{skills.map(skill => (<button key={skill} onClick={() => searchSkill(skill)} className="px-4 py-2 rounded-full border border-gray-800 hover:bg-blue-500">{skill}</button>))}</div>
+      <div className="flex gap-2 mb-6 flex-wrap">{skills.map(skill => (<button key={skill} onClick={() => searchSkill(skill)} className="px-4 py-2 rounded-full border-gray-800 hover:bg-blue-500">{skill}</button>))}</div>
       <div className="space-y-4">{users.map(u => (<UserCard key={u.id} u={u} user={user} setTab={setTab} />))}</div>
     </div>
   );
@@ -571,18 +558,11 @@ function ProfileTab({user}: any) {
     setProjects(projects.filter(p => p.id!== id));
   };
 
-  const handleLogout = async () => {
-    if(!confirm("Are you sure you want to logout?")) return;
-    await signOut(auth);
-    toast("Logged out successfully 👋");
-  };
-
   if(loading) return <p className="text-center">Loading...</p>;
   if(!profile) return <p className="text-center opacity-70">Profile not found. Login cheyi</p>;
 
   return (
     <div className="space-y-6">
-      {/* PROFILE CARD */}
       <div className="border rounded-xl p-6 bg-gray-900 border-gray-800">
         <div className="flex justify-between items-start">
           <div>
@@ -657,34 +637,34 @@ function ProfileTab({user}: any) {
           </div>
         )}
       </div>
+      <ProfileFooter />
+    </div>
+  );
+            }
 
-      {/* PROFILE FOOTER WITH LOGOUT */}
-      <div className="border rounded-xl p-6 bg-gray-900 border-gray-800">
-        <div className="text-center mb-4">
-          <h2 className="text-xl font-bold text-blue-500 mb-2">NEXORA</h2>
-          <p className="text-sm opacity-70 mb-3">Share Goals. Build Skills. Grow Together.</p>
-          <p className="text-xs opacity-50">© 2026 NEXORA. Built by <span className="font-bold text-blue-500">Anesh Production</span> 🇮🇳</p>
-        </div>
+function ProfileFooter() {
+  const handleLogout = async () => {
+    if(!confirm("Are you sure you want to logout?")) return;
+    await signOut(auth);
+    toast("Logged out successfully 👋");
+  };
 
-        <div className="border-t border-gray-800 pt-4">
-          <button
-            onClick={handleLogout}
-            className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 w-full px-6 py-3 rounded-lg font-semibold transition"
-          >
-            <LogOut size={18} /> Logout
-          </button>
-        </div>
+  return (
+    <div className="border rounded-xl p-6 bg-gray-900 border-gray-800">
+      <div className="text-center mb-4">
+        <h2 className="text-xl font-bold text-blue-500 mb-2">NEXORA</h2>
+        <p className="text-sm opacity-70 mb-3">Share Goals. Build Skills. Grow Together.</p>
+        <p className="text-xs opacity-50">© 2026 NEXORA. Built by <span className="font-bold text-blue-500">Anesh Production</span> 🇮🇳</p>
+      </div>
+
+      <div className="border-t border-gray-800 pt-4">
+        <button
+          onClick={handleLogout}
+          className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 w-full px-6 py-3 rounded-lg font-semibold transition"
+        >
+          <LogOut size={18} /> Logout
+        </button>
       </div>
     </div>
   );
-    }
-return (
-  <div className="min-h-screen flex-col bg-black text-white">
-    <Toaster position="bottom-center" />
-    <Navbar... />
-    <div className="max-w-4xl mx-auto p-4 flex-1 w-full">
-     ...
-    </div>
-    {/* <Footer /> <- Iddhi thisey bro */}
-  </div>
-);
+}

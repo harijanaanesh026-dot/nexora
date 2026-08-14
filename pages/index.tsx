@@ -418,6 +418,7 @@ function TrendingTab({user, theme, onHashtagClick}: any) {
 }
 
 // ===== SEARCH RESULTS - TYPESCRIPT ERROR FIX =====
+// ===== SEARCH RESULTS - TYPESCRIPT FIXED =====
 function SearchResults({query, setSearchQuery, setTab}: any) {
   const [results, setResults] = useState<any[]>([]);
   useEffect(() => {
@@ -426,13 +427,13 @@ function SearchResults({query, setSearchQuery, setTab}: any) {
       const q = query(collection(db, "users"), where("username", ">=", query), where("username", "<=", query + '\uf8ff'), limit(5));
       const snap = await getDocs(q);
       const users = snap.docs.map(d => {
-        const data = d.data();
+        const data = d.data() as any; // <-- IDI ADD CHESA
         return {
           id: d.id,
           type: "user",
-          username: data.username,
-          photoURL: data.photoURL,
-          name: data.name
+          username: data.username || "",
+          photoURL: data.photoURL || "",
+          name: data.name || ""
         }
       });
       setResults(users);
@@ -456,7 +457,7 @@ function SearchResults({query, setSearchQuery, setTab}: any) {
       ))}
     </div>
   );
-        }
+}
 
 // ===== MESSAGES TAB =====
 function MessagesTab({user, theme}: any) {

@@ -73,7 +73,6 @@ function Navbar({user, theme, toggleTheme, setTab, tab}: any) {
 
   useEffect(() => {
     if (!user) return;
-    // FIX: orderBy added here instead of sorting in client
     const q = query(collection(db, "notifications"), where("to", "==", user.uid), orderBy("createdAt", "desc"));
     return onSnapshot(q, (snap) => {
       const data = snap.docs.map(d => ({ id: d.id,...d.data() }))
@@ -174,10 +173,15 @@ function FeedTab({user, theme}: any) {
   );
 }
 
+// ===== POSTCARD WITH EDIT + DELETE =====
 function PostCard({post, user, theme}: any) {
   const [comments, setComments] = useState<any[]>([]);
   const [commentText, setCommentText] = useState("");
   const [showComments, setShowComments] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(post.text);
+
+  const isOwner = user?.uid === post.userId;
 
   useEffect(() => {
     const q = query(collection(db, "comments"), where("postId", "==", post.id), orderBy("createdAt", "asc"));
@@ -201,13 +205,46 @@ function PostCard({post, user, theme}: any) {
     setCommentText("");
   };
 
+  const handleDelete = async () => {
+    if(!confirm("Delete this post?")) return;
+    await deleteDoc(doc(db, "posts", post.id));
+    toast("Post Deleted 🗑️");
+  };
+
+  const handleEdit = async () => {
+    if(!editText.trim()) return;
+    await updateDoc(doc(db, "posts", post.id), { text: editText });
+    setIsEditing(false);
+    toast("Post Updated ✏️");
+  };
+
   return (
     <div className={`border rounded-xl p-4 mb-6 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
-      <div className="flex items-center gap-3 mb-3">
-        <img src={post.userPhoto} className="w-10 h-10 rounded-full" />
-        <div><p className="font-semibold">{post.userName}</p>{post.type === "goal_update" && <p className="text-xs text-green-500"><Target size={12}/> Goal Progress</p>}</div>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <img src={post.userPhoto} className="w-10 h-10 rounded-full" />
+          <div><p className="font-semibold">{post.userName}</p>{post.type === "goal_update" && <p className="text-xs text-green-500"><Target size={12}/> Goal Progress</p>}</div>
+        </div>
+        {isOwner &&!isEditing && (
+          <div className="flex gap-2">
+            <button onClick={() => setIsEditing(true)} className="p-2 hover:bg-gray-800 rounded"><Edit size={16}/></button>
+            <button onClick={handleDelete} className="p-2 hover:bg-red-800 rounded"><Trash2 size={16}/></button>
+          </div>
+        )}
       </div>
-      <p className="mb-3">{post.text}</p>
+
+      {isEditing? (
+        <div className="mb-3">
+          <textarea value={editText} onChange={e => setEditText(e.target.value)} className="w-full bg-gray-800 p-2 rounded mb-2" rows={3} />
+          <div className="flex gap-2">
+            <button onClick={handleEdit} className="bg-green-500 px-4 py-1 rounded flex items-center gap-1"><Save size={14}/> Save</button>
+            <button onClick={() => setIsEditing(false)} className="bg-gray-600 px-4 py-1 rounded flex items-center gap-1"><X size={14}/> Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <p className="mb-3">{post.text}</p>
+      )}
+
       {post.imageUrl && <img src={post.imageUrl} className="rounded-lg w-full mb-3" />}
       <div className="flex gap-6 border-t border-b py-2">
         <button onClick={handleLike} className="flex items-center gap-2"><Heart fill={post.likes.includes(user?.uid)? "red" : "none"} color={post.likes.includes(user?.uid)? "red" : "currentColor"} />{post.likes.length}</button>
@@ -221,7 +258,7 @@ function PostCard({post, user, theme}: any) {
       )}
     </div>
   );
-                }
+                            }
 
 // ===== DISCOVER TAB =====
 function DiscoverTab({user, theme, setTab}: any) {
@@ -274,7 +311,7 @@ function MessagesTab({user, theme}: any) {
       <div className={`md:col-span-1 border rounded-xl p-2 overflow-y-auto ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>
         {chats.map(c => <div key={c.id} onClick={() => setActiveChat(c)} className={`p-3 rounded cursor-pointer ${activeChat?.id === c.id? "bg-blue-500" : ""}`}>Chat {c.id.slice(0,5)}</div>)}
       </div>
-      <div className={`md:col-span-2 border rounded-xl p-3 flex flex-col ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>{activeChat? <ChatRoom chat={activeChat} user={user} /> : <p className="m-auto opacity-70">Select a chat</p>}</div>
+      <div className={`md:col-span-2 border rounded-xl p-3 flex-col ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>{activeChat? <ChatRoom chat={activeChat} user={user} /> : <p className="m-auto opacity-70">Select a chat</p>}</div>
     </div>
   );
 }

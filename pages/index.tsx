@@ -164,12 +164,12 @@ function Navbar({user, setTab, tab, searchQuery, setSearchQuery}: any) {
               )}
             </div>
           )}
-          {user? <button onClick={() => signOut(auth)}><LogOut size={18} /></button> : <button onClick={() => signInWithPopup(auth, googleProvider)}><LogIn size={18} /></button>}
+          {!user && <button onClick={() => signInWithPopup(auth, googleProvider)}><LogIn size={18} /></button>}
         </div>
       </div>
     </header>
   );
-                            }
+          }
 
 function FeedTab({user, activeHashtag, setActiveHashtag}: any) {
   const [posts, setPosts] = useState<any[]>([]);
@@ -346,7 +346,7 @@ function BookmarksTab({user}: any) {
       {bookmarkedPosts.map((post) => <PostCard key={post.id} post={post} user={user} renderText={(t:string) => t} />)}
     </div>
   );
-        }
+              }
 
 function DiscoverTab({user, setTab}: any) {
   const [users, setUsers] = useState<any[]>([]);
@@ -359,7 +359,7 @@ function DiscoverTab({user, setTab}: any) {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4 flex items-center gap-2"><Users /> Discover by Skills</h1>
-      <div className="flex gap-2 mb-6 flex-wrap">{skills.map(skill => (<button key={skill} onClick={() => searchSkill(skill)} className="px-4 py-2 rounded-full border-gray-800 hover:bg-blue-500">{skill}</button>))}</div>
+      <div className="flex gap-2 mb-6 flex-wrap">{skills.map(skill => (<button key={skill} onClick={() => searchSkill(skill)} className="px-4 py-2 rounded-full border border-gray-800 hover:bg-blue-500">{skill}</button>))}</div>
       <div className="space-y-4">{users.map(u => (<UserCard key={u.id} u={u} user={user} setTab={setTab} />))}</div>
     </div>
   );
@@ -453,7 +453,7 @@ function SearchResults({query, setSearchQuery, setTab}: any) {
       ))}
     </div>
   );
-    }
+}
 
 function MessagesTab({user}: any) {
   const [chats, setChats] = useState<any[]>([]);
@@ -507,7 +507,7 @@ function ChatRoom({chat, user}: any) {
       </div>
     </>
   );
-        }
+}
 
 function ProfileTab({user}: any) {
   const [profile, setProfile] = useState<any>(null);
@@ -574,79 +574,104 @@ function ProfileTab({user}: any) {
   if(loading ||!profile) return <p className="text-center">Loading...</p>;
 
   return (
-    <div className="border rounded-xl p-6 bg-gray-900 border-gray-800">
-      <div className="flex justify-between items-start">
-        <div>
-          <img src={profile.photoURL} className="w-24 h-24 rounded-full" />
-          <h1 className="text-2xl font-bold mt-2">{profile.name}</h1>
-          <p className="opacity-70">@{profile.username}</p>
+    <div>
+      <div className="border rounded-xl p-6 bg-gray-900 border-gray-800">
+        <div className="flex justify-between items-start">
+          <div>
+            <img src={profile.photoURL} className="w-24 h-24 rounded-full" />
+            <h1 className="text-2xl font-bold mt-2">{profile.name}</h1>
+            <p className="opacity-70">@{profile.username}</p>
+          </div>
+          {!isEditing?
+            <button onClick={() => setIsEditing(true)} className="p-2 hover:bg-gray-800 rounded"><Edit /></button>
+            :
+            <button onClick={handleSave} disabled={loading} className="p-2 bg-green-500 hover:bg-green-600 rounded"><Save /></button>
+          }
         </div>
-        {!isEditing?
-          <button onClick={() => setIsEditing(true)} className="p-2 hover:bg-gray-800 rounded"><Edit /></button>
-          :
-          <button onClick={handleSave} disabled={loading} className="p-2 bg-green-500 hover:bg-green-600 rounded"><Save /></button>
-        }
-      </div>
 
-      <div className="flex gap-4 my-4">
-        <div><b>{followers}</b> Followers</div>
-        <div><b>{following}</b> Following</div>
-        <div className="flex items-center gap-1 text-yellow-500"><Award size={16} /><b>{profile.growthScore || 0} Growth Score</b></div>
-      </div>
+        <div className="flex gap-4 my-4">
+          <div><b>{followers}</b> Followers</div>
+          <div><b>{following}</b> Following</div>
+          <div className="flex items-center gap-1 text-yellow-500"><Award size={16} /><b>{profile.growthScore || 0} Growth Score</b></div>
+        </div>
 
-      <div className="flex gap-2 border-b border-gray-800 mb-4">
-        <button onClick={() => setActiveTab("about")} className={`px-4 py-2 ${activeTab === "about"? "border-b-2 border-blue-500" : ""}`}>About</button>
-        <button onClick={() => setActiveTab("posts")} className={`px-4 py-2 ${activeTab === "posts"? "border-b-2 border-blue-500" : ""}`}>My Posts</button>
-      </div>
+        <div className="flex gap-2 border-b border-gray-800 mb-4">
+          <button onClick={() => setActiveTab("about")} className={`px-4 py-2 ${activeTab === "about"? "border-b-2 border-blue-500" : ""}`}>About</button>
+          <button onClick={() => setActiveTab("posts")} className={`px-4 py-2 ${activeTab === "posts"? "border-b-2 border-blue-500" : ""}`}>My Posts</button>
+        </div>
 
-      {activeTab === "about" && (
-        <>
-          {isEditing? (
-            <div className="space-y-3 mt-4">
-              <input value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Name" />
-              <input value={futureGoal} onChange={e => setFutureGoal(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Future Goal: AI Founder" />
-              <textarea value={bio} onChange={e => setBio(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Bio" rows={3} />
-              <input value={skills} onChange={e => setSkills(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Skills: Coding, Design, AI" />
-            </div>
-          ) : (
-            <>
-              {profile.futureGoal && <p className="text-blue-500 font-semibold flex items-center gap-1"><Target size={14} /> Future Goal: {profile.futureGoal}</p>}
-              {profile.bio && <p className="opacity-70 mt-2">{profile.bio}</p>}
-              <div className="flex gap-2 flex-wrap mt-2">{profile.skills?.map((s:string) => s && <span key={s} className="text-sm bg-blue-500/20 px-3 py-1 rounded-full">{s}</span>)}</div>
-            </>
-          )}
-
-          <div className="border-t border-gray-800 pt-4 mt-4">
-            <h3 className="font-bold mb-3 flex items-center gap-2"><Link /> Project Showcase</h3>
-            {isEditing && (
-              <div className="flex gap-2 mb-3">
-                <input value={newProject.title} onChange={e => setNewProject({...newProject, title: e.target.value})} placeholder="Project Name" className="flex-1 bg-gray-800 p-2 rounded" />
-                <input value={newProject.link} onChange={e => setNewProject({...newProject, link: e.target.value})} placeholder="https://github.com/..." className="flex-1 bg-gray-800 p-2 rounded" />
-                <button onClick={handleAddProject} className="bg-blue-500 p-2 rounded"><Plus /></button>
+        {activeTab === "about" && (
+          <>
+            {isEditing? (
+              <div className="space-y-3 mt-4">
+                <input value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Name" />
+                <input value={futureGoal} onChange={e => setFutureGoal(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Future Goal: AI Founder" />
+                <textarea value={bio} onChange={e => setBio(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Bio" rows={3} />
+                <input value={skills} onChange={e => setSkills(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Skills: Coding, Design, AI" />
               </div>
+            ) : (
+              <>
+                {profile.futureGoal && <p className="text-blue-500 font-semibold flex items-center gap-1"><Target size={14} /> Future Goal: {profile.futureGoal}</p>}
+                {profile.bio && <p className="opacity-70 mt-2">{profile.bio}</p>}
+                <div className="flex gap-2 flex-wrap mt-2">{profile.skills?.map((s:string) => s && <span key={s} className="text-sm bg-blue-500/20 px-3 py-1 rounded-full">{s}</span>)}</div>
+              </>
             )}
-            {projects.length === 0 &&!isEditing && <p className="opacity-70">No projects added</p>}
-            {projects.map(p => (
-              <div key={p.id} className="flex justify-between items-center bg-gray-800 p-2 rounded mb-2">
-                <a href={p.link} target="_blank" className="flex items-center gap-2 hover:underline"><Github size={14} /> {p.title}</a>
-                {isEditing && <button onClick={() => handleRemoveProject(p.id)}><X size={14} /></button>}
-              </div>
-            ))}
-          </div>
 
-          <div className="border-t border-gray-800 pt-4 mt-4">
-            <h3 className="font-bold mb-3 flex items-center gap-2"><Target /> My Goals</h3>
-            <div className="flex items-center gap-2 text-orange-500"><Flame /> <span>{profile.streak || 0} Day Streak</span></div>
-          </div>
-        </>
-      )}
+            <div className="border-t border-gray-800 pt-4 mt-4">
+              <h3 className="font-bold mb-3 flex items-center gap-2"><Link /> Project Showcase</h3>
+              {isEditing && (
+                <div className="flex gap-2 mb-3">
+                  <input value={newProject.title} onChange={e => setNewProject({...newProject, title: e.target.value})} placeholder="Project Name" className="flex-1 bg-gray-800 p-2 rounded" />
+                  <input value={newProject.link} onChange={e => setNewProject({...newProject, link: e.target.value})} placeholder="https://github.com/..." className="flex-1 bg-gray-800 p-2 rounded" />
+                  <button onClick={handleAddProject} className="bg-blue-500 p-2 rounded"><Plus /></button>
+                </div>
+              )}
+              {projects.length === 0 &&!isEditing && <p className="opacity-70">No projects added</p>}
+              {projects.map(p => (
+                <div key={p.id} className="flex justify-between items-center bg-gray-800 p-2 rounded mb-2">
+                  <a href={p.link} target="_blank" className="flex items-center gap-2 hover:underline"><Github size={14} /> {p.title}</a>
+                  {isEditing && <button onClick={() => handleRemoveProject(p.id)}><X size={14} /></button>}
+                </div>
+              ))}
+            </div>
 
-      {activeTab === "posts" && (
-        <div className="space-y-4">
-          {myPosts.length === 0 && <p className="opacity-70">No posts yet</p>}
-          {myPosts.map(post => <PostCard key={post.id} post={post} user={user} renderText={(t:string) => t} />)}
-        </div>
-      )}
+            <div className="border-t border-gray-800 pt-4 mt-4">
+              <h3 className="font-bold mb-3 flex items-center gap-2"><Target /> My Goals</h3>
+              <div className="flex items-center gap-2 text-orange-500"><Flame /> <span>{profile.streak || 0} Day Streak</span></div>
+            </div>
+          </>
+        )}
+
+        {activeTab === "posts" && (
+          <div className="space-y-4">
+            {myPosts.length === 0 && <p className="opacity-70">No posts yet</p>}
+            {myPosts.map(post => <PostCard key={post.id} post={post} user={user} renderText={(t:string) => t} />)}
+          </div>
+        )}
+      </div>
+      <ProfileFooter />
+    </div>
+  );
+          }
+
+function ProfileFooter() {
+  const handleLogout = async () => {
+    if(!confirm("Are you sure you want to logout?")) return;
+    await signOut(auth);
+    toast("Logged out successfully 👋");
+  };
+
+  return (
+    <div className="border rounded-xl p-4 mt-6 bg-gray-900 border-gray-800 flex flex-col items-center gap-3">
+      <div className="text-center">
+        <p className="text-sm opacity-70">Account Settings</p>
+      </div>
+      <button
+        onClick={handleLogout}
+        className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 w-full px-6 py-3 rounded-lg font-semibold transition"
+      >
+        <LogOut size={18} /> Logout
+      </button>
     </div>
   );
 }

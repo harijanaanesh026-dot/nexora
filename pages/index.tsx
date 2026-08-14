@@ -1,26 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { Heart, MessageCircle, Send, LogIn, Sun, Moon, Image as ImageIcon, LogOut, Target, Users, Flame, Bell, MessageSquare, Search, Plus, Trash2, Edit, Save, X, Github, Link, Award, UserPlus, UserMinus } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
-import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, User } from "firebase/auth";
-import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, where, getDocs, deleteDoc, setDoc, getDoc, increment } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
-// ===== FIREBASE CONFIG =====
-const firebaseConfig = {
-  apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
-  authDomain: "nexoraai-75ae2.firebaseapp.com",
-  projectId: "nexoraai-75ae2",
-  storageBucket: "nexoraai-75ae2.firebasestorage.app",
-  messagingSenderId: "173122711177",
-  appId: "1:173122711177:web:68e373598d110d80c1e058",
-  measurementId: "G-11Y8XF8MBC"
-};
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
-export const googleProvider = new GoogleAuthProvider();
+// ===== FIREBASE IMPORTS FROM LIB =====
+import { auth, db, storage, googleProvider } from "../lib/firebaseConfig";
+import { signInWithPopup, onAuthStateChanged, signOut, User } from "firebase/auth";
+import { collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, where, getDocs, deleteDoc, setDoc, getDoc, increment } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 // ===== MAIN APP =====
 export default function NexoraApp() {
@@ -267,7 +253,7 @@ function PostCard({post, user, theme}: any) {
       {showComments && (<div className="mt-3 space-y-2">{comments.map((c) => (<div key={c.id} className="flex gap-2"><img src={c.userPhoto} className="w-8 h-8 rounded-full" /><div className={`p-2 rounded-lg ${theme === "dark"? "bg-gray-800" : "bg-gray-100"}`}><p className="font-semibold text-sm">{c.userName}</p><p className="text-sm">{c.text}</p></div></div>))}{user && (<div className="flex gap-2 mt-3"><input value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Add a comment..." className="flex-1 bg-transparent border-b outline-none" /><button onClick={handleComment}><Send size={18} /></button></div>)}</div>)}
     </div>
   );
-  }
+      }
 
 // ===== DISCOVER TAB =====
 function DiscoverTab({user, theme, setTab}: any) {

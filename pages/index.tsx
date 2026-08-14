@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { Heart, MessageCircle, Send, LogIn, Sun, Moon, Image as ImageIcon, LogOut } from "lucide-react";
+import { Heart, MessageCircle, Send, LogIn, Sun, Moon, Image as ImageIcon, LogOut, Target, Users, Flame } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
 import { auth, db, storage, googleProvider } from "../lib/firebaseConfig";
 import { signInWithPopup, onAuthStateChanged, signOut, User } from "firebase/auth";
-import { collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, where } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 export default function Home() {
@@ -14,6 +14,7 @@ export default function Home() {
   const [image, setImage] = useState<File | null>(null);
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isGoalUpdate, setIsGoalUpdate] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("theme") || "dark";
@@ -36,7 +37,7 @@ export default function Home() {
     return onSnapshot(q, (snap) => setPosts(snap.docs.map((d) => ({ id: d.id,...d.data() }))))
   }, []);
 
-  const handleLogin = () => signInWithPopup(auth, googleProvider).catch(err => toast(err.message));
+  const handleLogin = () => signInWithPopup(auth, googleProvider);
   const handleLogout = () => signOut(auth);
 
   const handlePost = async () => {
@@ -50,9 +51,11 @@ export default function Home() {
     }
     await addDoc(collection(db, "posts"), {
       text: newPost, imageUrl, userId: user?.uid, userName: user?.displayName,
-      userPhoto: user?.photoURL, likes: [], comments: [], createdAt: serverTimestamp()
+      userPhoto: user?.photoURL, likes: [], comments: [], 
+      type: isGoalUpdate? "goal_update" : "post",
+      createdAt: serverTimestamp()
     });
-    setNewPost(""); setImage(null); setLoading(false); toast("Posted! 🚀");
+    setNewPost(""); setImage(null); setIsGoalUpdate(false); setLoading(false); toast("Posted! 🚀");
   };
 
   const handleLike = async (postId: string, likes: string[]) => {
@@ -62,19 +65,11 @@ export default function Home() {
     });
   };
 
-  const handleComment = async (postId: string) => {
-    if (!comment.trim() ||!user) return;
-    await updateDoc(doc(db, "posts", postId), { 
-      comments: arrayUnion({ user: user.displayName, text: comment, time: new Date().toLocaleTimeString() }) 
-    });
-    setComment("");
-  };
-
   return (
     <div className={`min-h-screen ${theme === "dark"? "bg-black text-white" : "bg-gray-100 text-black"}`}>
       <Toaster position="bottom-center" />
       <header className={`sticky top-0 z-50 p-4 border-b ${theme === "dark"? "bg-black/80 border-gray-800" : "bg-white/80 border-gray-200"} backdrop-blur-md`}>
-        <div className="max-w-2xl mx-auto flex justify-between items-center">
+        <div className="max-w-4xl mx-auto flex justify-between items-center">
           <h1 className="text-2xl font-bold text-blue-500">NEXORA</h1>
           <div className="flex gap-4 items-center">
             <button onClick={toggleTheme}>{theme === "dark"? <Sun size={20} /> : <Moon size={20} />}</button>
@@ -89,58 +84,101 @@ export default function Home() {
           </div>
         </div>
       </header>
-      <div className="max-w-2xl mx-auto p-4">
-        {user && (
-          <div className={`border rounded-xl p-4 mb-6 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
-            <div className="flex gap-3">
-              <img src={user.photoURL || ""} className="w-10 h-10 rounded-full" />
-              <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="What's on your mind?" className="w-full bg-transparent outline-none resize-none" rows={2} />
-            </div>
-            <div className="flex justify-between items-center mt-4">
-              <label className="flex items-center gap-2 cursor-pointer text-blue-500">
-                <ImageIcon size={20} /> Image
-                <input type="file" accept="image/*" className="hidden" onChange={e => setImage(e.target.files![0] || null)} />
-              </label>
-              <button onClick={handlePost} disabled={loading} className="bg-blue-500 px-6 py-2 rounded-lg font-semibold disabled:opacity-50">
-                {loading? "Posting..." : "Post"}
-              </button>
-            </div>
-            {image && <p className="text-sm mt-2 text-green-500">1 Image Selected ✓</p>}
-          </div>
-        )}
-        {posts.map((post) => (
-          <div key={post.id} className={`border rounded-xl p-4 mb-6 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
-            <div className="flex items-center gap-3 mb-3">
-              <img src={post.userPhoto} className="w-10 h-10 rounded-full" />
-              <div>
-                <p className="font-semibold">{post.userName}</p>
-                <p className="text-xs opacity-70">{post.createdAt?.toDate().toLocaleString() || "Just now"}</p>
+
+      <div className="max-w-4xl mx-auto p-4 grid-cols-1 md:grid-cols-3 gap-6">
+        {/* LEFT: PROFILE + GOALS */}
+        <div className="md:col-span-1 space-y-4">
+          {user && <ProfileCard user={user} theme={theme} />}
+          {user && <GoalsCard user={user} theme={theme} />}
+        </div>
+
+        {/* CENTER: FEED */}
+        <div className="md:col-span-2">
+          {user && (
+            <div className={`border rounded-xl p-4 mb-6 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
+              <div className="flex gap-3">
+                <img src={user.photoURL || ""} className="w-10 h-10 rounded-full" />
+                <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="What's your goal progress?" className="w-full bg-transparent outline-none resize-none" rows={2} />
               </div>
-            </div>
-            <p className="mb-3">{post.text}</p>
-            {post.imageUrl && <img src={post.imageUrl} className="rounded-lg w-full mb-3" />}
-            <div className="flex gap-6 border-t border-b py-2 mb-3">
-              <button onClick={() => handleLike(post.id, post.likes)} className="flex items-center gap-2">
-                <Heart fill={post.likes.includes(user?.uid)? "red" : "none"} color={post.likes.includes(user?.uid)? "red" : "currentColor"} />
-                {post.likes.length}
-              </button>
-              <button className="flex items-center gap-2"><MessageCircle /> {post.comments.length}</button>
-            </div>
-            <div className="space-y-2">
-              {post.comments.map((c: any, i: number) => (
-                <div key={i} className="text-sm"><b>{c.user}</b>: {c.text}</div>
-              ))}
-            </div>
-            {user && (
-              <div className="flex gap-2 mt-3">
-                <input value={comment} onChange={e => setComment(e.target.value)} placeholder="Add a comment..." className="flex-1 bg-transparent border-b outline-none" />
-                <button onClick={() => handleComment(post.id)}><Send size={18} /></button>
+              <div className="flex justify-between items-center mt-4">
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer text-blue-500">
+                    <ImageIcon size={18} /> Image
+                    <input type="file" accept="image/*" className="hidden" onChange={e => setImage(e.target.files![0] || null)} />
+                  </label>
+                  <button onClick={() => setIsGoalUpdate(!isGoalUpdate)} className={`flex items-center gap-2 ${isGoalUpdate? "text-green-500" : "opacity-70"}`}>
+                    <Target size={18} /> Goal Update
+                  </button>
+                </div>
+                <button onClick={handlePost} disabled={loading} className="bg-blue-500 px-6 py-2 rounded-lg font-semibold disabled:opacity-50">
+                  {loading? "Posting..." : "Post"}
+                </button>
               </div>
-            )}
-          </div>
-        ))}
-        {!user && <p className="text-center mt-10">Login to see posts and post something 🔥</p>}
+              {image && <p className="text-sm mt-2 text-green-500">1 Image Selected ✓</p>}
+            </div>
+          )}
+          {posts.map((post) => (
+            <PostCard key={post.id} post={post} user={user} theme={theme} onLike={handleLike} />
+          ))}
+        </div>
       </div>
     </div>
   );
-                }
+}
+
+function PostCard({post, user, theme, onLike}: any) {
+  return (
+    <div className={`border rounded-xl p-4 mb-6 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
+      <div className="flex items-center gap-3 mb-3">
+        <img src={post.userPhoto} className="w-10 h-10 rounded-full" />
+        <div>
+          <p className="font-semibold">{post.userName}</p>
+          {post.type === "goal_update" && <p className="text-xs text-green-500 flex items-center gap-1"><Target size={12}/> Goal Progress</p>}
+        </div>
+      </div>
+      <p className="mb-3">{post.text}</p>
+      {post.imageUrl && <img src={post.imageUrl} className="rounded-lg w-full mb-3" />}
+      <div className="flex gap-6 border-t border-b py-2">
+        <button onClick={() => onLike(post.id, post.likes)} className="flex items-center gap-2">
+          <Heart fill={post.likes.includes(user?.uid)? "red" : "none"} color={post.likes.includes(user?.uid)? "red" : "currentColor"} />
+          {post.likes.length}
+        </button>
+        <button className="flex items-center gap-2"><MessageCircle /> {post.comments.length}</button>
+      </div>
+    </div>
+  )
+}
+
+function ProfileCard({user, theme}: any) {
+  return (
+    <div className={`border rounded-xl p-4 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
+      <img src={user.photoURL} className="w-20 h-20 rounded-full mx-auto mb-3" />
+      <h2 className="text-center font-bold">{user.displayName}</h2>
+      <p className="text-center text-sm opacity-70">React Native Learner</p>
+      <div className="flex items-center justify-center gap-2 mt-3 text-orange-500">
+        <Flame size={18} /> <span>7 Day Streak</span>
+      </div>
+    </div>
+  )
+}
+
+function GoalsCard({user, theme}: any) {
+  const goals = [
+    {title: "Learn React Native", progress: 60, date: "Dec 2025"},
+    {title: "Build Startup", progress: 30, date: "Mar 2026"}
+  ]
+  return (
+    <div className={`border rounded-xl p-4 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
+      <h3 className="font-bold mb-3 flex items-center gap-2"><Target /> My Goals</h3>
+      {goals.map(g => (
+        <div key={g.title} className="mb-3">
+          <p className="text-sm font-semibold">{g.title}</p>
+          <div className="w-full bg-gray-700 rounded-full h-2 mt-1">
+            <div className="bg-blue-500 h-2 rounded-full" style={{width: `${g.progress}%`}}></div>
+          </div>
+          <p className="text-xs opacity-70">{g.progress}% • Target: {g.date}</p>
+        </div>
+      ))}
+    </div>
+  )
+                  }

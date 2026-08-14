@@ -73,8 +73,12 @@ function Navbar({user, theme, toggleTheme, setTab, tab}: any) {
 
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, "notifications"), where("to", "==", user.uid));
-    return onSnapshot(q, (snap) => setNotifications(snap.docs.map(d => ({ id: d.id,...d.data() })).sort((a,b) => b.createdAt?.seconds - a.createdAt?.seconds)));
+    // FIX: orderBy added here instead of sorting in client
+    const q = query(collection(db, "notifications"), where("to", "==", user.uid), orderBy("createdAt", "desc"));
+    return onSnapshot(q, (snap) => {
+      const data = snap.docs.map(d => ({ id: d.id,...d.data() }))
+      setNotifications(data)
+    });
   }, [user]);
 
   const unreadCount = notifications.filter(n =>!n.read).length;
@@ -90,7 +94,7 @@ function Navbar({user, theme, toggleTheme, setTab, tab}: any) {
               {t === "feed" && <Target size={20}/>}
               {t === "discover" && <Users size={20}/>}
               {t === "messages" && <MessageSquare size={20}/>}
-              {t === "profile" && <img src={user?.photoURL} className="w-6 h-6 rounded-full" />}
+              {t === "profile" && (user?.photoURL? <img src={user.photoURL} className="w-6 h-6 rounded-full" /> : <Users size={20}/>)}
             </button>
           ))}
           <button onClick={toggleTheme}>{theme === "dark"? <Sun size={20} /> : <Moon size={20} />}</button>
@@ -217,7 +221,8 @@ function PostCard({post, user, theme}: any) {
       )}
     </div>
   );
-          }
+                }
+
 // ===== DISCOVER TAB =====
 function DiscoverTab({user, theme, setTab}: any) {
   const [users, setUsers] = useState<any[]>([]);
@@ -230,7 +235,7 @@ function DiscoverTab({user, theme, setTab}: any) {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4 flex items-center gap-2"><Users /> Discover People</h1>
-      <div className="flex gap-2 mb-6 flex-wrap">{roles.map(role => (<button key={role} onClick={() => searchRole(role)} className="px-4 py-2 rounded-full border-gray-600">{role}</button>))}</div>
+      <div className="flex gap-2 mb-6 flex-wrap">{roles.map(role => (<button key={role} onClick={() => searchRole(role)} className="px-4 py-2 rounded-full border">{role}</button>))}</div>
       <div className="space-y-4">{users.map(u => (<UserCard key={u.id} u={u} user={user} theme={theme} setTab={setTab} />))}</div>
     </div>
   );
@@ -269,7 +274,7 @@ function MessagesTab({user, theme}: any) {
       <div className={`md:col-span-1 border rounded-xl p-2 overflow-y-auto ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>
         {chats.map(c => <div key={c.id} onClick={() => setActiveChat(c)} className={`p-3 rounded cursor-pointer ${activeChat?.id === c.id? "bg-blue-500" : ""}`}>Chat {c.id.slice(0,5)}</div>)}
       </div>
-      <div className={`md:col-span-2 border rounded-xl p-3 flex-col ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>{activeChat? <ChatRoom chat={activeChat} user={user} /> : <p className="m-auto opacity-70">Select a chat</p>}</div>
+      <div className={`md:col-span-2 border rounded-xl p-3 flex flex-col ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>{activeChat? <ChatRoom chat={activeChat} user={user} /> : <p className="m-auto opacity-70">Select a chat</p>}</div>
     </div>
   );
 }

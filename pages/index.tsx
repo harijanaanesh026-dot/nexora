@@ -50,7 +50,7 @@ export default function NexoraApp() {
   };
 
   return (
-    <div className={`min-h-screen flex-col ${theme === "dark"? "bg-black text-white" : "bg-gray-100 text-black"}`}>
+    <div className={`min-h-screen flex flex-col ${theme === "dark"? "bg-black text-white" : "bg-gray-100 text-black"}`}>
       <Toaster position="bottom-center" />
       <Navbar user={user} theme={theme} toggleTheme={toggleTheme} setTab={setTab} tab={tab} />
       <div className="max-w-4xl mx-auto p-4 flex-1 w-full">
@@ -66,7 +66,7 @@ export default function NexoraApp() {
   );
 }
 
-// ===== FOOTER =====
+// ===== FOOTER - ANESH PRODUCTION =====
 function Footer({theme}: any) {
   return (
     <footer className={`border-t mt-10 py-6 ${theme === "dark"? "bg-black border-gray-800" : "bg-white border-gray-200"}`}>
@@ -79,7 +79,7 @@ function Footer({theme}: any) {
           <a href="#" className="hover:text-blue-500">Terms</a>
           <a href="#" className="hover:text-blue-500">Contact</a>
         </div>
-        <p className="text-xs opacity-50 mt-3">© 2026 NEXORA. Made in India 🇮🇳</p>
+        <p className="text-xs opacity-50 mt-3">© 2026 NEXORA. Built by <span className="font-bold text-blue-500">Anesh Production</span> 🇮🇳</p>
       </div>
     </footer>
   );
@@ -156,7 +156,7 @@ function Navbar({user, theme, toggleTheme, setTab, tab}: any) {
       </div>
     </header>
   );
-}
+  }
 
 // ===== FEED TAB - REAL HASHTAG FILTER =====
 function FeedTab({user, theme, activeHashtag, setActiveHashtag}: any) {
@@ -204,7 +204,7 @@ function FeedTab({user, theme, activeHashtag, setActiveHashtag}: any) {
       await addDoc(collection(db, "posts"), {
         text: newPost, imageUrl, userId: user.uid, userName: user.displayName,
         userPhoto: user.photoURL, likes: [], type: isGoalUpdate? "goal_update" : "post",
-        hashtags: newPost.match(/#\w+/g) || [], // REAL: hashtags array ga save
+        hashtags: newPost.match(/#\w+/g) || [],
         createdAt: serverTimestamp()
       });
       await updateDoc(doc(db, "users", user.uid), { growthScore: increment(5) });
@@ -253,7 +253,60 @@ function FeedTab({user, theme, activeHashtag, setActiveHashtag}: any) {
       {posts.map((post) => <PostCard key={post.id} post={post} user={user} theme={theme} renderText={renderTextWithHashtags} />)}
     </div>
   );
-            }
+}
+
+// ===== POSTCARD =====
+function PostCard({post, user, theme, renderText}: any) {
+  const [comments, setComments] = useState<any[]>([]);
+  const [commentText, setCommentText] = useState("");
+  const [showComments, setShowComments] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(post.text);
+  const isOwner = user?.uid === post.userId;
+  useEffect(() => {
+    const q = query(collection(db, "comments"), where("postId", "==", post.id), orderBy("createdAt", "asc"));
+    return onSnapshot(q, (snap) => setComments(snap.docs.map((d) => ({ id: d.id,...d.data() }))));
+  }, [post.id]);
+  const handleLike = async () => {
+    if (!user) return toast("Login cheyi");
+    await updateDoc(doc(db, "posts", post.id), {
+      likes: post.likes.includes(user.uid)? arrayRemove(user.uid) : arrayUnion(user.uid)
+    });
+    if (!post.likes.includes(user.uid)) {
+      createNotification(post.userId, "like", user, post.id);
+      await updateDoc(doc(db, "users", post.userId), { growthScore: increment(2) });
+    }
+  };
+  const handleComment = async () => {
+    if (!commentText.trim() ||!user) return;
+    await addDoc(collection(db, "comments"), {
+      postId: post.id, userId: user.uid, userName: user.displayName, userPhoto: user.photoURL, text: commentText, createdAt: serverTimestamp()
+    });
+    createNotification(post.userId, "comment", user, post.id);
+    await updateDoc(doc(db, "users", post.userId), { growthScore: increment(3) });
+    setCommentText("");
+  };
+  const handleDelete = async () => { if(!confirm("Delete this post?")) return; await deleteDoc(doc(db, "posts", post.id)); toast("Post Deleted 🗑️"); };
+  const handleEdit = async () => { if(!editText.trim()) return; await updateDoc(doc(db, "posts", post.id), { text: editText, hashtags: editText.match(/#\w+/g) || [] }); setIsEditing(false); toast("Post Updated ✏️"); };
+  return (
+    <div className={`border rounded-xl p-4 mb-6 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <img src={post.userPhoto} className="w-10 h-10 rounded-full" />
+          <div><p className="font-semibold">{post.userName}</p>{post.type === "goal_update" && <p className="text-xs text-green-500"><Target size={12}/> Goal Progress</p>}</div>
+        </div>
+        {isOwner &&!isEditing && (<div className="flex gap-2"><button onClick={() => setIsEditing(true)} className="p-2 hover:bg-gray-800 rounded"><Edit size={16}/></button><button onClick={handleDelete} className="p-2 hover:bg-red-800 rounded"><Trash2 size={16}/></button></div>)}
+      </div>
+      {isEditing? (<div className="mb-3"><textarea value={editText} onChange={e => setEditText(e.target.value)} className="w-full bg-gray-800 p-2 rounded mb-2" rows={3} /><div className="flex gap-2"><button onClick={handleEdit} className="bg-green-500 px-4 py-1 rounded flex items-center gap-1"><Save size={14}/> Save</button><button onClick={() => setIsEditing(false)} className="bg-gray-600 px-4 py-1 rounded flex items-center gap-1"><X size={14}/> Cancel</button></div></div>) : (<p className="mb-3">{renderText(post.text)}</p>)}
+      {post.imageUrl && <img src={post.imageUrl} className="rounded-lg w-full mb-3" />}
+      <div className="flex gap-6 border-t border-b py-2">
+        <button onClick={handleLike} className="flex items-center gap-2"><Heart fill={post.likes.includes(user?.uid)? "red" : "none"} color={post.likes.includes(user?.uid)? "red" : "currentColor"} />{post.likes.length}</button>
+        <button onClick={() => setShowComments(!showComments)} className="flex items-center gap-2"><MessageCircle /> {comments.length}</button>
+      </div>
+      {showComments && (<div className="mt-3 space-y-2">{comments.map((c) => (<div key={c.id} className="flex gap-2"><img src={c.userPhoto} className="w-8 h-8 rounded-full" /><div className={`p-2 rounded-lg ${theme === "dark"? "bg-gray-800" : "bg-gray-100"}`}><p className="font-semibold text-sm">{c.userName}</p><p className="text-sm">{c.text}</p></div></div>))}{user && (<div className="flex gap-2 mt-3"><input value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Add a comment..." className="flex-1 bg-transparent border-b outline-none" /><button onClick={handleComment}><Send size={18} /></button></div>)}</div>)}
+    </div>
+  );
+}
 
 // ===== DISCOVER TAB =====
 function DiscoverTab({user, theme, setTab}: any) {
@@ -298,12 +351,11 @@ function UserCard({u, user, theme, setTab}: any) {
       <div className="flex gap-2 mt-3">{user?.uid!== u.uid && <><button onClick={toggleFollow} className={`px-4 py-2 rounded-lg flex items-center gap-1 ${isFollowing? "bg-gray-600" : "bg-blue-500"}`}>{isFollowing? <UserMinus size={14}/> : <UserPlus size={14}/>}{isFollowing? "Unfollow" : "Follow"}</button><button onClick={startChat} className="bg-green-500 px-4 py-2 rounded-lg"><MessageCircle size={16}/></button></>}</div>
     </div>
   );
-}
+                                           }
 
 // ===== TRENDING TAB - REAL =====
 function TrendingTab({user, theme, onHashtagClick}: any) {
   const [trending, setTrending] = useState<any[]>([]);
-
   useEffect(() => {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(200));
     return onSnapshot(q, (snap) => {
@@ -312,14 +364,10 @@ function TrendingTab({user, theme, onHashtagClick}: any) {
       allPosts.forEach(p => {
         if(p.hashtags) p.hashtags.forEach((t: string) => tagCount[t] = (tagCount[t] || 0) + 1);
       });
-      const sorted = Object.entries(tagCount)
-     .sort((a: any, b: any) => b[1] - a[1])
-     .slice(0, 10)
-     .map(([tag, count]) => ({ tag, count }));
+      const sorted = Object.entries(tagCount).sort((a: any, b: any) => b[1] - a[1]).slice(0, 10).map(([tag, count]) => ({ tag, count }));
       setTrending(sorted);
     });
   }, []);
-
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">🔥 Trending Hashtags</h1>
@@ -378,37 +426,16 @@ function ProfileTab({user, theme}: any) {
       <div className="flex justify-between items-start"><div><img src={profile.photoURL} className="w-24 h-24 rounded-full" /><h1 className="text-2xl font-bold mt-2">{profile.name}</h1><p className="opacity-70">@{profile.username}</p></div>{!isEditing? <button onClick={() => setIsEditing(true)}><Edit /></button> : <button onClick={handleSave}><Save /></button>}</div>
       <div className="flex gap-4 my-4"><div><b>{followers}</b> Followers</div><div><b>{following}</b> Following</div><div className="flex items-center gap-1 text-yellow-500"><Award size={16} /><b>{profile.growthScore || 0} Growth Score</b></div></div>
       {isEditing? (<div className="space-y-3 mt-4"><input value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Name" /><input value={futureGoal} onChange={e => setFutureGoal(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Future Goal: AI Founder" /><textarea value={bio} onChange={e => setBio(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Bio" /><input value={skills} onChange={e => setSkills(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Skills: Coding, Design" /></div>) : (<><p className="text-blue-500 font-semibold"><Target size={14} /> Future Goal: {profile.futureGoal}</p><p className="opacity-70 mt-2">{profile.bio}</p><div className="flex gap-2 flex-wrap mt-2">{profile.skills?.map((s:string) => <span key={s} className="text-sm bg-blue-500/20 px-3 py-1 rounded-full">{s}</span>)}</div></>)}
-
       <div className="border-t border-gray-800 pt-4 mt-4">
         <h3 className="font-bold mb-3 flex items-center gap-2"><Link /> Project Showcase</h3>
         {isEditing && (<div className="flex gap-2 mb-3"><input value={newProject.title} onChange={e => setNewProject({...newProject, title: e.target.value})} placeholder="Project Name" className="flex-1 bg-gray-800 p-2 rounded" /><input value={newProject.link} onChange={e => setNewProject({...newProject, link: e.target.value})} placeholder="https://github.com/..." className="flex-1 bg-gray-800 p-2 rounded" /><button onClick={handleAddProject} className="bg-blue-500 p-2 rounded"><Plus /></button></div>)}
         {projects.map(p => (<div key={p.id} className="flex justify-between items-center bg-gray-800 p-2 rounded mb-2"><a href={p.link} target="_blank" className="flex items-center gap-2"><Github size={14} /> {p.title}</a>{isEditing && <button onClick={() => handleRemoveProject(p.id)}><X size={14} /></button>}</div>))}
       </div>
-
       <div className="border-t border-gray-800 pt-4 mt-4">
         <h3 className="font-bold mb-3 flex items-center gap-2"><Target /> My Goals</h3>
         <div className="flex items-center gap-2 text-orange-500"><Flame /> <span>{profile.streak || 0} Day Streak</span></div>
       </div>
     </div>
-  );
-}
-
-// ===== FOOTER - ANESH PRODUCTION =====
-function Footer({theme}: any) {
-  return (
-    <footer className={`border-t mt-10 py-6 ${theme === "dark"? "bg-black border-gray-800" : "bg-white border-gray-200"}`}>
-      <div className="max-w-4xl mx-auto px-4 text-center">
-        <h2 className="text-xl font-bold text-blue-500 mb-2">NEXORA</h2>
-        <p className="text-sm opacity-70 mb-3">Share Goals. Build Skills. Grow Together.</p>
-        <div className="flex justify-center gap-4 text-sm">
-          <a href="#" className="hover:text-blue-500">About</a>
-          <a href="#" className="hover:text-blue-500">Privacy</a>
-          <a href="#" className="hover:text-blue-500">Terms</a>
-          <a href="#" className="hover:text-blue-500">Contact</a>
-        </div>
-        <p className="text-xs opacity-50 mt-3">© 2026 NEXORA. A<span className="font-bold text-blue-500"> Production by ANESH</span></p>
-      </div>
-    </footer>
   );
 }
 

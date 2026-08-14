@@ -36,7 +36,7 @@ export default function Home() {
     return onSnapshot(q, (snap) => setPosts(snap.docs.map((d) => ({ id: d.id,...d.data() }))))
   }, []);
 
-  const handleLogin = () => signInWithPopup(auth, googleProvider);
+  const handleLogin = () => signInWithPopup(auth, googleProvider).catch(err => toast(err.message));
   const handleLogout = () => signOut(auth);
 
   const handlePost = async () => {

@@ -3,11 +3,10 @@ import { Heart, MessageCircle, Send, LogIn, Sun, Moon, Image as ImageIcon, LogOu
 import { toast, Toaster } from "react-hot-toast";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, User } from "firebase/auth";
-import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, where, getDocs, deleteDoc, setDoc, getDoc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, where, getDocs, deleteDoc, setDoc, getDoc } from "firebase/firestore"; // getDoc ADD chesanu
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
-// ===== FIREBASE CONFIG - NUVVU ICHINA KEYS =====
-// ⚠️ IMMEDIATELY REGENERATE KEYS IN FIREBASE CONSOLE ⚠️
+// ===== FIREBASE CONFIG =====
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
   authDomain: "nexoraai-75ae2.firebaseapp.com",
@@ -25,7 +24,7 @@ export const googleProvider = new GoogleAuthProvider();
 
 // ===== MAIN APP =====
 export default function NexoraApp() {
-  const [tab, setTab] = useState("feed"); // feed, discover, messages, profile
+  const [tab, setTab] = useState("feed");
   const [user, setUser] = useState<User | null>(null);
   const [theme, setTheme] = useState("dark");
 
@@ -55,7 +54,6 @@ export default function NexoraApp() {
     <div className={`min-h-screen ${theme === "dark"? "bg-black text-white" : "bg-gray-100 text-black"}`}>
       <Toaster position="bottom-center" />
       <Navbar user={user} theme={theme} toggleTheme={toggleTheme} setTab={setTab} tab={tab} />
-
       <div className="max-w-4xl mx-auto p-4">
         {tab === "feed" && <FeedTab user={user} theme={theme} />}
         {tab === "discover" && <DiscoverTab user={user} theme={theme} setTab={setTab} />}
@@ -66,7 +64,7 @@ export default function NexoraApp() {
   );
 }
 
-// ===== NAVBAR WITH NOTIFICATIONS =====
+// ===== NAVBAR =====
 function Navbar({user, theme, toggleTheme, setTab, tab}: any) {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
@@ -74,10 +72,7 @@ function Navbar({user, theme, toggleTheme, setTab, tab}: any) {
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, "notifications"), where("to", "==", user.uid), orderBy("createdAt", "desc"));
-    return onSnapshot(q, (snap) => {
-      const data = snap.docs.map(d => ({ id: d.id,...d.data() }))
-      setNotifications(data)
-    });
+    return onSnapshot(q, (snap) => setNotifications(snap.docs.map(d => ({ id: d.id,...d.data() }))));
   }, [user]);
 
   const unreadCount = notifications.filter(n =>!n.read).length;
@@ -127,6 +122,7 @@ function FeedTab({user, theme}: any) {
   const [newPost, setNewPost] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [isGoalUpdate, setIsGoalUpdate] = useState(false);
+  const [loading, setLoading] = useState(false); // LOADING ADD CHESANU
 
   useEffect(() => {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
@@ -134,19 +130,28 @@ function FeedTab({user, theme}: any) {
   }, []);
 
   const handlePost = async () => {
+    if (!user) return toast("First Login cheyi boss");
     if (!newPost.trim() &&!image) return toast("Post or Image add cheyi");
-    let imageUrl = "";
-    if (image) {
-      const storageRef = ref(storage, `posts/${user?.uid}/${Date.now()}`);
-      const snap = await uploadBytes(storageRef, image);
-      imageUrl = await getDownloadURL(snap.ref);
+
+    setLoading(true); // LOADING START
+    try {
+      let imageUrl = "";
+      if (image) {
+        const storageRef = ref(storage, `posts/${user.uid}/${Date.now()}`);
+        const snap = await uploadBytes(storageRef, image);
+        imageUrl = await getDownloadURL(snap.ref);
+      }
+      await addDoc(collection(db, "posts"), {
+        text: newPost, imageUrl, userId: user.uid, userName: user.displayName,
+        userPhoto: user.photoURL, likes: [], type: isGoalUpdate? "goal_update" : "post",
+        createdAt: serverTimestamp()
+      });
+      setNewPost(""); setImage(null); setIsGoalUpdate(false); toast("Posted! 🚀");
+    } catch (error) {
+      console.log(error);
+      toast("Post Failed. Rules check cheyi");
     }
-    await addDoc(collection(db, "posts"), {
-      text: newPost, imageUrl, userId: user?.uid, userName: user?.displayName,
-      userPhoto: user?.photoURL, likes: [], type: isGoalUpdate? "goal_update" : "post",
-      createdAt: serverTimestamp()
-    });
-    setNewPost(""); setImage(null); setIsGoalUpdate(false); toast("Posted! 🚀");
+    setLoading(false); // LOADING END
   };
 
   return (
@@ -164,7 +169,9 @@ function FeedTab({user, theme}: any) {
               </label>
               <button onClick={() => setIsGoalUpdate(!isGoalUpdate)} className={`flex items-center gap-2 ${isGoalUpdate? "text-green-500" : "opacity-70"}`}><Target size={18} /> Goal</button>
             </div>
-            <button onClick={handlePost} className="bg-blue-500 px-6 py-2 rounded-lg font-semibold">Post</button>
+            <button onClick={handlePost} disabled={loading} className="bg-blue-500 px-6 py-2 rounded-lg font-semibold disabled:opacity-50">
+              {loading? "Posting..." : "Post"}
+            </button>
           </div>
         </div>
       )}
@@ -232,7 +239,6 @@ function PostCard({post, user, theme}: any) {
           </div>
         )}
       </div>
-
       {isEditing? (
         <div className="mb-3">
           <textarea value={editText} onChange={e => setEditText(e.target.value)} className="w-full bg-gray-800 p-2 rounded mb-2" rows={3} />
@@ -241,10 +247,7 @@ function PostCard({post, user, theme}: any) {
             <button onClick={() => setIsEditing(false)} className="bg-gray-600 px-4 py-1 rounded flex items-center gap-1"><X size={14}/> Cancel</button>
           </div>
         </div>
-      ) : (
-        <p className="mb-3">{post.text}</p>
-      )}
-
+      ) : (<p className="mb-3">{post.text}</p>)}
       {post.imageUrl && <img src={post.imageUrl} className="rounded-lg w-full mb-3" />}
       <div className="flex gap-6 border-t border-b py-2">
         <button onClick={handleLike} className="flex items-center gap-2"><Heart fill={post.likes.includes(user?.uid)? "red" : "none"} color={post.likes.includes(user?.uid)? "red" : "currentColor"} />{post.likes.length}</button>
@@ -258,104 +261,4 @@ function PostCard({post, user, theme}: any) {
       )}
     </div>
   );
-                            }
-
-// ===== DISCOVER TAB =====
-function DiscoverTab({user, theme, setTab}: any) {
-  const [users, setUsers] = useState<any[]>([]);
-  const roles = ["Developer", "Designer", "Marketer", "Co-founder", "React"];
-  const searchRole = async (role: string) => {
-    const q = query(collection(db, "users"), where("skills", "array-contains", role));
-    const snap = await getDocs(q);
-    setUsers(snap.docs.map(d => ({ id: d.id,...d.data() })));
-  };
-  return (
-    <div>
-      <h1 className="text-2xl font-bold mb-4 flex items-center gap-2"><Users /> Discover People</h1>
-      <div className="flex gap-2 mb-6 flex-wrap">{roles.map(role => (<button key={role} onClick={() => searchRole(role)} className="px-4 py-2 rounded-full border">{role}</button>))}</div>
-      <div className="space-y-4">{users.map(u => (<UserCard key={u.id} u={u} user={user} theme={theme} setTab={setTab} />))}</div>
-    </div>
-  );
-}
-
-function UserCard({u, user, theme, setTab}: any) {
-  const [isFollowing, setIsFollowing] = useState(false);
-  useEffect(() => { if(user) getDocs(query(collection(db, "follows"), where("followerId", "==", user.uid), where("followingId", "==", u.uid))).then(s => setIsFollowing(!s.empty)) },[user,u]);
-  const toggleFollow = async () => {
-    if(!user) return;
-    if(isFollowing) { const snap = await getDocs(query(collection(db, "follows"), where("followerId", "==", user.uid), where("followingId", "==", u.uid))); snap.forEach(d => deleteDoc(d.ref)); }
-    else { await addDoc(collection(db, "follows"), {followerId: user.uid, followingId: u.uid, createdAt: serverTimestamp()}); createNotification(u.uid, "follow", user); }
-    setIsFollowing(!isFollowing);
-  };
-  const startChat = async () => {
-    const members = [user.uid, u.uid].sort();
-    const snap = await getDocs(query(collection(db, "chats"), where("members", "==", members)));
-    let chatId = snap.empty? (await addDoc(collection(db, "chats"), {members, lastMessage: "", updatedAt: serverTimestamp()})).id : snap.docs[0].id;
-    setTab("messages");
-  };
-  return (
-    <div className={`border rounded-xl p-4 flex justify-between items-center ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>
-      <div className="flex items-center gap-3"><img src={u.photoURL} className="w-12 h-12 rounded-full" /><div><p className="font-bold">{u.name}</p><p className="text-sm opacity-70">{u.bio}</p></div></div>
-      <div className="flex gap-2">{user?.uid!== u.uid && <><button onClick={toggleFollow} className={`px-4 py-2 rounded-lg ${isFollowing? "bg-gray-600" : "bg-blue-500"}`}>{isFollowing? "Following" : "Follow"}</button><button onClick={startChat} className="bg-green-500 px-4 py-2 rounded-lg"><MessageCircle size={16}/></button></>}</div>
-    </div>
-  );
-}
-
-// ===== MESSAGES TAB =====
-function MessagesTab({user, theme}: any) {
-  const [chats, setChats] = useState<any[]>([]);
-  const [activeChat, setActiveChat] = useState<any>(null);
-  useEffect(() => { if (!user) return; const q = query(collection(db, "chats"), where("members", "array-contains", user.uid), orderBy("updatedAt", "desc")); return onSnapshot(q, (snap) => setChats(snap.docs.map(d => ({ id: d.id,...d.data() })))) }, [user]);
-  return (
-    <div className="grid md:grid-cols-3 gap-4 h-[70vh]">
-      <div className={`md:col-span-1 border rounded-xl p-2 overflow-y-auto ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>
-        {chats.map(c => <div key={c.id} onClick={() => setActiveChat(c)} className={`p-3 rounded cursor-pointer ${activeChat?.id === c.id? "bg-blue-500" : ""}`}>Chat {c.id.slice(0,5)}</div>)}
-      </div>
-      <div className={`md:col-span-2 border rounded-xl p-3 flex-col ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>{activeChat? <ChatRoom chat={activeChat} user={user} /> : <p className="m-auto opacity-70">Select a chat</p>}</div>
-    </div>
-  );
-}
-
-function ChatRoom({chat, user}: any) {
-  const [messages, setMessages] = useState<any[]>([]); const [text, setText] = useState("");
-  useEffect(() => { const q = query(collection(db, "messages"), where("chatId", "==", chat.id), orderBy("createdAt", "asc")); return onSnapshot(q, (snap) => setMessages(snap.docs.map(d => ({ id: d.id,...d.data() })))) }, [chat]);
-  const sendMessage = async () => { if (!text.trim()) return; await addDoc(collection(db, "messages"), {chatId: chat.id, senderId: user.uid, text, createdAt: serverTimestamp()}); await updateDoc(doc(db, "chats", chat.id), {lastMessage: text, updatedAt: serverTimestamp()}); setText(""); };
-  return (<><div className="flex-1 overflow-y-auto space-y-2">{messages.map(m => (<div key={m.id} className={`flex ${m.senderId === user?.uid? "justify-end" : "justify-start"}`}><div className={`p-2 rounded-lg ${m.senderId === user?.uid? "bg-blue-500" : "bg-gray-800"}`}>{m.text}</div></div>))}</div><div className="flex gap-2 mt-2"><input value={text} onChange={e => setText(e.target.value)} onKeyPress={e => e.key === "Enter" && sendMessage()} placeholder="Type..." className="flex-1 bg-gray-900 p-2 rounded" /><button onClick={sendMessage}><Send /></button></div></>);
-}
-
-// ===== PROFILE TAB =====
-function ProfileTab({user, theme}: any) {
-  const [profile, setProfile] = useState<any>(null); const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState(""); const [bio, setBio] = useState(""); const [skills, setSkills] = useState("");
-  const [newGoalTitle, setNewGoalTitle] = useState(""); const [newGoalDate, setNewGoalDate] = useState("");
-
-  useEffect(() => { if(!user) return; getDoc(doc(db, "users", user.uid)).then(s => { if(s.exists()){ setProfile(s.data()); setName(s.data().name); setBio(s.data().bio); setSkills(s.data().skills?.join(", ")); }})},[user]);
-
-  const handleSave = async () => { await updateDoc(doc(db, "users", user.uid), {name, bio, skills: skills.split(",").map(s => s.trim())}); setIsEditing(false); toast("Profile Updated!"); };
-  const handleAddGoal = async () => { const newGoal = { id: Date.now().toString(), title: newGoalTitle, targetDate: newGoalDate, progress: 0 }; await updateDoc(doc(db, "users", user.uid), {goals: arrayUnion(newGoal)}); setNewGoalTitle(""); setNewGoalDate(""); };
-  const handleUpdateProgress = async (goalId: string, progress: number) => { const updatedGoals = profile.goals.map((g:any) => g.id === goalId? {...g, progress} : g); await updateDoc(doc(db, "users", user.uid), { goals: updatedGoals }); };
-
-  if(!profile) return <p>Loading...</p>;
-  return (
-    <div className={`border rounded-xl p-6 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
-      <div className="flex justify-between"><img src={profile.photoURL} className="w-24 h-24 rounded-full" />{!isEditing? <button onClick={() => setIsEditing(true)}><Edit /></button> : <button onClick={handleSave}><Save /></button>}</div>
-      {isEditing? (<div className="space-y-3 mt-4"><input value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-800 p-2 rounded" /><textarea value={bio} onChange={e => setBio(e.target.value)} className="w-full bg-gray-800 p-2 rounded" /><input value={skills} onChange={e => setSkills(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Skills comma separated" /></div>) : (<><h1 className="text-2xl font-bold mt-2">{profile.name}</h1><p className="opacity-70">{profile.bio}</p><div className="flex gap-2 flex-wrap mt-2">{profile.skills?.map((s:string) => <span key={s} className="text-sm bg-gray-800 px-3 py-1 rounded-full">{s}</span>)}</div></>)}
-
-      <div className="border-t border-gray-800 pt-4 mt-4">
-        <h3 className="font-bold mb-3 flex items-center gap-2"><Target /> My Goals</h3>
-        <div className="flex gap-2 mb-4"><input value={newGoalTitle} onChange={e => setNewGoalTitle(e.target.value)} placeholder="New Goal" className="flex-1 bg-gray-800 p-2 rounded" /><input type="date" value={newGoalDate} onChange={e => setNewGoalDate(e.target.value)} className="bg-gray-800 p-2 rounded" /><button onClick={handleAddGoal} className="bg-blue-500 p-2 rounded"><Plus /></button></div>
-        {profile.goals?.map((g:any) => (<div key={g.id} className="mb-3"><p className="font-semibold">{g.title}</p><div className="w-full bg-gray-700 rounded-full h-2 mt-1"><div className="bg-blue-500 h-2 rounded-full" style={{width: `${g.progress}%`}}></div></div><input type="range" min="0" max="100" value={g.progress} onChange={e => handleUpdateProgress(g.id, Number(e.target.value))} className="w-full mt-1" /></div>))}
-        <div className="flex items-center gap-2 mt-4 text-orange-500"><Flame /> <span>{profile.streak || 0} Day Streak</span></div>
-      </div>
-    </div>
-  );
-}
-
-// ===== NOTIFICATION HELPER =====
-const createNotification = async (toUserId: string, type: string, fromUser: any, postId?: string) => {
-  if (!toUserId || toUserId === fromUser.uid) return;
-  await addDoc(collection(db, "notifications"), {
-    to: toUserId, type, from: { uid: fromUser.uid, name: fromUser.displayName, photo: fromUser.photoURL },
-    postId: postId || null, read: false, createdAt: serverTimestamp()
-  });
-};
+    }

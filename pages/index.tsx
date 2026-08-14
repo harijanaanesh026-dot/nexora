@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { Heart, MessageCircle, Send, LogIn, Sun, Moon, Image as ImageIcon, LogOut, Target, Users, Flame, Bell, MessageSquare, Search, Plus, Trash2, Edit, Save, X } from "lucide-react";
+import { Heart, MessageCircle, Send, LogIn, Sun, Moon, Image as ImageIcon, LogOut, Target, Users, Flame, Bell, MessageSquare, Search, Plus, Trash2, Edit, Save, X, Github, Link, Award, UserPlus, UserMinus } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, User } from "firebase/auth";
-import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, where, getDocs, deleteDoc, setDoc, getDoc } from "firebase/firestore";
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, where, getDocs, deleteDoc, setDoc, getDoc, increment } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 // ===== FIREBASE CONFIG =====
@@ -27,6 +27,7 @@ export default function NexoraApp() {
   const [tab, setTab] = useState("feed");
   const [user, setUser] = useState<User | null>(null);
   const [theme, setTheme] = useState("dark");
+  const [usernameSetup, setUsernameSetup] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("theme") || "dark";
@@ -35,9 +36,14 @@ export default function NexoraApp() {
     return onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
+        const userDoc = await getDoc(doc(db, "users", u.uid));
+        if (!userDoc.exists() ||!userDoc.data().username) {
+          setUsernameSetup(true);
+        }
         await setDoc(doc(db, "users", u.uid), {
-          uid: u.uid, name: u.displayName, bio: "", photoURL: u.photoURL,
-          skills: [], goals: [], streak: 0, createdAt: serverTimestamp()
+          uid: u.uid, name: u.displayName, email: u.email, photoURL: u.photoURL,
+          username: userDoc.data()?.username || "", bio: "", futureGoal: "", growthScore: 0,
+          skills: [], projects: [], goals: [], streak: 0, createdAt: serverTimestamp()
         }, { merge: true });
       }
     });
@@ -55,10 +61,34 @@ export default function NexoraApp() {
       <Toaster position="bottom-center" />
       <Navbar user={user} theme={theme} toggleTheme={toggleTheme} setTab={setTab} tab={tab} />
       <div className="max-w-4xl mx-auto p-4">
+        {usernameSetup && <UsernameSetup user={user} setUsernameSetup={setUsernameSetup} />}
         {tab === "feed" && <FeedTab user={user} theme={theme} />}
         {tab === "discover" && <DiscoverTab user={user} theme={theme} setTab={setTab} />}
         {tab === "messages" && <MessagesTab user={user} theme={theme} />}
         {tab === "profile" && <ProfileTab user={user} theme={theme} />}
+      </div>
+    </div>
+  );
+}
+
+// ===== USERNAME SETUP =====
+function UsernameSetup({user, setUsernameSetup}: any) {
+  const [username, setUsername] = useState("");
+  const handleSave = async () => {
+    if(username.length < 3) return toast("Username 3 chars min");
+    const q = query(collection(db, "users"), where("username", "==", username));
+    const snap = await getDocs(q);
+    if(!snap.empty) return toast("Username already taken");
+    await updateDoc(doc(db, "users", user.uid), { username });
+    setUsernameSetup(false);
+    toast("Welcome to NEXORA! 🎉");
+  };
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+      <div className="bg-gray-900 p-6 rounded-xl w-96">
+        <h2 className="text-xl font-bold mb-4">Pick your Username</h2>
+        <input value={username} onChange={e => setUsername(e.target.value.toLowerCase())} placeholder="@yourname" className="w-full bg-gray-800 p-3 rounded mb-4" />
+        <button onClick={handleSave} className="w-full bg-blue-500 py-2 rounded font-bold">Continue</button>
       </div>
     </div>
   );
@@ -113,17 +143,32 @@ function Navbar({user, theme, toggleTheme, setTab, tab}: any) {
   );
 }
 
-// ===== FEED TAB =====
+// ===== FEED TAB - PERSONALIZED =====
 function FeedTab({user, theme}: any) {
   const [posts, setPosts] = useState<any[]>([]);
   const [newPost, setNewPost] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [isGoalUpdate, setIsGoalUpdate] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [following, setFollowing] = useState<string[]>([]);
+
   useEffect(() => {
-    const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
+    if(!user) return;
+    getDocs(query(collection(db, "follows"), where("followerId", "==", user.uid))).then(s => {
+      setFollowing(s.docs.map(d => d.data().followingId));
+    });
+  }, [user]);
+
+  useEffect(() => {
+    let q;
+    if(following.length > 0) {
+      q = query(collection(db, "posts"), where("userId", "in", [...following, user?.uid]), orderBy("createdAt", "desc"));
+    } else {
+      q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
+    }
     return onSnapshot(q, (snap) => setPosts(snap.docs.map((d) => ({ id: d.id,...d.data() }))))
-  }, []);
+  }, [following, user]);
+
   const handlePost = async () => {
     if (!user) return toast("First Login cheyi boss");
     if (!newPost.trim() &&!image) return toast("Post or Image add cheyi");
@@ -140,11 +185,9 @@ function FeedTab({user, theme}: any) {
         userPhoto: user.photoURL, likes: [], type: isGoalUpdate? "goal_update" : "post",
         createdAt: serverTimestamp()
       });
-      setNewPost(""); setImage(null); setIsGoalUpdate(false); toast("Posted! 🚀");
-    } catch (error: any) {
-      console.log(error);
-      toast("Post Failed: " + error.message);
-    }
+      await updateDoc(doc(db, "users", user.uid), { growthScore: increment(5) });
+      setNewPost(""); setImage(null); setIsGoalUpdate(false); toast("Posted! +5 Growth 🚀");
+    } catch (error: any) { toast("Post Failed: " + error.message); }
     setLoading(false);
   };
   return (
@@ -153,14 +196,14 @@ function FeedTab({user, theme}: any) {
         <div className={`border rounded-xl p-4 mb-6 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
           <div className="flex gap-3">
             <img src={user.photoURL || ""} className="w-10 h-10 rounded-full" />
-            <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="What's your goal progress?" className="w-full bg-transparent outline-none resize-none" rows={2} />
+            <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="Share your goal progress..." className="w-full bg-transparent outline-none resize-none" rows={2} />
           </div>
           <div className="flex justify-between items-center mt-4">
             <div className="flex gap-4">
               <label className="flex items-center gap-2 cursor-pointer text-blue-500">
                 <ImageIcon size={18} /> <input type="file" accept="image/*" className="hidden" onChange={e => setImage(e.target.files![0] || null)} />
               </label>
-              <button onClick={() => setIsGoalUpdate(!isGoalUpdate)} className={`flex items-center gap-2 ${isGoalUpdate? "text-green-500" : "opacity-70"}`}><Target size={18} /> Goal</button>
+              <button onClick={() => setIsGoalUpdate(!isGoalUpdate)} className={`flex items-center gap-2 ${isGoalUpdate? "text-green-500" : "opacity-70"}`}><Target size={18} /> Goal Update</button>
             </div>
             <button onClick={handlePost} disabled={loading} className="bg-blue-500 px-6 py-2 rounded-lg font-semibold disabled:opacity-50">
               {loading? "Posting..." : "Post"}
@@ -173,7 +216,7 @@ function FeedTab({user, theme}: any) {
   );
 }
 
-// ===== POSTCARD WITH EDIT + DELETE =====
+// ===== POSTCARD =====
 function PostCard({post, user, theme}: any) {
   const [comments, setComments] = useState<any[]>([]);
   const [commentText, setCommentText] = useState("");
@@ -190,7 +233,10 @@ function PostCard({post, user, theme}: any) {
     await updateDoc(doc(db, "posts", post.id), {
       likes: post.likes.includes(user.uid)? arrayRemove(user.uid) : arrayUnion(user.uid)
     });
-    if (!post.likes.includes(user.uid)) createNotification(post.userId, "like", user, post.id);
+    if (!post.likes.includes(user.uid)) {
+      createNotification(post.userId, "like", user, post.id);
+      await updateDoc(doc(db, "users", post.userId), { growthScore: increment(2) });
+    }
   };
   const handleComment = async () => {
     if (!commentText.trim() ||!user) return;
@@ -198,19 +244,11 @@ function PostCard({post, user, theme}: any) {
       postId: post.id, userId: user.uid, userName: user.displayName, userPhoto: user.photoURL, text: commentText, createdAt: serverTimestamp()
     });
     createNotification(post.userId, "comment", user, post.id);
+    await updateDoc(doc(db, "users", post.userId), { growthScore: increment(3) });
     setCommentText("");
   };
-  const handleDelete = async () => {
-    if(!confirm("Delete this post?")) return;
-    await deleteDoc(doc(db, "posts", post.id));
-    toast("Post Deleted 🗑️");
-  };
-  const handleEdit = async () => {
-    if(!editText.trim()) return;
-    await updateDoc(doc(db, "posts", post.id), { text: editText });
-    setIsEditing(false);
-    toast("Post Updated ✏️");
-  };
+  const handleDelete = async () => { if(!confirm("Delete this post?")) return; await deleteDoc(doc(db, "posts", post.id)); toast("Post Deleted 🗑️"); };
+  const handleEdit = async () => { if(!editText.trim()) return; await updateDoc(doc(db, "posts", post.id), { text: editText }); setIsEditing(false); toast("Post Updated ✏️"); };
   return (
     <div className={`border rounded-xl p-4 mb-6 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
       <div className="flex items-center justify-between mb-3">
@@ -218,50 +256,32 @@ function PostCard({post, user, theme}: any) {
           <img src={post.userPhoto} className="w-10 h-10 rounded-full" />
           <div><p className="font-semibold">{post.userName}</p>{post.type === "goal_update" && <p className="text-xs text-green-500"><Target size={12}/> Goal Progress</p>}</div>
         </div>
-        {isOwner &&!isEditing && (
-          <div className="flex gap-2">
-            <button onClick={() => setIsEditing(true)} className="p-2 hover:bg-gray-800 rounded"><Edit size={16}/></button>
-            <button onClick={handleDelete} className="p-2 hover:bg-red-800 rounded"><Trash2 size={16}/></button>
-          </div>
-        )}
+        {isOwner &&!isEditing && (<div className="flex gap-2"><button onClick={() => setIsEditing(true)} className="p-2 hover:bg-gray-800 rounded"><Edit size={16}/></button><button onClick={handleDelete} className="p-2 hover:bg-red-800 rounded"><Trash2 size={16}/></button></div>)}
       </div>
-      {isEditing? (
-        <div className="mb-3">
-          <textarea value={editText} onChange={e => setEditText(e.target.value)} className="w-full bg-gray-800 p-2 rounded mb-2" rows={3} />
-          <div className="flex gap-2">
-            <button onClick={handleEdit} className="bg-green-500 px-4 py-1 rounded flex items-center gap-1"><Save size={14}/> Save</button>
-            <button onClick={() => setIsEditing(false)} className="bg-gray-600 px-4 py-1 rounded flex items-center gap-1"><X size={14}/> Cancel</button>
-          </div>
-        </div>
-      ) : (<p className="mb-3">{post.text}</p>)}
+      {isEditing? (<div className="mb-3"><textarea value={editText} onChange={e => setEditText(e.target.value)} className="w-full bg-gray-800 p-2 rounded mb-2" rows={3} /><div className="flex gap-2"><button onClick={handleEdit} className="bg-green-500 px-4 py-1 rounded flex items-center gap-1"><Save size={14}/> Save</button><button onClick={() => setIsEditing(false)} className="bg-gray-600 px-4 py-1 rounded flex items-center gap-1"><X size={14}/> Cancel</button></div></div>) : (<p className="mb-3">{post.text}</p>)}
       {post.imageUrl && <img src={post.imageUrl} className="rounded-lg w-full mb-3" />}
       <div className="flex gap-6 border-t border-b py-2">
         <button onClick={handleLike} className="flex items-center gap-2"><Heart fill={post.likes.includes(user?.uid)? "red" : "none"} color={post.likes.includes(user?.uid)? "red" : "currentColor"} />{post.likes.length}</button>
         <button onClick={() => setShowComments(!showComments)} className="flex items-center gap-2"><MessageCircle /> {comments.length}</button>
       </div>
-      {showComments && (
-        <div className="mt-3 space-y-2">
-          {comments.map((c) => (<div key={c.id} className="flex gap-2"><img src={c.userPhoto} className="w-8 h-8 rounded-full" /><div className={`p-2 rounded-lg ${theme === "dark"? "bg-gray-800" : "bg-gray-100"}`}><p className="font-semibold text-sm">{c.userName}</p><p className="text-sm">{c.text}</p></div></div>))}
-          {user && (<div className="flex gap-2 mt-3"><input value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Add a comment..." className="flex-1 bg-transparent border-b outline-none" /><button onClick={handleComment}><Send size={18} /></button></div>)}
-        </div>
-      )}
+      {showComments && (<div className="mt-3 space-y-2">{comments.map((c) => (<div key={c.id} className="flex gap-2"><img src={c.userPhoto} className="w-8 h-8 rounded-full" /><div className={`p-2 rounded-lg ${theme === "dark"? "bg-gray-800" : "bg-gray-100"}`}><p className="font-semibold text-sm">{c.userName}</p><p className="text-sm">{c.text}</p></div></div>))}{user && (<div className="flex gap-2 mt-3"><input value={commentText} onChange={e => setCommentText(e.target.value)} placeholder="Add a comment..." className="flex-1 bg-transparent border-b outline-none" /><button onClick={handleComment}><Send size={18} /></button></div>)}</div>)}
     </div>
   );
-                                   }
+  }
 
 // ===== DISCOVER TAB =====
 function DiscoverTab({user, theme, setTab}: any) {
   const [users, setUsers] = useState<any[]>([]);
-  const roles = ["Developer", "Designer", "Marketer", "Co-founder", "React"];
-  const searchRole = async (role: string) => {
-    const q = query(collection(db, "users"), where("skills", "array-contains", role));
+  const skills = ["Coding", "Design", "Marketing", "AI", "Startup", "Fitness"];
+  const searchSkill = async (skill: string) => {
+    const q = query(collection(db, "users"), where("skills", "array-contains", skill));
     const snap = await getDocs(q);
     setUsers(snap.docs.map(d => ({ id: d.id,...d.data() })));
   };
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-4 flex items-center gap-2"><Users /> Discover People</h1>
-      <div className="flex gap-2 mb-6 flex-wrap">{roles.map(role => (<button key={role} onClick={() => searchRole(role)} className="px-4 py-2 rounded-full border">{role}</button>))}</div>
+      <h1 className="text-2xl font-bold mb-4 flex items-center gap-2"><Users /> Discover by Skills</h1>
+      <div className="flex gap-2 mb-6 flex-wrap">{skills.map(skill => (<button key={skill} onClick={() => searchSkill(skill)} className="px-4 py-2 rounded-full border hover:bg-blue-500">{skill}</button>))}</div>
       <div className="space-y-4">{users.map(u => (<UserCard key={u.id} u={u} user={user} theme={theme} setTab={setTab} />))}</div>
     </div>
   );
@@ -272,20 +292,24 @@ function UserCard({u, user, theme, setTab}: any) {
   useEffect(() => { if(user) getDocs(query(collection(db, "follows"), where("followerId", "==", user.uid), where("followingId", "==", u.uid))).then(s => setIsFollowing(!s.empty)) },[user,u]);
   const toggleFollow = async () => {
     if(!user) return;
-    if(isFollowing) { const snap = await getDocs(query(collection(db, "follows"), where("followerId", "==", user.uid), where("followingId", "==", u.uid))); snap.forEach(d => deleteDoc(d.ref)); }
-    else { await addDoc(collection(db, "follows"), {followerId: user.uid, followingId: u.uid, createdAt: serverTimestamp()}); createNotification(u.uid, "follow", user); }
+    if(isFollowing) { const snap = await getDocs(query(collection(db, "follows"), where("followerId", "==", user.uid), where("followingId", "==", u.uid))); snap.forEach(d => deleteDoc(d.ref)); await updateDoc(doc(db, "users", u.uid), { growthScore: increment(-5) }); }
+    else { await addDoc(collection(db, "follows"), {followerId: user.uid, followingId: u.uid, createdAt: serverTimestamp()}); createNotification(u.uid, "follow", user); await updateDoc(doc(db, "users", u.uid), { growthScore: increment(5) }); }
     setIsFollowing(!isFollowing);
   };
   const startChat = async () => {
     const members = [user.uid, u.uid].sort();
     const snap = await getDocs(query(collection(db, "chats"), where("members", "==", members)));
-    let chatId = snap.empty? (await addDoc(collection(db, "chats"), {members, lastMessage: "", updatedAt: serverTimestamp()})).id : snap.docs[0].id;
+    snap.empty? await addDoc(collection(db, "chats"), {members, lastMessage: "", updatedAt: serverTimestamp()}) : null;
     setTab("messages");
   };
   return (
-    <div className={`border rounded-xl p-4 flex justify-between items-center ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>
-      <div className="flex items-center gap-3"><img src={u.photoURL} className="w-12 h-12 rounded-full" /><div><p className="font-bold">{u.name}</p><p className="text-sm opacity-70">{u.bio}</p></div></div>
-      <div className="flex gap-2">{user?.uid!== u.uid && <><button onClick={toggleFollow} className={`px-4 py-2 rounded-lg ${isFollowing? "bg-gray-600" : "bg-blue-500"}`}>{isFollowing? "Following" : "Follow"}</button><button onClick={startChat} className="bg-green-500 px-4 py-2 rounded-lg"><MessageCircle size={16}/></button></>}</div>
+    <div className={`border rounded-xl p-4 ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>
+      <div className="flex justify-between items-start">
+        <div className="flex items-center gap-3"><img src={u.photoURL} className="w-12 h-12 rounded-full" /><div><p className="font-bold">@{u.username}</p><p className="text-sm font-semibold text-blue-500">{u.futureGoal}</p><p className="text-sm opacity-70">{u.bio}</p></div></div>
+        <div className="flex items-center gap-1 text-yellow-500"><Award size={16} /><span className="font-bold">{u.growthScore || 0}</span></div>
+      </div>
+      <div className="flex gap-2 flex-wrap mt-2">{u.skills?.map((s:string) => <span key={s} className="text-xs bg-blue-500/20 px-2 py-1 rounded-full">{s}</span>)}</div>
+      <div className="flex gap-2 mt-3">{user?.uid!== u.uid && <><button onClick={toggleFollow} className={`px-4 py-2 rounded-lg flex items-center gap-1 ${isFollowing? "bg-gray-600" : "bg-blue-500"}`}>{isFollowing? <UserMinus size={14}/> : <UserPlus size={14}/>}{isFollowing? "Unfollow" : "Follow"}</button><button onClick={startChat} className="bg-green-500 px-4 py-2 rounded-lg"><MessageCircle size={16}/></button></>}</div>
     </div>
   );
 }
@@ -297,9 +321,7 @@ function MessagesTab({user, theme}: any) {
   useEffect(() => { if (!user) return; const q = query(collection(db, "chats"), where("members", "array-contains", user.uid), orderBy("updatedAt", "desc")); return onSnapshot(q, (snap) => setChats(snap.docs.map(d => ({ id: d.id,...d.data() })))) }, [user]);
   return (
     <div className="grid md:grid-cols-3 gap-4 h-[70vh]">
-      <div className={`md:col-span-1 border rounded-xl p-2 overflow-y-auto ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>
-        {chats.map(c => <div key={c.id} onClick={() => setActiveChat(c)} className={`p-3 rounded cursor-pointer ${activeChat?.id === c.id? "bg-blue-500" : ""}`}>Chat {c.id.slice(0,5)}</div>)}
-      </div>
+      <div className={`md:col-span-1 border rounded-xl p-2 overflow-y-auto ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>{chats.map(c => <div key={c.id} onClick={() => setActiveChat(c)} className={`p-3 rounded cursor-pointer ${activeChat?.id === c.id? "bg-blue-500" : ""}`}>Chat</div>)}</div>
       <div className={`md:col-span-2 border rounded-xl p-3 flex-col ${theme === "dark"? "border-gray-800" : "border-gray-200"}`}>{activeChat? <ChatRoom chat={activeChat} user={user} /> : <p className="m-auto opacity-70">Select a chat</p>}</div>
     </div>
   );
@@ -315,22 +337,34 @@ function ChatRoom({chat, user}: any) {
 // ===== PROFILE TAB =====
 function ProfileTab({user, theme}: any) {
   const [profile, setProfile] = useState<any>(null); const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState(""); const [bio, setBio] = useState(""); const [skills, setSkills] = useState("");
-  const [newGoalTitle, setNewGoalTitle] = useState(""); const [newGoalDate, setNewGoalDate] = useState("");
-  useEffect(() => { if(!user) return; getDoc(doc(db, "users", user.uid)).then(s => { if(s.exists()){ setProfile(s.data()); setName(s.data().name); setBio(s.data().bio); setSkills(s.data().skills?.join(", ")); }})},[user]);
-  const handleSave = async () => { await updateDoc(doc(db, "users", user.uid), {name, bio, skills: skills.split(",").map(s => s.trim())}); setIsEditing(false); toast("Profile Updated!"); };
-  const handleAddGoal = async () => { const newGoal = { id: Date.now().toString(), title: newGoalTitle, targetDate: newGoalDate, progress: 0 }; await updateDoc(doc(db, "users", user.uid), {goals: arrayUnion(newGoal)}); setNewGoalTitle(""); setNewGoalDate(""); };
-  const handleUpdateProgress = async (goalId: string, progress: number) => { const updatedGoals = profile.goals.map((g:any) => g.id === goalId? {...g, progress} : g); await updateDoc(doc(db, "users", user.uid), { goals: updatedGoals }); };
+  const [name, setName] = useState(""); const [bio, setBio] = useState(""); const [skills, setSkills] = useState(""); const [futureGoal, setFutureGoal] = useState("");
+  const [projects, setProjects] = useState<any[]>([]); const [newProject, setNewProject] = useState({title: "", link: ""});
+  const [followers, setFollowers] = useState(0); const [following, setFollowing] = useState(0);
+  useEffect(() => {
+    if(!user) return;
+    getDoc(doc(db, "users", user.uid)).then(s => { if(s.exists()){ const data = s.data(); setProfile(data); setName(data.name); setBio(data.bio); setSkills(data.skills?.join(", ")); setFutureGoal(data.futureGoal); setProjects(data.projects || []); }});
+    getDocs(query(collection(db, "follows"), where("followingId", "==", user.uid))).then(s => setFollowers(s.size));
+    getDocs(query(collection(db, "follows"), where("followerId", "==", user.uid))).then(s => setFollowing(s.size));
+  },[user]);
+  const handleSave = async () => { await updateDoc(doc(db, "users", user.uid), {name, bio, futureGoal, skills: skills.split(",").map(s => s.trim()), projects}); setIsEditing(false); toast("Profile Updated!"); };
+  const handleAddProject = () => { if(!newProject.title) return; setProjects([...projects, {...newProject, id: Date.now()}]); setNewProject({title: "", link: ""}); };
+  const handleRemoveProject = (id: number) => { setProjects(projects.filter(p => p.id!== id)); };
   if(!profile) return <p>Loading...</p>;
   return (
     <div className={`border rounded-xl p-6 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
-      <div className="flex justify-between"><img src={profile.photoURL} className="w-24 h-24 rounded-full" />{!isEditing? <button onClick={() => setIsEditing(true)}><Edit /></button> : <button onClick={handleSave}><Save /></button>}</div>
-      {isEditing? (<div className="space-y-3 mt-4"><input value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-800 p-2 rounded" /><textarea value={bio} onChange={e => setBio(e.target.value)} className="w-full bg-gray-800 p-2 rounded" /><input value={skills} onChange={e => setSkills(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Skills comma separated" /></div>) : (<><h1 className="text-2xl font-bold mt-2">{profile.name}</h1><p className="opacity-70">{profile.bio}</p><div className="flex gap-2 flex-wrap mt-2">{profile.skills?.map((s:string) => <span key={s} className="text-sm bg-gray-800 px-3 py-1 rounded-full">{s}</span>)}</div></>)}
+      <div className="flex justify-between items-start"><div><img src={profile.photoURL} className="w-24 h-24 rounded-full" /><h1 className="text-2xl font-bold mt-2">{profile.name}</h1><p className="opacity-70">@{profile.username}</p></div>{!isEditing? <button onClick={() => setIsEditing(true)}><Edit /></button> : <button onClick={handleSave}><Save /></button>}</div>
+      <div className="flex gap-4 my-4"><div><b>{followers}</b> Followers</div><div><b>{following}</b> Following</div><div className="flex items-center gap-1 text-yellow-500"><Award size={16} /><b>{profile.growthScore || 0} Growth Score</b></div></div>
+      {isEditing? (<div className="space-y-3 mt-4"><input value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Name" /><input value={futureGoal} onChange={e => setFutureGoal(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Future Goal: AI Founder" /><textarea value={bio} onChange={e => setBio(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Bio" /><input value={skills} onChange={e => setSkills(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Skills: Coding, Design" /></div>) : (<><p className="text-blue-500 font-semibold"><Target size={14} /> Future Goal: {profile.futureGoal}</p><p className="opacity-70 mt-2">{profile.bio}</p><div className="flex gap-2 flex-wrap mt-2">{profile.skills?.map((s:string) => <span key={s} className="text-sm bg-blue-500/20 px-3 py-1 rounded-full">{s}</span>)}</div></>)}
+
+      <div className="border-t border-gray-800 pt-4 mt-4">
+        <h3 className="font-bold mb-3 flex items-center gap-2"><Link /> Project Showcase</h3>
+        {isEditing && (<div className="flex gap-2 mb-3"><input value={newProject.title} onChange={e => setNewProject({...newProject, title: e.target.value})} placeholder="Project Name" className="flex-1 bg-gray-800 p-2 rounded" /><input value={newProject.link} onChange={e => setNewProject({...newProject, link: e.target.value})} placeholder="https://github.com/..." className="flex-1 bg-gray-800 p-2 rounded" /><button onClick={handleAddProject} className="bg-blue-500 p-2 rounded"><Plus /></button></div>)}
+        {projects.map(p => (<div key={p.id} className="flex justify-between items-center bg-gray-800 p-2 rounded mb-2"><a href={p.link} target="_blank" className="flex items-center gap-2"><Github size={14} /> {p.title}</a>{isEditing && <button onClick={() => handleRemoveProject(p.id)}><X size={14} /></button>}</div>))}
+      </div>
+
       <div className="border-t border-gray-800 pt-4 mt-4">
         <h3 className="font-bold mb-3 flex items-center gap-2"><Target /> My Goals</h3>
-        <div className="flex gap-2 mb-4"><input value={newGoalTitle} onChange={e => setNewGoalTitle(e.target.value)} placeholder="New Goal" className="flex-1 bg-gray-800 p-2 rounded" /><input type="date" value={newGoalDate} onChange={e => setNewGoalDate(e.target.value)} className="bg-gray-800 p-2 rounded" /><button onClick={handleAddGoal} className="bg-blue-500 p-2 rounded"><Plus /></button></div>
-        {profile.goals?.map((g:any) => (<div key={g.id} className="mb-3"><p className="font-semibold">{g.title}</p><div className="w-full bg-gray-700 rounded-full h-2 mt-1"><div className="bg-blue-500 h-2 rounded-full" style={{width: `${g.progress}%`}}></div></div><input type="range" min="0" max="100" value={g.progress} onChange={e => handleUpdateProgress(g.id, Number(e.target.value))} className="w-full mt-1" /></div>))}
-        <div className="flex items-center gap-2 mt-4 text-orange-500"><Flame /> <span>{profile.streak || 0} Day Streak</span></div>
+        <div className="flex items-center gap-2 text-orange-500"><Flame /> <span>{profile.streak || 0} Day Streak</span></div>
       </div>
     </div>
   );

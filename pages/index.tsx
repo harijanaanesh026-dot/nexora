@@ -156,9 +156,9 @@ function Navbar({user, theme, toggleTheme, setTab, tab}: any) {
       </div>
     </header>
   );
-  }
+                    }
 
-// ===== FEED TAB - REAL HASHTAG FILTER =====
+// ===== FEED TAB - IMAGE ONLY =====
 function FeedTab({user, theme, activeHashtag, setActiveHashtag}: any) {
   const [posts, setPosts] = useState<any[]>([]);
   const [newPost, setNewPost] = useState("");
@@ -197,7 +197,7 @@ function FeedTab({user, theme, activeHashtag, setActiveHashtag}: any) {
     try {
       let imageUrl = "";
       if (image) {
-        const storageRef = ref(storage, `posts/${user.uid}/${Date.now()}`);
+        const storageRef = ref(storage, `posts/images/${user.uid}/${Date.now()}-${image.name}`);
         const snap = await uploadBytes(storageRef, image);
         imageUrl = await getDownloadURL(snap.ref);
       }
@@ -236,10 +236,17 @@ function FeedTab({user, theme, activeHashtag, setActiveHashtag}: any) {
             <img src={user.photoURL || ""} className="w-10 h-10 rounded-full" />
             <textarea value={newPost} onChange={e => setNewPost(e.target.value)} placeholder="Share your goal progress... use #AI #Startup" className="w-full bg-transparent outline-none resize-none" rows={2} />
           </div>
+          {image && (
+            <div className="mt-3 relative">
+              <img src={URL.createObjectURL(image)} className="rounded-lg max-h-80 w-full object-cover" />
+              <button onClick={() => setImage(null)} className="absolute top-2 right-2 bg-black/60 p-1 rounded-full"><X size={16}/></button>
+            </div>
+          )}
           <div className="flex justify-between items-center mt-4">
             <div className="flex gap-4">
               <label className="flex items-center gap-2 cursor-pointer text-blue-500">
-                <ImageIcon size={18} /> <input type="file" accept="image/*" className="hidden" onChange={e => setImage(e.target.files![0] || null)} />
+                <ImageIcon size={18} /> <span>Image</span>
+                <input type="file" accept="image/*" className="hidden" onChange={e => setImage(e.target.files![0] || null)} />
               </label>
               <button onClick={() => setIsGoalUpdate(!isGoalUpdate)} className={`flex items-center gap-2 ${isGoalUpdate? "text-green-500" : "opacity-70"}`}><Target size={18} /> Goal Update</button>
             </div>
@@ -351,7 +358,7 @@ function UserCard({u, user, theme, setTab}: any) {
       <div className="flex gap-2 mt-3">{user?.uid!== u.uid && <><button onClick={toggleFollow} className={`px-4 py-2 rounded-lg flex items-center gap-1 ${isFollowing? "bg-gray-600" : "bg-blue-500"}`}>{isFollowing? <UserMinus size={14}/> : <UserPlus size={14}/>}{isFollowing? "Unfollow" : "Follow"}</button><button onClick={startChat} className="bg-green-500 px-4 py-2 rounded-lg"><MessageCircle size={16}/></button></>}</div>
     </div>
   );
-                                           }
+        }
 
 // ===== TRENDING TAB - REAL =====
 function TrendingTab({user, theme, onHashtagClick}: any) {
@@ -403,7 +410,7 @@ function ChatRoom({chat, user}: any) {
   useEffect(() => { const q = query(collection(db, "messages"), where("chatId", "==", chat.id), orderBy("createdAt", "asc")); return onSnapshot(q, (snap) => setMessages(snap.docs.map(d => ({ id: d.id,...d.data() })))) }, [chat]);
   const sendMessage = async () => { if (!text.trim()) return; await addDoc(collection(db, "messages"), {chatId: chat.id, senderId: user.uid, text, createdAt: serverTimestamp()}); await updateDoc(doc(db, "chats", chat.id), {lastMessage: text, updatedAt: serverTimestamp()}); setText(""); };
   return (<><div className="flex-1 overflow-y-auto space-y-2">{messages.map(m => (<div key={m.id} className={`flex ${m.senderId === user?.uid? "justify-end" : "justify-start"}`}><div className={`p-2 rounded-lg ${m.senderId === user?.uid? "bg-blue-500" : "bg-gray-800"}`}>{m.text}</div></div>))}</div><div className="flex gap-2 mt-2"><input value={text} onChange={e => setText(e.target.value)} onKeyPress={e => e.key === "Enter" && sendMessage()} placeholder="Type..." className="flex-1 bg-gray-900 p-2 rounded" /><button onClick={sendMessage}><Send /></button></div></>);
-}
+                                                                                                                     }
 
 // ===== PROFILE TAB =====
 function ProfileTab({user, theme}: any) {

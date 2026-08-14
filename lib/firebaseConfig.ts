@@ -1,6 +1,7 @@
 import { getApps, initializeApp, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth'; // GoogleAuthProvider add chesam
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage'; // storage add chesam
 
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
@@ -14,5 +15,8 @@ const firebaseConfig = {
 };
 
 const app =!getApps().length? initializeApp(firebaseConfig) : getApp();
+
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const storage = getStorage(app); // IDI KOTHAGA ADD CHESAM
+export const googleProvider = new GoogleAuthProvider(); // IDI KUDA ADD CHESAM

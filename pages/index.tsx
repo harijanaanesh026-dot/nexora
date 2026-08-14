@@ -15,7 +15,6 @@ export default function Home() {
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Theme
   useEffect(() => {
     const saved = localStorage.getItem("theme") || "dark";
     setTheme(saved);
@@ -28,21 +27,18 @@ export default function Home() {
     document.documentElement.classList.toggle("dark", newTheme === "dark");
   };
 
-  // Auth
   useEffect(() => {
     return onAuthStateChanged(auth, (u) => setUser(u));
   }, []);
 
-  // Posts real-time
   useEffect(() => {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
-    return onSnapshot(q, (snap) => setPosts(snap.docs.map((d) => ({ id: d.id,...d.data() }))));
+    return onSnapshot(q, (snap) => setPosts(snap.docs.map((d) => ({ id: d.id,...d.data() }))))
   }, []);
 
   const handleLogin = () => signInWithPopup(auth, googleProvider);
   const handleLogout = () => signOut(auth);
 
-  // Create Post with Image
   const handlePost = async () => {
     if (!newPost.trim() &&!image) return toast("Post or Image add cheyi");
     setLoading(true);
@@ -53,22 +49,12 @@ export default function Home() {
       imageUrl = await getDownloadURL(snap.ref);
     }
     await addDoc(collection(db, "posts"), {
-      text: newPost,
-      imageUrl,
-      userId: user?.uid,
-      userName: user?.displayName,
-      userPhoto: user?.photoURL,
-      likes: [],
-      comments: [],
-      createdAt: serverTimestamp()
+      text: newPost, imageUrl, userId: user?.uid, userName: user?.displayName,
+      userPhoto: user?.photoURL, likes: [], comments: [], createdAt: serverTimestamp()
     });
-    setNewPost(""); 
-    setImage(null); 
-    setLoading(false);
-    toast("Posted! 🚀");
+    setNewPost(""); setImage(null); setLoading(false); toast("Posted! 🚀");
   };
 
-  // Like
   const handleLike = async (postId: string, likes: string[]) => {
     if (!user) return toast("Login cheyi");
     await updateDoc(doc(db, "posts", postId), { 
@@ -76,7 +62,6 @@ export default function Home() {
     });
   };
 
-  // Comment
   const handleComment = async (postId: string) => {
     if (!comment.trim() ||!user) return;
     await updateDoc(doc(db, "posts", postId), { 
@@ -88,8 +73,6 @@ export default function Home() {
   return (
     <div className={`min-h-screen ${theme === "dark"? "bg-black text-white" : "bg-gray-100 text-black"}`}>
       <Toaster position="bottom-center" />
-      
-      {/* HEADER */}
       <header className={`sticky top-0 z-50 p-4 border-b ${theme === "dark"? "bg-black/80 border-gray-800" : "bg-white/80 border-gray-200"} backdrop-blur-md`}>
         <div className="max-w-2xl mx-auto flex justify-between items-center">
           <h1 className="text-2xl font-bold text-blue-500">NEXORA</h1>
@@ -98,7 +81,7 @@ export default function Home() {
             {user? (
               <div className="flex items-center gap-2">
                 <img src={user.photoURL || ""} className="w-8 h-8 rounded-full" />
-                <button onClick={handleLogout} className="text-sm"><LogOut size={18} /></button>
+                <button onClick={handleLogout}><LogOut size={18} /></button>
               </div>
             ) : (
               <button onClick={handleLogin} className="flex items-center gap-2 bg-blue-500 px-4 py-2 rounded-lg"><LogIn size={18} /> Login</button>
@@ -106,11 +89,7 @@ export default function Home() {
           </div>
         </div>
       </header>
-
-      {/* MAIN */}
       <div className="max-w-2xl mx-auto p-4">
-        
-        {/* CREATE POST */}
         {user && (
           <div className={`border rounded-xl p-4 mb-6 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
             <div className="flex gap-3">
@@ -129,11 +108,8 @@ export default function Home() {
             {image && <p className="text-sm mt-2 text-green-500">1 Image Selected ✓</p>}
           </div>
         )}
-
-        {/* POSTS FEED */}
         {posts.map((post) => (
           <div key={post.id} className={`border rounded-xl p-4 mb-6 ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
-            {/* Post Header */}
             <div className="flex items-center gap-3 mb-3">
               <img src={post.userPhoto} className="w-10 h-10 rounded-full" />
               <div>
@@ -141,12 +117,8 @@ export default function Home() {
                 <p className="text-xs opacity-70">{post.createdAt?.toDate().toLocaleString() || "Just now"}</p>
               </div>
             </div>
-
-            {/* Post Content */}
             <p className="mb-3">{post.text}</p>
             {post.imageUrl && <img src={post.imageUrl} className="rounded-lg w-full mb-3" />}
-
-            {/* Actions */}
             <div className="flex gap-6 border-t border-b py-2 mb-3">
               <button onClick={() => handleLike(post.id, post.likes)} className="flex items-center gap-2">
                 <Heart fill={post.likes.includes(user?.uid)? "red" : "none"} color={post.likes.includes(user?.uid)? "red" : "currentColor"} />
@@ -154,15 +126,11 @@ export default function Home() {
               </button>
               <button className="flex items-center gap-2"><MessageCircle /> {post.comments.length}</button>
             </div>
-
-            {/* Comments */}
             <div className="space-y-2">
               {post.comments.map((c: any, i: number) => (
                 <div key={i} className="text-sm"><b>{c.user}</b>: {c.text}</div>
               ))}
             </div>
-
-            {/* Add Comment */}
             {user && (
               <div className="flex gap-2 mt-3">
                 <input value={comment} onChange={e => setComment(e.target.value)} placeholder="Add a comment..." className="flex-1 bg-transparent border-b outline-none" />
@@ -171,9 +139,8 @@ export default function Home() {
             )}
           </div>
         ))}
-
         {!user && <p className="text-center mt-10">Login to see posts and post something 🔥</p>}
       </div>
     </div>
   );
-                  }
+                }

@@ -2,28 +2,45 @@ import { useState, useEffect, useRef } from "react";
 import { Heart, MessageCircle, Send, LogIn, Sun, Moon, Image as ImageIcon, LogOut, Target, Users, Flame, Bell, MessageSquare, Search, Plus, Trash2, Edit, Save, X, Github, Link, Award, UserPlus, UserMinus, Hash, Bookmark, BookmarkCheck } from "lucide-react";
 import { toast, Toaster } from "react-hot-toast";
 
-import { auth, db, storage, googleProvider } from "../lib/firebaseConfig";
-import { signInWithPopup, onAuthStateChanged, signOut, User } from "firebase/auth";
-import { collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, where, getDocs, deleteDoc, setDoc, getDoc, increment, limit } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { initializeApp, getApps } from "firebase/app";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, User } from "firebase/auth";
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove, serverTimestamp, where, getDocs, deleteDoc, setDoc, getDoc, increment, limit } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
-// LOCALSTORAGE HELPERS
-const saveToStorage = (key: string, value: any) => localStorage.setItem(key, JSON.stringify(value));
+// YOUR FIREBASE CONFIG - DIRECT HERE
+const firebaseConfig = {
+  apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
+  authDomain: "nexoraai-75ae2.firebaseapp.com",
+  projectId: "nexoraai-75ae2",
+  storageBucket: "nexoraai-75ae2.firebasestorage.app",
+  messagingSenderId: "173122711177",
+  appId: "1:173122711177:web:68e373598d110d80c1e058",
+  measurementId: "G-11Y8XF8MBC"
+};
+
+const app =!getApps().length? initializeApp(firebaseConfig) : getApps()[0];
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const storage = getStorage(app);
+export const googleProvider = new GoogleAuthProvider();
+
+// LOCALSTORAGE HELPERS - SSR SAFE
+const isBrowser = () => typeof window!== "undefined";
+const saveToStorage = (key: string, value: any) => {
+  if (isBrowser()) localStorage.setItem(key, JSON.stringify(value));
+};
 const getFromStorage = (key: string, defaultValue: any) => {
+  if (!isBrowser()) return defaultValue;
   const item = localStorage.getItem(key);
   return item? JSON.parse(item) : defaultValue;
 };
 
-// NOTIFICATION HELPER
 const createNotification = async (toUserId: string, type: string, fromUser: any, postId?: string) => {
   if (!toUserId || toUserId === fromUser.uid) return;
   await addDoc(collection(db, "notifications"), {
-    to: toUserId,
-    type,
+    to: toUserId, type,
     from: { uid: fromUser.uid, name: fromUser.displayName, photo: fromUser.photoURL },
-    postId: postId || null,
-    read: false,
-    createdAt: serverTimestamp()
+    postId: postId || null, read: false, createdAt: serverTimestamp()
   });
 };
 
@@ -36,6 +53,7 @@ export default function NexoraApp() {
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
+    if(!isBrowser()) return;
     document.documentElement.classList.toggle("dark", theme === "dark");
     saveToStorage("nexora_theme", theme);
     saveToStorage("nexora_tab", tab);
@@ -44,9 +62,7 @@ export default function NexoraApp() {
       setUser(u);
       if (u) {
         const userDoc = await getDoc(doc(db, "users", u.uid));
-        if (!userDoc.exists() ||!userDoc.data().username) {
-          setUsernameSetup(true);
-        }
+        if (!userDoc.exists() ||!userDoc.data().username) setUsernameSetup(true);
         await setDoc(doc(db, "users", u.uid), {
           uid: u.uid, name: u.displayName, email: u.email, photoURL: u.photoURL,
           username: userDoc.data()?.username || "", bio: "", futureGoal: "", growthScore: 0,
@@ -98,8 +114,7 @@ function UsernameSetup({user, setUsernameSetup}: any) {
     const snap = await getDocs(q);
     if(!snap.empty) return toast("Username already taken");
     await updateDoc(doc(db, "users", user.uid), { username });
-    setUsernameSetup(false);
-    toast("Welcome to NEXORA! 🎉");
+    setUsernameSetup(false); toast("Welcome to NEXORA! 🎉");
   };
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
@@ -118,7 +133,7 @@ function Navbar({user, theme, toggleTheme, setTab, tab, searchQuery, setSearchQu
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, "notifications"), where("to", "==", user.uid), orderBy("createdAt", "desc"));
-    return onSnapshot(q, (snap) => setNotifications(snap.docs.map(d => ({ id: d.id,...d.data() }))), (err) => toast("Notification error"));
+    return onSnapshot(q, (snap) => setNotifications(snap.docs.map(d => ({ id: d.id,...d.data() }))));
   }, [user]);
   const unreadCount = notifications.filter(n =>!n.read).length;
   const handleRead = async (id: string) => await updateDoc(doc(db, "notifications", id), { read: true });
@@ -130,10 +145,8 @@ function Navbar({user, theme, toggleTheme, setTab, tab, searchQuery, setSearchQu
         <div className="flex gap-1 md:gap-2 items-center">
           {["feed","discover","trending","messages","bookmarks","profile"].map(t => (
             <button key={t} onClick={() => setTab(t)} className={`p-2 rounded ${tab === t? "bg-blue-500" : "hover:bg-gray-800"}`}>
-              {t === "feed" && <Target size={20}/>}
-              {t === "discover" && <Users size={20}/>}
-              {t === "trending" && <Hash size={20}/>}
-              {t === "messages" && <MessageSquare size={20}/>}
+              {t === "feed" && <Target size={20}/>}{t === "discover" && <Users size={20}/>}
+              {t === "trending" && <Hash size={20}/>}{t === "messages" && <MessageSquare size={20}/>}
               {t === "bookmarks" && <Bookmark size={20}/>}
               {t === "profile" && (user?.photoURL? <img src={user.photoURL} className="w-6 h-6 rounded-full" /> : <Users size={20}/>)}
             </button>
@@ -142,8 +155,7 @@ function Navbar({user, theme, toggleTheme, setTab, tab, searchQuery, setSearchQu
           {user && (
             <div className="relative">
               <button onClick={() => setShowNotifs(!showNotifs)} className="relative p-2">
-                <Bell />
-                {unreadCount > 0 && <span className="absolute top-0 right-0 bg-red-500 text-xs rounded-full w-4 h-4">{unreadCount}</span>}
+                <Bell />{unreadCount > 0 && <span className="absolute top-0 right-0 bg-red-500 text-xs rounded-full w-4 h-4">{unreadCount}</span>}
               </button>
               {showNotifs && (
                 <div className={`absolute right-0 mt-2 w-72 border rounded-lg shadow-lg ${theme === "dark"? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
@@ -162,7 +174,7 @@ function Navbar({user, theme, toggleTheme, setTab, tab, searchQuery, setSearchQu
       </div>
     </header>
   );
-                             }
+      }
 
 function FeedTab({user, theme, activeHashtag, setActiveHashtag}: any) {
   const [posts, setPosts] = useState<any[]>([]);
@@ -189,7 +201,7 @@ function FeedTab({user, theme, activeHashtag, setActiveHashtag}: any) {
       let allPosts = snap.docs.map((d) => ({ id: d.id,...d.data() }));
       if(activeHashtag) allPosts = allPosts.filter(p => p.text?.includes(activeHashtag));
       setPosts(allPosts);
-    }, (err) => toast("Failed to load posts"))
+    })
   }, [following, user, activeHashtag]);
 
   const handlePost = async () => {
@@ -286,8 +298,7 @@ function PostCard({post, user, theme, renderText}: any) {
   const handleBookmark = async () => {
     if(!user) return;
     await updateDoc(doc(db, "users", user.uid), { bookmarks: isBookmarked? arrayRemove(post.id) : arrayUnion(post.id) });
-    setIsBookmarked(!isBookmarked);
-    toast(isBookmarked? "Removed from bookmarks" : "Saved to bookmarks");
+    setIsBookmarked(!isBookmarked); toast(isBookmarked? "Removed from bookmarks" : "Saved to bookmarks");
   }
   const handleComment = async () => {
     if (!commentText.trim() ||!user) return;
@@ -340,9 +351,8 @@ function BookmarksTab({user, theme}: any) {
       {bookmarkedPosts.map((post) => <PostCard key={post.id} post={post} user={user} theme={theme} renderText={(t:string) => t} />)}
     </div>
   );
-                }
+          }
 
-// ===== DISCOVER TAB =====
 function DiscoverTab({user, theme, setTab}: any) {
   const [users, setUsers] = useState<any[]>([]);
   const skills = ["Coding", "Design", "Marketing", "AI", "Startup", "Fitness"];
@@ -387,7 +397,6 @@ function UserCard({u, user, theme, setTab}: any) {
   );
 }
 
-// ===== TRENDING TAB =====
 function TrendingTab({user, theme, onHashtagClick}: any) {
   const [trending, setTrending] = useState<any[]>([]);
   useEffect(() => {
@@ -417,8 +426,6 @@ function TrendingTab({user, theme, onHashtagClick}: any) {
   );
 }
 
-// ===== SEARCH RESULTS - TYPESCRIPT ERROR FIX =====
-// ===== SEARCH RESULTS - TYPESCRIPT FIXED =====
 function SearchResults({query, setSearchQuery, setTab}: any) {
   const [results, setResults] = useState<any[]>([]);
   useEffect(() => {
@@ -427,14 +434,8 @@ function SearchResults({query, setSearchQuery, setTab}: any) {
       const q = query(collection(db, "users"), where("username", ">=", query), where("username", "<=", query + '\uf8ff'), limit(5));
       const snap = await getDocs(q);
       const users = snap.docs.map(d => {
-        const data = d.data() as any; // <-- IDI ADD CHESA
-        return {
-          id: d.id,
-          type: "user",
-          username: data.username || "",
-          photoURL: data.photoURL || "",
-          name: data.name || ""
-        }
+        const data = d.data() as any;
+        return { id: d.id, type: "user", username: data.username || "", photoURL: data.photoURL || "", name: data.name || "" }
       });
       setResults(users);
     }
@@ -457,9 +458,8 @@ function SearchResults({query, setSearchQuery, setTab}: any) {
       ))}
     </div>
   );
-}
+                   }
 
-// ===== MESSAGES TAB =====
 function MessagesTab({user, theme}: any) {
   const [chats, setChats] = useState<any[]>([]);
   const [activeChat, setActiveChat] = useState<any>(null);
@@ -514,7 +514,6 @@ function ChatRoom({chat, user}: any) {
   );
 }
 
-// ===== PROFILE TAB - FULL =====
 function ProfileTab({user, theme}: any) {
   const [profile, setProfile] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -523,7 +522,7 @@ function ProfileTab({user, theme}: any) {
   const [skills, setSkills] = useState("");
   const [futureGoal, setFutureGoal] = useState("");
   const [projects, setProjects] = useState<any[]>([]);
-  const [newProject, setNewProject] = useState({title: "", link: ""});
+  const [newProject, setNewProject] = useState({title: "", link: "", id: 0});
   const [followers, setFollowers] = useState(0);
   const [following, setFollowing] = useState(0);
   const [myPosts, setMyPosts] = useState<any[]>([]);
@@ -567,13 +566,13 @@ function ProfileTab({user, theme}: any) {
     });
     setIsEditing(false);
     toast("Profile Updated! ✅");
-    await fetchProfile(); // Save chesina ventane refresh
+    await fetchProfile();
   };
 
   const handleAddProject = () => {
     if(!newProject.title) return;
     setProjects([...projects, {...newProject, id: Date.now()}]);
-    setNewProject({title: "", link: ""});
+    setNewProject({title: "", link: "", id: 0});
   };
   const handleRemoveProject = (id: number) => {
     setProjects(projects.filter(p => p.id!== id));
@@ -658,4 +657,4 @@ function ProfileTab({user, theme}: any) {
       )}
     </div>
   );
-                                                                                                                    }
+          }

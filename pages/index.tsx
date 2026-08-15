@@ -196,36 +196,95 @@ function PostCard({post, user}: any) {
 }
 
 // ===== SEARCH TAB - FRIENDS PROFILE KOSAM =====
+// ===== SEARCH TAB - FIXED CRASH =====
 function SearchTab({user}: any) {
   const [users, setUsers] = useState<any[]>([]);
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchUsers = async () => {
-      const snapshot = await getDocs(collection(db, "users"));
-      let allUsers = snapshot.docs.map((doc) => ({ id: doc.id,...doc.data() as any })).filter(u => u.uid!== user?.uid);
-      if(search) allUsers = allUsers.filter(u => u.name?.toLowerCase().includes(search.toLowerCase()) || u.skills?.join(" ").toLowerCase().includes(search.toLowerCase()) || u.goal?.toLowerCase().includes(search.toLowerCase()));
-      setUsers(allUsers);
+      try {
+        setLoading(true);
+        const snapshot = await getDocs(collection(db, "users"));
+        let allUsers = snapshot.docs.map((doc) => ({ id: doc.id,...doc.data() as any })).filter(u => u.uid!== user?.uid);
+        
+        if(search) {
+          allUsers = allUsers.filter(u => 
+            u.name?.toLowerCase().includes(search.toLowerCase()) || 
+            (u.skills || []).join(" ").toLowerCase().includes(search.toLowerCase()) || 
+            u.goal?.toLowerCase().includes(search.toLowerCase())
+          );
+        }
+        setUsers(allUsers);
+      } catch(e) {
+        console.log(e);
+        toast("Error loading users");
+      } finally {
+        setLoading(false);
+      }
     };
     fetchUsers();
   }, [user, search]);
+
+  if(loading) return <p className="text-center mt-10">Loading users...</p>
 
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">🔍 Search Friends</h1>
       <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by Name, Skill, Goal..." className="w-full bg-gray-900 p-3 rounded-lg mb-4 border border-gray-800" />
+      
+      {users.length === 0 && <p className="text-center opacity-70 mt-10">No users found. Be the first to create a profile!</p>}
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{users.map((u) => <UserCard key={u.id} u={u} user={user} />)}</div>
     </div>
   );
 }
+
 function UserCard({u, user}: any) {
-  const [isFollowing, setIsFollowing] = useState(false); const [myProfile, setMyProfile] = useState<any>(null);
-  useEffect(() => { getDoc(doc(db, "users", user.uid)).then(d => setMyProfile(d.data())); const q = query(collection(db, "follows"), where("followerId", "==", user.uid), where("followingId", "==", u.uid)); onSnapshot(q, snap => setIsFollowing(!snap.empty)) }, [user, u.uid]);
+  const [isFollowing, setIsFollowing] = useState(false); 
+  const [myProfile, setMyProfile] = useState<any>(null);
+  
+  useEffect(() => { 
+    getDoc(doc(db, "users", user.uid)).then(d => setMyProfile(d.data())); 
+    const q = query(collection(db, "follows"), where("followerId", "==", user.uid), where("followingId", "==", u.uid)); 
+    const unsub = onSnapshot(q, snap => setIsFollowing(!snap.empty));
+    return () => unsub();
+  }, [user, u.uid]);
+  
   const isGoalMatch = myProfile?.goal && u.goal && myProfile.goal === u.goal;
-  const toggleFollow = async () => { const followRef = doc(db, "follows", `${user.uid}_${u.uid}`); if(isFollowing) {await deleteDoc(followRef)} else {await setDoc(followRef, { followerId: user.uid, followingId: u.uid, createdAt: serverTimestamp() })} setIsFollowing(!isFollowing); };
-  const handleDM = async () => { const roomId = [user.uid, u.uid].sort().join("_"); await setDoc(doc(db, "dm_rooms", roomId), { participants: [user.uid, u.uid], lastMessage: "", updatedAt: serverTimestamp() }, {merge: true}); toast(`Chat with ${u.name}`); };
-  return <div className="border p-4 rounded-lg bg-gray-900 border-gray-800"><div className="flex items-center gap-3"><img src={u.photoURL} className="w-12 h-12 rounded-full" /><div className="flex-1"><p className="font-bold">{u.name}</p><p className="text-xs opacity-70">⭐ {u.futureScore || 0}</p>{u.goal && <p className="text-xs text-blue-400">🎯 {u.goal}</p>}{isGoalMatch && <span className="text-xs bg-green-500/20 text-green-400 px-2 rounded-full">🤝 Goal Match</span>}</div><div className="flex gap-2"><button onClick={toggleFollow} className={`px-4 py-2 rounded-lg ${isFollowing? "bg-gray-700" : "bg-blue-500"}`}>{isFollowing? "Following" : "Follow"}</button>{isGoalMatch && <button onClick={handleDM} className="px-4 py-2 rounded-lg bg-green-500">DM</button>}</div></div></div>
-}
+  
+  const toggleFollow = async () => { 
+    const followRef = doc(db, "follows", `${user.uid}_${u.uid}`); 
+    if(isFollowing) {await deleteDoc(followRef)} 
+    else {await setDoc(followRef, { followerId: user.uid, followingId: u.uid, createdAt: serverTimestamp() })} 
+    setIsFollowing(!isFollowing); 
+  };
+  
+  const handleDM = async () => { 
+    const roomId = [user.uid, u.uid].sort().join("_"); 
+    await setDoc(doc(db, "dm_rooms", roomId), { participants: [user.uid, u.uid], lastMessage: "", updatedAt: serverTimestamp() }, {merge: true}); 
+    toast(`Chat with ${u.name}`); 
+  };
+  
+  return (
+    <div className="border p-4 rounded-lg bg-gray-900 border-gray-800">
+      <div className="flex items-center gap-3">
+        <img src={u.photoURL || "/default.png"} className="w-12 h-12 rounded-full" />
+        <div className="flex-1">
+          <p className="font-bold">{u.name || "No Name"}</p>
+          <p className="text-xs opacity-70">⭐ {u.futureScore || 0}</p>
+          {u.goal && <p className="text-xs text-blue-400">🎯 {u.goal}</p>}
+          {isGoalMatch && <span className="text-xs bg-green-500/20 text-green-400 px-2 rounded-full">🤝 Goal Match</span>}
+        </div>
+        <div className="flex gap-2">
+          <button onClick={toggleFollow} className={`px-4 py-2 rounded-lg ${isFollowing? "bg-gray-700" : "bg-blue-500"}`}>{isFollowing? "Following" : "Follow"}</button>
+          {isGoalMatch && <button onClick={handleDM} className="px-4 py-2 rounded-lg bg-green-500">DM</button>}
+        </div>
+      </div>
+    </div>
+  )
+      }
 
 // ===== PROFILE TAB - CUSTOM FIELDS + LOGOUT KINDHA =====
 function ProfileTab({user, onLogout}: any) {

@@ -3,7 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { getFirestore, collection, addDoc, query, onSnapshot, orderBy, doc, getDoc, setDoc, updateDoc, where, getDocs, serverTimestamp, increment, deleteDoc, limit, arrayUnion } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { Home, Search, Bell, User, Plus, Flame, Star, Award, Edit, Save, MessageCircle, Heart, Share2, BookOpen, Rocket, Users } from "lucide-react";
+import { Home, Search, Bell, User, Plus, Flame, Star, Award, Edit, Save, MessageCircle, Heart, Share2, BookOpen, Rocket, Users, LogOut } from "lucide-react";
 import { toast, Toaster } from "sonner";
 
 // ===== FIREBASE CONFIG =====
@@ -23,21 +23,6 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 
 // ===== HELPERS =====
-export const getGoalColor = (goal: string) => {
-  if(goal.includes("AI Founder")) return "bg-blue-500/20 text-blue-400 border-blue-500";
-  if(goal.includes("Doctor")) return "bg-green-500/20 text-green-400 border-green-500";
-  if(goal.includes("Cricketer")) return "bg-orange-500/20 text-orange-400 border-orange-500";
-  if(goal.includes("Entrepreneur")) return "bg-purple-500/20 text-purple-400 border-purple-500";
-  return "bg-gray-500/20 text-gray-400 border-gray-500";
-}
-export const getGoalIcon = (goal: string) => {
-  if(goal.includes("AI Founder")) return "🤖";
-  if(goal.includes("Doctor")) return "🩺";
-  if(goal.includes("Cricketer")) return "🏏";
-  if(goal.includes("Entrepreneur")) return "💼";
-  return "🎯";
-}
-
 export const updateStreak = async (uid: string) => {
   const userRef = doc(db, "users", uid);
   const userSnap = await getDoc(userRef);
@@ -59,7 +44,7 @@ export const checkAchievements = async (uid: string, data: any) => {
   if(!newBadges.includes("Top Contributor") && data.growthScore >= 500) newBadges.push("Top Contributor");
   if(newBadges.length > (data.achievements || []).length) {
     await updateDoc(doc(db, "users", uid), { achievements: newBadges });
-    toast(`🏆 New Badge Unlocked: ${newBadges[newBadges.length-1]}`);
+    toast(`🏆 New Badge: ${newBadges[newBadges.length-1]}`);
   }
 }
 
@@ -69,7 +54,6 @@ export default function App() {
   const [tab, setTab] = useState("feed");
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [activeHashtag, setActiveHashtag] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -87,48 +71,46 @@ export default function App() {
   const handleLogout = async () => { await signOut(auth); setUser(null) };
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white pb-20">
       <Toaster position="top-right" />
       <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-md border-b border-gray-800">
         <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-blue-500">NEXORA</h1>
-          <div className="flex items-center gap-4">
-            {user && (
-              <div className="relative">
-                <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 hover:bg-gray-800 rounded-full"><Bell /></button>
-                {notifications.filter(n =>!n.read).length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-xs w-5 h-5 rounded-full flex items-center justify-center">{notifications.filter(n =>!n.read).length}</span>}
-                {showNotifications && <div className="absolute right-0 mt-2 w-80 bg-gray-900 border border-gray-800 rounded-lg p-2 max-h-96 overflow-y-auto z-50">
-                  <h3 className="font-bold p-2">Notifications</h3>
-                  {notifications.length === 0 && <p className="p-2 opacity-70">No notifications</p>}
-                  {notifications.map(n => <div key={n.id} className="p-2 hover:bg-gray-800 rounded flex items-center gap-2"><img src={n.fromUserPhoto} className="w-8 h-8 rounded-full"/>{n.fromUserName} {n.type}</div>)}
-                </div>}
-              </div>
-            )}
-            {user? <button onClick={handleLogout} className="flex items-center gap-2"><img src={user.photoURL} className="w-8 h-8 rounded-full" /> Logout</button> : <button onClick={handleLogin} className="bg-blue-500 px-4 py-2 rounded-lg">Login with Google</button>}
+          <div className="relative">
+            {user && <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 hover:bg-gray-800 rounded-full"><Bell /></button>}
+            {user && notifications.filter(n =>!n.read).length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-xs w-5 h-5 rounded-full flex items-center justify-center">{notifications.filter(n =>!n.read).length}</span>}
+            {showNotifications && user && <div className="absolute right-0 mt-2 w-80 bg-gray-900 border border-gray-800 rounded-lg p-2 max-h-96 overflow-y-auto z-50">
+              <h3 className="font-bold p-2">Notifications</h3>
+              {notifications.length === 0 && <p className="p-2 opacity-70">No notifications</p>}
+              {notifications.map(n => <div key={n.id} className="p-2 hover:bg-gray-800 rounded flex items-center gap-2"><img src={n.fromUserPhoto} className="w-8 h-8 rounded-full"/>{n.fromUserName} {n.type}</div>)}
+            </div>}
           </div>
         </div>
       </header>
-      {user && <nav className="sticky top-[65px] z-40 bg-black/80 backdrop-blur-md border-b border-gray-800">
-        <div className="max-w-6xl mx-auto px-4 flex gap-6 overflow-x-auto">
-          <button onClick={() => setTab("feed")} className={`py-3 flex items-center gap-2 ${tab === "feed"? "border-b-2 border-blue-500" : ""}`}><Home /> Feed</button>
-          <button onClick={() => setTab("discover")} className={`py-3 flex items-center gap-2 ${tab === "discover"? "border-b-2 border-blue-500" : ""}`}><Search /> Discover</button>
-          <button onClick={() => setTab("messages")} className={`py-3 flex items-center gap-2 ${tab === "messages"? "border-b-2 border-blue-500" : ""}`}><MessageCircle /> Messages</button>
-          <button onClick={() => setTab("profile")} className={`py-3 flex items-center gap-2 ${tab === "profile"? "border-b-2 border-blue-500" : ""}`}><User /> Profile</button>
+      
+      {/* BOTTOM NAV - ICONS ONLY */}
+      {user && <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-md border-t border-gray-800">
+        <div className="max-w-6xl mx-auto px-4 flex justify-around">
+          <button onClick={() => setTab("feed")} className={`py-3 ${tab === "feed"? "text-blue-500" : "text-gray-400"}`}><Home size={24} /></button>
+          <button onClick={() => setTab("discover")} className={`py-3 ${tab === "discover"? "text-blue-500" : "text-gray-400"}`}><Search size={24} /></button>
+          <button onClick={() => setTab("messages")} className={`py-3 ${tab === "messages"? "text-blue-500" : "text-gray-400"}`}><MessageCircle size={24} /></button>
+          <button onClick={() => setTab("profile")} className={`py-3 ${tab === "profile"? "text-blue-500" : "text-gray-400"}`}><User size={24} /></button>
         </div>
       </nav>}
+
       <main className="max-w-6xl mx-auto px-4 py-6">
-        {!user && <div className="text-center py-20"><h2 className="text-4xl font-bold">Welcome to NEXORA</h2><p className="opacity-70 mt-2">Build. Learn. Grow Together.</p><button onClick={handleLogin} className="mt-6 bg-blue-500 px-6 py-3 rounded-lg">Get Started</button></div>}
-        {user && tab === "feed" && <FeedTab user={user} activeHashtag={activeHashtag} setActiveHashtag={setActiveHashtag} />}
+        {!user && <div className="text-center py-20"><h2 className="text-4xl font-bold">Welcome to NEXORA</h2><p className="opacity-70 mt-2">Build. Learn. Grow Together.</p><button onClick={handleLogin} className="mt-6 bg-blue-500 px-6 py-3 rounded-lg">Login with Google</button></div>}
+        {user && tab === "feed" && <FeedTab user={user} />}
         {user && tab === "discover" && <DiscoverTab user={user} />}
         {user && tab === "messages" && <MessagesTab user={user} />}
-        {user && tab === "profile" && <ProfileTab user={user} />}
+        {user && tab === "profile" && <ProfileTab user={user} onLogout={handleLogout} />}
       </main>
     </div>
   );
 }
 
 // ===== FEED TAB =====
-function FeedTab({user, activeHashtag, setActiveHashtag}: any) {
+function FeedTab({user}: any) {
   const [posts, setPosts] = useState<any[]>([]);
   const [feedType, setFeedType] = useState<"growth" | "personalized" | "latest" | "trending">("growth");
   const [following, setFollowing] = useState<string[]>([]);
@@ -147,10 +129,9 @@ function FeedTab({user, activeHashtag, setActiveHashtag}: any) {
       if(feedType === "personalized" && following.length > 0) allPosts = allPosts.filter(p => [...following, user?.uid].includes(p.userId));
       if(feedType === "trending") allPosts = allPosts.sort((a, b) => (b.likes?.length || 0) + (b.shares || 0)*2 - (a.likes?.length || 0) - (a.shares || 0)*2).slice(0, 20);
       if(feedType === "growth") allPosts = allPosts.filter(p => p.text?.includes("#Learning") || p.text?.includes("#Startup") || p.text?.includes("#Skills") || p.text?.includes("#Achievement"));
-      if(activeHashtag) allPosts = allPosts.filter(p => p.text?.includes(activeHashtag));
       setPosts(allPosts);
     })
-  }, [following, user, activeHashtag, feedType]);
+  }, [following, user, feedType]);
 
   const handleCreatePost = async () => {
     if(!newPost.trim() &&!postImage) return;
@@ -208,7 +189,7 @@ function PostCard({post, user}: any) {
   };
   return (
     <div className="border rounded-xl p-4 mb-4 bg-gray-900 border-gray-800">
-      <div className="flex items-center gap-3"><img src={post.userPhoto} className="w-10 h-10 rounded-full" /><div><p className="font-bold">{post.userName}</p></div></div>
+      <div className="flex items-center gap-3"><img src={post.userPhoto} className="w-10 h-10 rounded-full" /><p className="font-bold">{post.userName}</p></div>
       <p className="mt-3 whitespace-pre-wrap">{post.text}</p>
       {post.image && <img src={post.image} className="mt-3 rounded-lg w-full" />}
       <div className="flex gap-4 mt-3 border-t border-gray-800 pt-3">
@@ -229,27 +210,23 @@ function PostCard({post, user}: any) {
 // ===== DISCOVER TAB =====
 function DiscoverTab({user}: any) {
   const [users, setUsers] = useState<any[]>([]);
-  const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
-  const [matchGoalOnly, setMatchGoalOnly] = useState(false);
-  const skillOptions = ["AI", "Coding", "Design", "Marketing", "Business"];
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     const fetchUsers = async () => {
       const snapshot = await getDocs(collection(db, "users"));
       let allUsers = snapshot.docs.map((doc) => ({ id: doc.id,...doc.data() as any })).filter(u => u.uid!== user?.uid);
-      if(matchGoalOnly) { const myProfile = await getDoc(doc(db, "users", user.uid)); const myGoal = (myProfile.data() as any)?.futureGoal; if(myGoal) allUsers = allUsers.filter(u => u.futureGoal === myGoal); }
-      if(selectedSkill) allUsers = allUsers.filter(u => u.skills?.includes(selectedSkill));
-      allUsers = allUsers.sort((a, b) => (b.futureScore || 0) + (b.growthScore || 0) - (a.futureScore || 0) - (a.growthScore || 0));
+      if(search) allUsers = allUsers.filter(u => u.name?.toLowerCase().includes(search.toLowerCase()) || u.skills?.join(" ").toLowerCase().includes(search.toLowerCase()) || u.goal?.toLowerCase().includes(search.toLowerCase()));
+      allUsers = allUsers.sort((a, b) => (b.futureScore || 0) - (a.futureScore || 0));
       setUsers(allUsers);
     };
     fetchUsers();
-  }, [user, selectedSkill, matchGoalOnly]);
+  }, [user, search]);
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-2">🌎 Discover Ambitious People</h1>
-      <button onClick={() => setMatchGoalOnly(!matchGoalOnly)} className={`w-full p-3 rounded-lg font-bold mb-3 ${matchGoalOnly? "bg-green-500" : "bg-gray-800"}`}>🤝 Goal Match ON</button>
-      <div className="flex gap-2 flex-wrap mb-4">{skillOptions.map(skill => <button key={skill} onClick={() => setSelectedSkill(skill === selectedSkill? null : skill)} className={`px-3 py-1 rounded-full ${selectedSkill === skill? "bg-blue-500" : "bg-gray-800"}`}>🏷️ {skill}</button>)}</div>
+      <h1 className="text-2xl font-bold mb-4">🌎 Discover Ambitious People</h1>
+      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, skill, goal..." className="w-full bg-gray-900 p-3 rounded-lg mb-4" />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{users.map((u) => <UserCard key={u.id} u={u} user={user} />)}</div>
     </div>
   );
@@ -257,22 +234,20 @@ function DiscoverTab({user}: any) {
 function UserCard({u, user}: any) {
   const [isFollowing, setIsFollowing] = useState(false); const [myProfile, setMyProfile] = useState<any>(null);
   useEffect(() => { getDoc(doc(db, "users", user.uid)).then(d => setMyProfile(d.data())); const q = query(collection(db, "follows"), where("followerId", "==", user.uid), where("followingId", "==", u.uid)); onSnapshot(q, snap => setIsFollowing(!snap.empty)) }, [user, u.uid]);
-  const isGoalMatch = myProfile?.futureGoal && u.futureGoal && myProfile.futureGoal === u.futureGoal;
+  const isGoalMatch = myProfile?.goal && u.goal && myProfile.goal === u.goal;
   const toggleFollow = async () => { const followRef = doc(db, "follows", `${user.uid}_${u.uid}`); if(isFollowing) {await deleteDoc(followRef); await updateDoc(doc(db, "users", user.uid), { followingCount: increment(-1) }); await updateDoc(doc(db, "users", u.uid), { followersCount: increment(-1) })} else {await setDoc(followRef, { followerId: user.uid, followingId: u.uid, createdAt: serverTimestamp() }); await updateDoc(doc(db, "users", user.uid), { followingCount: increment(1) }); await updateDoc(doc(db, "users", u.uid), { followersCount: increment(1), growthScore: increment(5) }); await addDoc(collection(db, "notifications"), { toUserId: u.uid, type: "followed you", fromUserId: user.uid, fromUserName: user.displayName, fromUserPhoto: user.photoURL, read: false, createdAt: serverTimestamp() })} setIsFollowing(!isFollowing); };
-  const handleDM = async () => { const roomId = [user.uid, u.uid].sort().join("_"); await setDoc(doc(db, "dm_rooms", roomId), { participants: [user.uid, u.uid], lastMessage: "", updatedAt: serverTimestamp() }, {merge: true}); toast(`Opened chat with ${u.name}`); };
-  return <div className="border p-4 rounded-lg bg-gray-900 border-gray-800"><div className="flex items-center gap-3"><img src={u.photoURL} className="w-12 h-12 rounded-full" /><div className="flex-1"><p className="font-bold">{u.name}</p><p className="text-xs opacity-70">⭐ {u.futureScore || 0}</p>{u.futureGoal && <span className={`text-xs px-2 rounded-full border ${getGoalColor(u.futureGoal)}`}>{getGoalIcon(u.futureGoal)} {u.futureGoal}</span>}{isGoalMatch && <span className="text-xs bg-green-500/20 text-green-400 px-2 rounded-full ml-2">🤝 Goal Match</span>}</div><div className="flex gap-2"><button onClick={toggleFollow} className={`px-4 py-2 rounded-lg ${isFollowing? "bg-gray-700" : "bg-blue-500"}`}>{isFollowing? "Following" : "Follow"}</button>{isGoalMatch && <button onClick={handleDM} className="px-4 py-2 rounded-lg bg-green-500">DM</button>}</div></div></div>
-}
+  const handleDM = async () => { const roomId = [user.uid, u.uid].sort().join("_"); await setDoc(doc(db, "dm_rooms", roomId), { participants: [user.uid, u.uid], lastMessage: "", updatedAt: serverTimestamp() }, {merge: true}); toast(`Chat opened with ${u.name}`); };
+  return <div className="border p-4 rounded-lg bg-gray-900 border-gray-800"><div className="flex items-center gap-3"><img src={u.photoURL} className="w-12 h-12 rounded-full" /><div className="flex-1"><p className="font-bold">{u.name}</p><p className="text-xs opacity-70">⭐ {u.futureScore || 0}</p>{u.goal && <p className="text-xs text-blue-400">🎯 {u.goal}</p>}{isGoalMatch && <span className="text-xs bg-green-500/20 text-green-400 px-2 rounded-full">🤝 Goal Match</span>}</div><div className="flex gap-2"><button onClick={toggleFollow} className={`px-4 py-2 rounded-lg ${isFollowing? "bg-gray-700" : "bg-blue-500"}`}>{isFollowing? "Following" : "Follow"}</button>{isGoalMatch && <button onClick={handleDM} className="px-4 py-2 rounded-lg bg-green-500">DM</button>}</div></div></div>
+                                                                                                           }
 
-// ===== PROFILE TAB =====
-function ProfileTab({user}: any) {
+// ===== PROFILE TAB - 100% CUSTOM FIELDS + LOGOUT KINDHA =====
+function ProfileTab({user, onLogout}: any) {
   const [profile, setProfile] = useState<any>(null); const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState(""); const [username, setUsername] = useState(""); const [bio, setBio] = useState(""); const [futureGoal, setFutureGoal] = useState(""); const [learning, setLearning] = useState(""); const [skills, setSkills] = useState(""); const [projects, setProjects] = useState<any[]>([]); const [newProject, setNewProject] = useState({title: "", link: "", type: "Website"});
-  const goalOptions = ["Future AI Founder", "Future Doctor", "Future Cricketer", "Future Entrepreneur"];
-  const learningOptions = ["React", "AI", "UI/UX", "Marketing", "Business", "Data Science"];
+  const [name, setName] = useState(""); const [username, setUsername] = useState(""); const [bio, setBio] = useState(""); const [goal, setGoal] = useState(""); const [learning, setLearning] = useState(""); const [skills, setSkills] = useState(""); const [projects, setProjects] = useState<any[]>([]); const [newProject, setNewProject] = useState({title: "", link: "", type: ""});
 
-  useEffect(() => { getDoc(doc(db, "users", user.uid)).then(d => { if(d.exists()) { const data = d.data() as any; setProfile(data); setName(data.name); setUsername(data.username); setBio(data.bio); setFutureGoal(data.futureGoal); setLearning(data.learning); setSkills(data.skills?.join(", ")); setProjects(data.projects || [])} }) }, [user]);
+  useEffect(() => { getDoc(doc(db, "users", user.uid)).then(d => { if(d.exists()) { const data = d.data() as any; setProfile(data); setName(data.name); setUsername(data.username); setBio(data.bio); setGoal(data.goal); setLearning(data.learning); setSkills(data.skills?.join(", ")); setProjects(data.projects || [])} }) }, [user]);
 
-  const handleSave = async () => { const futureScore = (profile.growthScore || 0) + (projects.length * 10) + (profile.streak || 0) * 5; await setDoc(doc(db, "users", user.uid), { name, username, bio, futureGoal, learning, skills: skills.split(",").map(s => s.trim()).filter(s => s), projects, futureScore, photoURL: user.photoURL }, { merge: true }); setIsEditing(false); toast("Profile Saved!") };
+  const handleSave = async () => { const futureScore = (profile.growthScore || 0) + (projects.length * 10) + (profile.streak || 0) * 5; await setDoc(doc(db, "users", user.uid), { name, username, bio, goal, learning, skills: skills.split(",").map(s => s.trim()).filter(s => s), projects, futureScore, photoURL: user.photoURL }, { merge: true }); setIsEditing(false); toast("Profile Saved!") };
 
   return (
     <div className="border rounded-xl p-6 bg-gray-900">
@@ -281,36 +256,39 @@ function ProfileTab({user}: any) {
           <img src={profile?.photoURL} className="w-24 h-24 rounded-full" />
           <h1 className="text-2xl font-bold mt-2">{profile?.name}</h1>
           <p className="opacity-70">@{profile?.username}</p>
-          {profile?.futureGoal && <div className={`mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm border ${getGoalColor(profile.futureGoal)}`}>{getGoalIcon(profile.futureGoal)} {profile.futureGoal}</div>}
         </div>
         <button onClick={() => isEditing? handleSave() : setIsEditing(true)} className="p-2 bg-blue-500 rounded">{isEditing? <Save /> : <Edit />}</button>
       </div>
       <div className="flex gap-4 my-4 flex-wrap">
         <div className="flex items-center gap-1 text-yellow-500"><Award size={16} /><b>{profile?.growthScore || 0} Growth</b></div>
-        <div className="flex items-center gap-1 text-purple-500"><Star size={16} /><b>{profile?.futureScore || 0} Future Score</b></div>
+        <div className="flex items-center gap-1 text-purple-500"><Star size={16} /><b>{profile?.futureScore || 0} Future</b></div>
         <div className="flex items-center gap-1 text-orange-500"><Flame size={16} /><b>{profile?.streak || 0} Streak</b></div>
-        <div className="flex items-center gap-1"><Users size={16} /><b>{profile?.followersCount || 0} Followers</b></div>
+        <div className="flex items-center gap-1"><Users size={16} /><b>{profile?.followersCount || 0}</b></div>
       </div>
       {profile?.achievements?.length > 0 && <div className="mb-4"><h3 className="font-bold mb-2">🏆 Achievements</h3><div className="flex gap-2 flex-wrap">{profile.achievements.map((b: string) => <span key={b} className="bg-yellow-500/20 text-yellow-400 px-3 py-1 rounded-full text-sm">{b}</span>)}</div></div>}
 
       {isEditing? (
         <div className="space-y-3 mt-4">
-          <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" className="w-full bg-gray-800 p-2 rounded" />
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Your Name" className="w-full bg-gray-800 p-2 rounded" />
           <input value={username} onChange={e => setUsername(e.target.value)} placeholder="Username" className="w-full bg-gray-800 p-2 rounded" />
           <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="Bio" className="w-full bg-gray-800 p-2 rounded" />
-          <select value={futureGoal} onChange={e => setFutureGoal(e.target.value)} className="w-full bg-gray-800 p-2 rounded"><option value="">Select Future Goal</option>{goalOptions.map(g => <option key={g}>{g}</option>)}</select>
-          <select value={learning} onChange={e => setLearning(e.target.value)} className="w-full bg-gray-800 p-2 rounded"><option value="">What are you learning?</option>{learningOptions.map(l => <option key={l}>Currently Learning {l}</option>)}</select>
-          <input value={skills} onChange={e => setSkills(e.target.value)} placeholder="Skills: AI, Coding, Design" className="w-full bg-gray-800 p-2 rounded" />
-          <div><h3 className="font-bold mb-2">🚀 Add Project</h3><div className="flex gap-2"><input value={newProject.title} onChange={e => setNewProject({...newProject, title: e.target.value})} placeholder="Project Name" className="flex-1 bg-gray-800 p-2 rounded" /><select value={newProject.type} onChange={e => setNewProject({...newProject, type: e.target.value})} className="bg-gray-800 p-2 rounded"><option>Website</option><option>App</option><option>Startup</option></select><input value={newProject.link} onChange={e => setNewProject({...newProject, link: e.target.value})} placeholder="Link" className="flex-1 bg-gray-800 p-2 rounded" /><button onClick={() => {setProjects([...projects, {...newProject, id: Date.now()}]); setNewProject({title: "", link: "", type: "Website"})}} className="bg-blue-500 px-3 rounded"><Plus /></button></div></div>
+          <input value={goal} onChange={e => setGoal(e.target.value)} placeholder="Your Future Goal - Example: AI Founder, Doctor" className="w-full bg-gray-800 p-2 rounded" />
+          <input value={learning} onChange={e => setLearning(e.target.value)} placeholder="What are you learning? - Example: React, AI, UI/UX" className="w-full bg-gray-800 p-2 rounded" />
+          <input value={skills} onChange={e => setSkills(e.target.value)} placeholder="Skills - Example: Coding, Design, Marketing, Business" className="w-full bg-gray-800 p-2 rounded" />
+          <div><h3 className="font-bold mb-2">🚀 Project Showcase</h3><div className="flex gap-2 mb-2"><input value={newProject.title} onChange={e => setNewProject({...newProject, title: e.target.value})} placeholder="Project Name" className="flex-1 bg-gray-800 p-2 rounded" /><input value={newProject.type} onChange={e => setNewProject({...newProject, type: e.target.value})} placeholder="Type: App/Website/Startup" className="w-40 bg-gray-800 p-2 rounded" /><input value={newProject.link} onChange={e => setNewProject({...newProject, link: e.target.value})} placeholder="Link" className="flex-1 bg-gray-800 p-2 rounded" /><button onClick={() => {setProjects([...projects, {...newProject, id: Date.now()}]); setNewProject({title: "", link: "", type: ""})}} className="bg-blue-500 px-3 rounded"><Plus /></button></div></div>
         </div>
       ) : (
         <>
           {profile?.bio && <p className="mt-4">{profile.bio}</p>}
+          {profile?.goal && <p className="text-blue-400 font-semibold mt-2">🎯 {profile.goal}</p>}
           {profile?.learning && <p className="text-cyan-400 font-semibold flex items-center gap-1 mt-2"><BookOpen size={14}/> {profile.learning}</p>}
           <div className="flex gap-2 flex-wrap mt-3">{profile?.skills?.map((s: string) => <span key={s} className="bg-blue-500/20 px-3 py-1 rounded-full text-sm">🏷️ {s}</span>)}</div>
-          <div className="border-t border-gray-800 pt-4 mt-4"><h3 className="font-bold mb-3 flex items-center gap-2"><Rocket /> 🚀 Project Showcase</h3>{projects.map(p => <a key={p.id} href={p.link} target="_blank" className="block hover:underline">{p.type === "App" && "📱"}{p.type === "Website" && "🌐"}{p.type === "Startup" && "🚀"} {p.title}</a>)}</div>
+          <div className="border-t border-gray-800 pt-4 mt-4"><h3 className="font-bold mb-3 flex items-center gap-2"><Rocket /> Projects</h3>{projects.length === 0? <p className="opacity-70">No projects yet</p> : projects.map(p => <a key={p.id} href={p.link} target="_blank" className="block hover:underline">{p.type} {p.title}</a>)}</div>
         </>
       )}
+
+      {/* LOGOUT BUTTON KINDHA */}
+      <button onClick={onLogout} className="w-full mt-6 bg-red-500/20 text-red-400 border-red-500 px-4 py-3 rounded-lg flex items-center justify-center gap-2"><LogOut /> Logout</button>
     </div>
   );
 }
@@ -321,5 +299,5 @@ function MessagesTab({user}: any) {
   useEffect(() => { const q = query(collection(db, "dm_rooms"), where("participants", "array-contains", user.uid), orderBy("updatedAt", "desc")); return onSnapshot(q, (snap) => setRooms(snap.docs.map(d => ({ id: d.id,...d.data() as any })))) }, [user]);
   useEffect(() => { if(!activeRoom) return; const q = query(collection(db, "dm_messages"), where("roomId", "==", activeRoom.id), orderBy("createdAt", "asc")); return onSnapshot(q, (snap) => setMessages(snap.docs.map(d => ({ id: d.id,...d.data() as any })))) }, [activeRoom]);
   const sendMessage = async () => { if(!newMessage.trim()) return; await addDoc(collection(db, "dm_messages"), { roomId: activeRoom.id, senderId: user.uid, text: newMessage, createdAt: serverTimestamp() }); await updateDoc(doc(db, "dm_rooms", activeRoom.id), { lastMessage: newMessage, updatedAt: serverTimestamp() }); setNewMessage("") };
-  return <div className="flex h-[80vh] border rounded-xl bg-gray-900"><div className="w-1/3 border-r overflow-y-auto"><h2 className="p-4 font-bold">Messages</h2>{rooms.length === 0 && <p className="p-4 opacity-70">No chats yet</p>}{rooms.map(room => <div key={room.id} onClick={() => setActiveRoom(room)} className={`p-4 cursor-pointer hover:bg-gray-800 ${activeRoom?.id === room.id? "bg-blue-500/20" : ""}`}>{room.lastMessage || "New Chat"}</div>)}</div><div className="flex-1 flex-col">{activeRoom? <><div className="flex-1 p-4 overflow-y-auto">{messages.map(m => <div key={m.id} className={`mb-2 ${m.senderId === user.uid? "text-right" : ""}`}><span className={`inline-block p-2 rounded ${m.senderId === user.uid? "bg-blue-500" : "bg-gray-800"}`}>{m.text}</span></div>)}</div><div className="p-4 flex gap-2"><input value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyDown={e => e.key === "Enter" && sendMessage()} className="flex-1 bg-gray-800 p-2 rounded" /><button onClick={sendMessage} className="bg-blue-500 px-4 rounded">Send</button></div></> : <div className="flex-1 flex items-center justify-center opacity-70">Select a chat</div>}</div></div>
-}
+  return <div className="flex h-[70vh] border rounded-xl bg-gray-900"><div className="w-1/3 border-r overflow-y-auto"><h2 className="p-4 font-bold">Messages</h2>{rooms.length === 0 && <p className="p-4 opacity-70">No chats yet</p>}{rooms.map(room => <div key={room.id} onClick={() => setActiveRoom(room)} className={`p-4 cursor-pointer hover:bg-gray-800 ${activeRoom?.id === room.id? "bg-blue-500/20" : ""}`}>{room.lastMessage || "New Chat"}</div>)}</div><div className="flex-1 flex-col">{activeRoom? <><div className="flex-1 p-4 overflow-y-auto">{messages.map(m => <div key={m.id} className={`mb-2 ${m.senderId === user.uid? "text-right" : ""}`}><span className={`inline-block p-2 rounded ${m.senderId === user.uid? "bg-blue-500" : "bg-gray-800"}`}>{m.text}</span></div>)}</div><div className="p-4 flex gap-2"><input value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyDown={e => e.key === "Enter" && sendMessage()} className="flex-1 bg-gray-800 p-2 rounded" /><button onClick={sendMessage} className="bg-blue-500 px-4 rounded">Send</button></div></> : <div className="flex-1 flex items-center justify-center opacity-70">Select a chat</div>}</div></div>
+          }

@@ -56,9 +56,24 @@ export default function App() {
   const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
+    const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if(currentUser) {
+        // IMPORTANT: USER DOC AUTO CREATE
+        const userRef = doc(db, "users", currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        if(!userSnap.exists()) {
+          await setDoc(userRef, {
+            uid: currentUser.uid,
+            name: currentUser.displayName || "User",
+            username: currentUser.email?.split("@")[0] || currentUser.uid,
+            photoURL: currentUser.photoURL,
+            bio: "", goal: "", learning: "", skills: [], projects: [],
+            growthScore: 0, futureScore: 0, streak: 0,
+            followersCount: 0, followingCount: 0, postsCount: 0,
+            achievements: [], lastActive: serverTimestamp()
+          });
+        }
         updateStreak(currentUser.uid);
         const q = query(collection(db, "notifications"), where("toUserId", "==", currentUser.uid), orderBy("createdAt", "desc"), limit(20));
         onSnapshot(q, (snap) => { setNotifications(snap.docs.map(d => ({ id: d.id,...d.data() as any }))) });
@@ -82,8 +97,8 @@ export default function App() {
           </div>
         </div>
       </header>
-
-      {/* BOTTOM NAV - 4 ICONS ONLY: Feed, Search, Messages, Profile */}
+      
+      {/* BOTTOM NAV - ICONS ONLY */}
       {user && <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-md border-t border-gray-800">
         <div className="max-w-6xl mx-auto px-4 flex justify-around">
           <button onClick={() => setTab("feed")} className={`py-3 ${tab === "feed"? "text-blue-500" : "text-gray-400"}`}><Home size={24} /></button>
@@ -96,7 +111,7 @@ export default function App() {
       <main className="max-w-6xl mx-auto px-4 py-6">
         {!user && <div className="text-center py-20"><h2 className="text-4xl font-bold">Welcome to NEXORA</h2><p className="opacity-70 mt-2">Build. Learn. Grow Together.</p><button onClick={handleLogin} className="mt-6 bg-blue-500 px-6 py-3 rounded-lg">Login with Google</button></div>}
         {user && tab === "feed" && <FeedTab user={user} />}
-        {user && tab === "search" && <SearchTab user={user} />} {/* Discover -> Search ga marcham */}
+        {user && tab === "search" && <SearchTab user={user} />}
         {user && tab === "messages" && <MessagesTab user={user} />}
         {user && tab === "profile" && <ProfileTab user={user} onLogout={handleLogout} />}
       </main>
@@ -195,8 +210,7 @@ function PostCard({post, user}: any) {
   )
 }
 
-// ===== SEARCH TAB - FRIENDS PROFILE KOSAM =====
-// ===== SEARCH TAB - FIXED CRASH =====
+// ===== SEARCH TAB - CRASH PROOF =====
 function SearchTab({user}: any) {
   const [users, setUsers] = useState<any[]>([]);
   const [search, setSearch] = useState("");
@@ -208,7 +222,6 @@ function SearchTab({user}: any) {
         setLoading(true);
         const snapshot = await getDocs(collection(db, "users"));
         let allUsers = snapshot.docs.map((doc) => ({ id: doc.id,...doc.data() as any })).filter(u => u.uid!== user?.uid);
-        
         if(search) {
           allUsers = allUsers.filter(u => 
             u.name?.toLowerCase().includes(search.toLowerCase()) || 
@@ -218,8 +231,8 @@ function SearchTab({user}: any) {
         }
         setUsers(allUsers);
       } catch(e) {
-        console.log(e);
-        toast("Error loading users");
+        console.error(e);
+        toast("Users load cheyaleka poyam");
       } finally {
         setLoading(false);
       }
@@ -232,59 +245,25 @@ function SearchTab({user}: any) {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-4">🔍 Search Friends</h1>
-      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by Name, Skill, Goal..." className="w-full bg-gray-900 p-3 rounded-lg mb-4 border border-gray-800" />
-      
-      {users.length === 0 && <p className="text-center opacity-70 mt-10">No users found. Be the first to create a profile!</p>}
-      
+      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by Name, Skill, Goal..." className="w-full bg-gray-900 p-3 rounded-lg mb-4 border-gray-800" />
+      {users.length === 0 && <p className="text-center opacity-70 mt-10">No users found yet</p>}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{users.map((u) => <UserCard key={u.id} u={u} user={user} />)}</div>
     </div>
   );
 }
-
 function UserCard({u, user}: any) {
-  const [isFollowing, setIsFollowing] = useState(false); 
-  const [myProfile, setMyProfile] = useState<any>(null);
-  
+  const [isFollowing, setIsFollowing] = useState(false); const [myProfile, setMyProfile] = useState<any>(null);
   useEffect(() => { 
     getDoc(doc(db, "users", user.uid)).then(d => setMyProfile(d.data())); 
     const q = query(collection(db, "follows"), where("followerId", "==", user.uid), where("followingId", "==", u.uid)); 
     const unsub = onSnapshot(q, snap => setIsFollowing(!snap.empty));
     return () => unsub();
   }, [user, u.uid]);
-  
   const isGoalMatch = myProfile?.goal && u.goal && myProfile.goal === u.goal;
-  
-  const toggleFollow = async () => { 
-    const followRef = doc(db, "follows", `${user.uid}_${u.uid}`); 
-    if(isFollowing) {await deleteDoc(followRef)} 
-    else {await setDoc(followRef, { followerId: user.uid, followingId: u.uid, createdAt: serverTimestamp() })} 
-    setIsFollowing(!isFollowing); 
-  };
-  
-  const handleDM = async () => { 
-    const roomId = [user.uid, u.uid].sort().join("_"); 
-    await setDoc(doc(db, "dm_rooms", roomId), { participants: [user.uid, u.uid], lastMessage: "", updatedAt: serverTimestamp() }, {merge: true}); 
-    toast(`Chat with ${u.name}`); 
-  };
-  
-  return (
-    <div className="border p-4 rounded-lg bg-gray-900 border-gray-800">
-      <div className="flex items-center gap-3">
-        <img src={u.photoURL || "/default.png"} className="w-12 h-12 rounded-full" />
-        <div className="flex-1">
-          <p className="font-bold">{u.name || "No Name"}</p>
-          <p className="text-xs opacity-70">⭐ {u.futureScore || 0}</p>
-          {u.goal && <p className="text-xs text-blue-400">🎯 {u.goal}</p>}
-          {isGoalMatch && <span className="text-xs bg-green-500/20 text-green-400 px-2 rounded-full">🤝 Goal Match</span>}
-        </div>
-        <div className="flex gap-2">
-          <button onClick={toggleFollow} className={`px-4 py-2 rounded-lg ${isFollowing? "bg-gray-700" : "bg-blue-500"}`}>{isFollowing? "Following" : "Follow"}</button>
-          {isGoalMatch && <button onClick={handleDM} className="px-4 py-2 rounded-lg bg-green-500">DM</button>}
-        </div>
-      </div>
-    </div>
-  )
-      }
+  const toggleFollow = async () => { const followRef = doc(db, "follows", `${user.uid}_${u.uid}`); if(isFollowing) {await deleteDoc(followRef)} else {await setDoc(followRef, { followerId: user.uid, followingId: u.uid, createdAt: serverTimestamp() })} setIsFollowing(!isFollowing); };
+  const handleDM = async () => { const roomId = [user.uid, u.uid].sort().join("_"); await setDoc(doc(db, "dm_rooms", roomId), { participants: [user.uid, u.uid], lastMessage: "", updatedAt: serverTimestamp() }, {merge: true}); toast(`Chat with ${u.name}`); };
+  return <div className="border p-4 rounded-lg bg-gray-900 border-gray-800"><div className="flex items-center gap-3"><img src={u.photoURL || "/default.png"} className="w-12 h-12 rounded-full" /><div className="flex-1"><p className="font-bold">{u.name || "No Name"}</p><p className="text-xs opacity-70">⭐ {u.futureScore || 0}</p>{u.goal && <p className="text-xs text-blue-400">🎯 {u.goal}</p>}{isGoalMatch && <span className="text-xs bg-green-500/20 text-green-400 px-2 rounded-full">🤝 Goal Match</span>}</div><div className="flex gap-2"><button onClick={toggleFollow} className={`px-4 py-2 rounded-lg ${isFollowing? "bg-gray-700" : "bg-blue-500"}`}>{isFollowing? "Following" : "Follow"}</button>{isGoalMatch && <button onClick={handleDM} className="px-4 py-2 rounded-lg bg-green-500">DM</button>}</div></div></div>
+}
 
 // ===== PROFILE TAB - CUSTOM FIELDS + LOGOUT KINDHA =====
 function ProfileTab({user, onLogout}: any) {
@@ -329,7 +308,7 @@ function ProfileTab({user, onLogout}: any) {
           {profile?.goal && <p className="text-blue-400 font-semibold mt-2">🎯 {profile.goal}</p>}
           {profile?.learning && <p className="text-cyan-400 font-semibold flex items-center gap-1 mt-2"><BookOpen size={14}/> {profile.learning}</p>}
           <div className="flex gap-2 flex-wrap mt-3">{profile?.skills?.map((s: string) => <span key={s} className="bg-blue-500/20 px-3 py-1 rounded-full text-sm">🏷️ {s}</span>)}</div>
-          <div className="border-t border-gray-800 pt-4 mt-4"><h3 className="font-bold mb-3 flex items-center gap-2"><Rocket /> Projects</h3>{projects.map(p => <a key={p.id} href={p.link} target="_blank" className="block hover:underline">{p.type} {p.title}</a>)}</div>
+          <div className="border-t border-gray-800 pt-4 mt-4"><h3 className="font-bold mb-3 flex items-center gap-2"><Rocket /> Projects</h3>{projects.length === 0? <p className="opacity-70">No projects yet</p> : projects.map(p => <a key={p.id} href={p.link} target="_blank" className="block hover:underline">{p.type} {p.title}</a>)}</div>
         </>
       )}
       <button onClick={onLogout} className="w-full mt-6 bg-red-500/20 text-red-400 border border-red-500 px-4 py-3 rounded-lg flex items-center justify-center gap-2"><LogOut /> Logout</button>
@@ -343,5 +322,5 @@ function MessagesTab({user}: any) {
   useEffect(() => { const q = query(collection(db, "dm_rooms"), where("participants", "array-contains", user.uid), orderBy("updatedAt", "desc")); return onSnapshot(q, (snap) => setRooms(snap.docs.map(d => ({ id: d.id,...d.data() as any })))) }, [user]);
   useEffect(() => { if(!activeRoom) return; const q = query(collection(db, "dm_messages"), where("roomId", "==", activeRoom.id), orderBy("createdAt", "asc")); return onSnapshot(q, (snap) => setMessages(snap.docs.map(d => ({ id: d.id,...d.data() as any })))) }, [activeRoom]);
   const sendMessage = async () => { if(!newMessage.trim()) return; await addDoc(collection(db, "dm_messages"), { roomId: activeRoom.id, senderId: user.uid, text: newMessage, createdAt: serverTimestamp() }); await updateDoc(doc(db, "dm_rooms", activeRoom.id), { lastMessage: newMessage, updatedAt: serverTimestamp() }); setNewMessage("") };
-  return <div className="flex h-[70vh] border rounded-xl bg-gray-900"><div className="w-1/3 border-r overflow-y-auto"><h2 className="p-4 font-bold">Messages</h2>{rooms.map(room => <div key={room.id} onClick={() => setActiveRoom(room)} className="p-4 cursor-pointer hover:bg-gray-800">{room.lastMessage || "New Chat"}</div>)}</div><div className="flex-1 flex-col"><div className="flex-1 p-4 overflow-y-auto">{messages.map(m => <div key={m.id} className={`mb-2 ${m.senderId === user.uid? "text-right" : ""}`}><span className={`inline-block p-2 rounded ${m.senderId === user.uid? "bg-blue-500" : "bg-gray-800"}`}>{m.text}</span></div>)}</div><div className="p-4 flex gap-2"><input value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyDown={e => e.key === "Enter" && sendMessage()} className="flex-1 bg-gray-800 p-2 rounded" /><button onClick={sendMessage} className="bg-blue-500 px-4 rounded">Send</button></div></div></div>
-}
+  return <div className="flex h-[70vh] border rounded-xl bg-gray-900"><div className="w-1/3 border-r overflow-y-auto"><h2 className="p-4 font-bold">Messages</h2>{rooms.length === 0 && <p className="p-4 opacity-70">No chats yet</p>}{rooms.map(room => <div key={room.id} onClick={() => setActiveRoom(room)} className={`p-4 cursor-pointer hover:bg-gray-800 ${activeRoom?.id === room.id? "bg-blue-500/20" : ""}`}>{room.lastMessage || "New Chat"}</div>)}</div><div className="flex-1 flex-col">{activeRoom? <><div className="flex-1 p-4 overflow-y-auto">{messages.map(m => <div key={m.id} className={`mb-2 ${m.senderId === user.uid? "text-right" : ""}`}><span className={`inline-block p-2 rounded ${m.senderId === user.uid? "bg-blue-500" : "bg-gray-800"}`}>{m.text}</span></div>)}</div><div className="p-4 flex gap-2"><input value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyDown={e => e.key === "Enter" && sendMessage()} className="flex-1 bg-gray-800 p-2 rounded" /><button onClick={sendMessage} className="bg-blue-500 px-4 rounded">Send</button></div></> : <div className="flex-1 flex items-center justify-center opacity-70">Select a chat</div>}</div></div>
+                                    }

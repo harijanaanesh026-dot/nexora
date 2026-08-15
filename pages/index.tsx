@@ -42,6 +42,7 @@ const createNotification = async (toUserId: string, type: string, fromUser: any,
 export default function NexoraApp() {
   const [tab, setTab] = useState(getFromStorage("nexora_tab", "feed"));
   const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [usernameSetup, setUsernameSetup] = useState(false);
   const [activeHashtag, setActiveHashtag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -49,7 +50,7 @@ export default function NexoraApp() {
   useEffect(() => {
     if(!isBrowser()) return;
     saveToStorage("nexora_tab", tab);
-    return onAuthStateChanged(auth, async (u) => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
         const userDoc = await getDoc(doc(db, "users", u.uid));
@@ -60,8 +61,12 @@ export default function NexoraApp() {
           skills: [], projects: [], goals: [], streak: 0, bookmarks: [], createdAt: serverTimestamp()
         }, { merge: true });
       }
+      setAuthLoading(false);
     });
+    return () => unsub();
   }, [tab]);
+
+  if(authLoading) return <div className="min-h-screen flex items-center justify-center bg-black"><p>Loading...</p></div>
 
   const handleHashtagClick = (tag: string) => { setActiveHashtag(tag); setTab("feed"); toast(`Showing ${tag}`); };
 
@@ -70,16 +75,26 @@ export default function NexoraApp() {
       <Toaster position="bottom-center" />
       <Navbar user={user} setTab={setTab} tab={tab} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
       <div className="max-w-4xl mx-auto p-4 flex-1 w-full">
-        {usernameSetup && <UsernameSetup user={user} setUsernameSetup={setUsernameSetup} />}
-        {searchQuery && <SearchResults query={searchQuery} setSearchQuery={setSearchQuery} setTab={setTab} />}
-        {tab === "feed" && <FeedTab user={user} activeHashtag={activeHashtag} setActiveHashtag={setActiveHashtag} />}
-        {tab === "discover" && <DiscoverTab user={user} setTab={setTab} />}
-        {tab === "trending" && <TrendingTab user={user} onHashtagClick={handleHashtagClick} />}
-        {tab === "messages" && <MessagesTab user={user} />}
-        {tab === "profile" && <ProfileTab user={user} />}
-        {tab === "bookmarks" && <BookmarksTab user={user} />}
+        {!user && (
+          <div className="text-center mt-20">
+            <h1 className="text-3xl font-bold mb-4">Welcome to NEXORA</h1>
+            <button onClick={() => signInWithPopup(auth, googleProvider)} className="bg-blue-500 px-6 py-3 rounded-lg font-bold flex items-center gap-2 mx-auto"><LogIn /> Login with Google</button>
+          </div>
+        )}
+        {user && usernameSetup && <UsernameSetup user={user} setUsernameSetup={setUsernameSetup} />}
+        {user &&!usernameSetup && (
+          <>
+            {searchQuery && <SearchResults query={searchQuery} setSearchQuery={setSearchQuery} setTab={setTab} />}
+            {tab === "feed" && <FeedTab user={user} activeHashtag={activeHashtag} setActiveHashtag={setActiveHashtag} />}
+            {tab === "discover" && <DiscoverTab user={user} setTab={setTab} />}
+            {tab === "trending" && <TrendingTab user={user} onHashtagClick={handleHashtagClick} />}
+            {tab === "messages" && <MessagesTab user={user} />}
+            {tab === "profile" && <ProfileTab user={user} />}
+            {tab === "bookmarks" && <BookmarksTab user={user} />}
+          </>
+        )}
       </div>
-      <BottomNav user={user} setTab={setTab} tab={tab} />
+      {user && <BottomNav user={user} setTab={setTab} tab={tab} />}
     </div>
   );
 }
@@ -124,7 +139,6 @@ function Navbar({user, setTab, tab, searchQuery, setSearchQuery}: any) {
               )}
             </div>
           )}
-          {!user && <button onClick={() => signInWithPopup(auth, googleProvider)}><LogIn size={18} /></button>}
         </div>
       </div>
     </header>
@@ -145,7 +159,7 @@ function BottomNav({user, setTab, tab}: any) {
       </div>
     </nav>
   );
-}
+      }
 
 function FeedTab({user, activeHashtag, setActiveHashtag}: any) {
   const [posts, setPosts] = useState<any[]>([]);
@@ -164,7 +178,7 @@ function FeedTab({user, activeHashtag, setActiveHashtag}: any) {
   useEffect(() => {
     let q = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(50));
     return onSnapshot(q, (snap) => {
-      let allPosts: any[] = snap.docs.map((d) => ({ id: d.id,...d.data() as any })); // FIX HERE
+      let allPosts: any[] = snap.docs.map((d) => ({ id: d.id,...d.data() as any }));
       if(following.length > 0) allPosts = allPosts.filter(p => [...following, user?.uid].includes(p.userId));
       if(activeHashtag) allPosts = allPosts.filter(p => p.text?.includes(activeHashtag));
       setPosts(allPosts);
@@ -307,7 +321,7 @@ function BookmarksTab({user}: any) {
       if(bookmarks.length > 0) {
         const q = query(collection(db, "posts"), where("__name__", "in", bookmarks));
         const snap = await getDocs(q);
-        setBookmarkedPosts(snap.docs.map(doc => ({ id: doc.id,...doc.data() as any }))); // FIX HERE
+        setBookmarkedPosts(snap.docs.map(doc => ({ id: doc.id,...doc.data() as any })));
       }
     })
   }, [user]);
@@ -318,7 +332,7 @@ function BookmarksTab({user}: any) {
       {bookmarkedPosts.map((post) => <PostCard key={post.id} post={post} user={user} renderText={(t:string) => t} />)}
     </div>
   );
-          }
+    }
 
 function DiscoverTab({user, setTab}: any) {
   const [users, setUsers] = useState<any[]>([]);
@@ -479,44 +493,50 @@ function ChatRoom({chat, user}: any) {
       </div>
     </>
   );
-                                                                                                     }
+          }
 
 function ProfileTab({user}: any) {
   const [profile, setProfile] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState(""); 
-  const [bio, setBio] = useState(""); 
+  const [name, setName] = useState("");
+  const [bio, setBio] = useState("");
   const [skills, setSkills] = useState("");
-  const [futureGoal, setFutureGoal] = useState(""); 
+  const [futureGoal, setFutureGoal] = useState("");
   const [projects, setProjects] = useState<any[]>([]);
   const [newProject, setNewProject] = useState({title: "", link: "", id: 0});
-  const [followers, setFollowers] = useState(0); 
+  const [followers, setFollowers] = useState(0);
   const [following, setFollowing] = useState(0);
-  const [myPosts, setMyPosts] = useState<any[]>([]); 
-  const [loading, setLoading] = useState(false);
+  const [myPosts, setMyPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true); // true tho start
   const [activeTab, setActiveTab] = useState("about"); // about, posts, settings
 
   const fetchProfile = async () => {
-    if(!user) return; setLoading(true);
-    const userDoc = await getDoc(doc(db, "users", user.uid));
-    if(userDoc.exists()){ 
-      const data = userDoc.data() as any; 
-      setProfile(data); 
-      setName(data.name || ""); 
-      setBio(data.bio || ""); 
-      setSkills(data.skills?.join(", ") || ""); 
-      setFutureGoal(data.futureGoal || ""); 
-      setProjects(data.projects || []); 
+    if(!user) return;
+    setLoading(true);
+    try {
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if(userDoc.exists()){
+        const data = userDoc.data() as any;
+        setProfile(data);
+        setName(data.name || "");
+        setBio(data.bio || "");
+        setSkills(data.skills?.join(", ") || "");
+        setFutureGoal(data.futureGoal || "");
+        setProjects(data.projects || []);
+      }
+      const followersSnap = await getDocs(query(collection(db, "follows"), where("followingId", "==", user.uid)));
+      setFollowers(followersSnap.size);
+      const followingSnap = await getDocs(query(collection(db, "follows"), where("followerId", "==", user.uid)));
+      setFollowing(followingSnap.size);
+      const postsSnap = await getDocs(query(collection(db, "posts"), where("userId", "==", user.uid), orderBy("createdAt", "desc")));
+      setMyPosts(postsSnap.docs.map(d => ({ id: d.id,...d.data() as any })));
+    } catch(e) {
+      console.log(e)
+      toast("Profile load failed")
     }
-    const followersSnap = await getDocs(query(collection(db, "follows"), where("followingId", "==", user.uid))); 
-    setFollowers(followersSnap.size);
-    const followingSnap = await getDocs(query(collection(db, "follows"), where("followerId", "==", user.uid))); 
-    setFollowing(followingSnap.size);
-    const postsSnap = await getDocs(query(collection(db, "posts"), where("userId", "==", user.uid), orderBy("createdAt", "desc"))); 
-    setMyPosts(postsSnap.docs.map(d => ({ id: d.id,...d.data() as any })));
-    setLoading(false);
+    setLoading(false); // error vachina kuda stop avvali
   }
-  
+
   useEffect(() => { fetchProfile() },[user]);
 
   const handleSave = async () => {
@@ -540,8 +560,8 @@ function ProfileTab({user}: any) {
     setProjects(projects.filter(p => p.id!== id));
   };
 
-  if(loading) return <p className="text-center">Loading...</p>;
-  if(!profile) return <p className="text-center opacity-70">Profile not found. Login cheyi</p>;
+  if(loading) return <p className="text-center py-10">Loading...</p>;
+  if(!profile) return <p className="text-center opacity-70 py-10">Profile not found. Login cheyi</p>;
 
   return (
     <div className="space-y-6">
@@ -634,8 +654,7 @@ function ProfileTab({user}: any) {
       {activeTab!== "settings" && <ProfileFooter />}
     </div>
   );
-            }
-
+                }
 
 function ProfileFooter() {
   const handleLogout = async () => {

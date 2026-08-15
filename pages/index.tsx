@@ -10,9 +10,9 @@ import {
 } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
-  Target, Users, Bell, MessageSquare, Search, Image as ImageIcon,
+  Target, Users, Bell, MessageSquare, Image as ImageIcon,
   Heart, MessageCircle, Bookmark, Plus, X, Edit, Save, Link, Github,
-  Award, Flame, TrendingUp, LogOut
+  Award, Flame, LogOut
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
@@ -114,7 +114,7 @@ function PostModal({user, onClose}: any) {
       </div>
     </div>
   );
-        }
+                   }
 
 function FeedTab({user, searchQuery}: any) {
   const [posts, setPosts] = useState<any[]>([]); const [loading, setLoading] = useState(true);
@@ -183,7 +183,7 @@ function UserCard({user, currentUser}: any) {
       <button onClick={handleFollow} className={`px-4 py-1 rounded-full text-sm font-semibold ${following? "bg-gray-700" : "bg-blue-500"}`}>{following? "Following" : "Follow"}</button>
     </div>
   );
-                                                                                             }
+}
 
 function MessagesTab({user}: any) {
   const [convos, setConvos] = useState<any[]>([]);

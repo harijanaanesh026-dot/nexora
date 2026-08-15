@@ -332,7 +332,7 @@ function BookmarksTab({user}: any) {
       {bookmarkedPosts.map((post) => <PostCard key={post.id} post={post} user={user} renderText={(t:string) => t} />)}
     </div>
   );
-    }
+                                    }
 
 function DiscoverTab({user, setTab}: any) {
   const [users, setUsers] = useState<any[]>([]);
@@ -507,8 +507,8 @@ function ProfileTab({user}: any) {
   const [followers, setFollowers] = useState(0);
   const [following, setFollowing] = useState(0);
   const [myPosts, setMyPosts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true); // true tho start
-  const [activeTab, setActiveTab] = useState("about"); // about, posts, settings
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("about");
 
   const fetchProfile = async () => {
     if(!user) return;
@@ -523,6 +523,7 @@ function ProfileTab({user}: any) {
         setSkills(data.skills?.join(", ") || "");
         setFutureGoal(data.futureGoal || "");
         setProjects(data.projects || []);
+        saveToStorage(`nexora_profile_${user.uid}`, data); // REFRESH KI SAVE
       }
       const followersSnap = await getDocs(query(collection(db, "follows"), where("followingId", "==", user.uid)));
       setFollowers(followersSnap.size);
@@ -532,23 +533,47 @@ function ProfileTab({user}: any) {
       setMyPosts(postsSnap.docs.map(d => ({ id: d.id,...d.data() as any })));
     } catch(e) {
       console.log(e)
-      toast("Profile load failed")
+      const cached = getFromStorage(`nexora_profile_${user.uid}`, null);
+      if(cached) setProfile(cached); // FIREBASE FAIL AITE LOCAL
+      toast("Showing cached data")
     }
-    setLoading(false); // error vachina kuda stop avvali
+    setLoading(false);
   }
 
-  useEffect(() => { fetchProfile() },[user]);
+  useEffect(() => { 
+    if(user) {
+      const cached = getFromStorage(`nexora_profile_${user.uid}`, null);
+      if(cached) { // MUNDU CACHE LOAD
+        setProfile(cached);
+        setName(cached.name || "");
+        setBio(cached.bio || "");
+        setSkills(cached.skills?.join(", ") || "");
+        setFutureGoal(cached.futureGoal || "");
+        setProjects(cached.projects || []);
+        setLoading(false);
+      }
+      fetchProfile() // TARVATHA FIREBASE
+    }
+  },[user]);
 
   const handleSave = async () => {
+    if(!user) return;
     setLoading(true);
-    await updateDoc(doc(db, "users", user.uid), {
+    const updatedData = {
       name, bio, futureGoal,
       skills: skills.split(",").map(s => s.trim()).filter(s => s!== ""),
       projects
-    });
-    setIsEditing(false);
-    toast("Profile Updated! ✅");
-    await fetchProfile();
+    };
+    try {
+      await updateDoc(doc(db, "users", user.uid), updatedData);
+      saveToStorage(`nexora_profile_${user.uid}`, {...profile, ...updatedData}); // LOCAL LO KUDA SAVE
+      setIsEditing(false);
+      toast("Profile Updated! ✅");
+      await fetchProfile();
+    } catch(e) {
+      toast("Save failed")
+      setLoading(false)
+    }
   };
 
   const handleAddProject = () => {
@@ -560,12 +585,11 @@ function ProfileTab({user}: any) {
     setProjects(projects.filter(p => p.id!== id));
   };
 
-  if(loading) return <p className="text-center py-10">Loading...</p>;
+  if(loading && !profile) return <p className="text-center py-10">Loading...</p>;
   if(!profile) return <p className="text-center opacity-70 py-10">Profile not found. Login cheyi</p>;
 
   return (
     <div className="space-y-6">
-      {/* CARD 1: TOP INFO */}
       <div className="border rounded-xl p-6 bg-gray-900 border-gray-800">
         <div className="flex justify-between items-start">
           <div>
@@ -586,14 +610,12 @@ function ProfileTab({user}: any) {
           <div className="flex items-center gap-1 text-yellow-500"><Award size={16} /><b>{profile.growthScore || 0} Growth Score</b></div>
         </div>
 
-        {/* TABS */}
         <div className="flex gap-2 border-b border-gray-800 mb-4">
           <button onClick={() => setActiveTab("about")} className={`px-4 py-2 ${activeTab === "about"? "border-b-2 border-blue-500" : ""}`}>About</button>
           <button onClick={() => setActiveTab("posts")} className={`px-4 py-2 ${activeTab === "posts"? "border-b-2 border-blue-500" : ""}`}>My Posts</button>
           <button onClick={() => setActiveTab("settings")} className={`px-4 py-2 flex items-center gap-1 ${activeTab === "settings"? "border-b-2 border-blue-500" : ""}`}><Settings size={14}/> Settings</button>
         </div>
 
-        {/* ABOUT TAB */}
         {activeTab === "about" && (
           <>
             {isEditing? (
@@ -636,7 +658,6 @@ function ProfileTab({user}: any) {
           </>
         )}
 
-        {/* POSTS TAB */}
         {activeTab === "posts" && (
           <div className="space-y-4">
             {myPosts.length === 0 && <p className="opacity-70">No posts yet</p>}
@@ -644,17 +665,15 @@ function ProfileTab({user}: any) {
           </div>
         )}
 
-        {/* SETTINGS TAB */}
         {activeTab === "settings" && (
           <ProfileFooter />
         )}
       </div>
 
-      {/* CARD 2: FOOTER - SETTINGS KAKUNDA UNTE KANIPISTADI */}
       {activeTab!== "settings" && <ProfileFooter />}
     </div>
   );
-                }
+    }
 
 function ProfileFooter() {
   const handleLogout = async () => {

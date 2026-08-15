@@ -499,6 +499,7 @@ function ProfileTab({user}: any) {
   const [profile, setProfile] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState("");
+  const [username, setUsername] = useState(""); // KOTHADI IDHI
   const [bio, setBio] = useState("");
   const [skills, setSkills] = useState("");
   const [futureGoal, setFutureGoal] = useState("");
@@ -514,16 +515,18 @@ function ProfileTab({user}: any) {
     if(!user) return;
     setLoading(true);
     try {
-      const userDoc = await getDoc(doc(db, "users", user.uid));
+      const userRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userRef);
       if(userDoc.exists()){
         const data = userDoc.data() as any;
         setProfile(data);
         setName(data.name || "");
+        setUsername(data.username || ""); // LOAD CHESAM
         setBio(data.bio || "");
         setSkills(data.skills?.join(", ") || "");
         setFutureGoal(data.futureGoal || "");
         setProjects(data.projects || []);
-        saveToStorage(`nexora_profile_${user.uid}`, data); // REFRESH KI SAVE
+        saveToStorage(`nexora_profile_${user.uid}`, data); 
       }
       const followersSnap = await getDocs(query(collection(db, "follows"), where("followingId", "==", user.uid)));
       setFollowers(followersSnap.size);
@@ -531,11 +534,10 @@ function ProfileTab({user}: any) {
       setFollowing(followingSnap.size);
       const postsSnap = await getDocs(query(collection(db, "posts"), where("userId", "==", user.uid), orderBy("createdAt", "desc")));
       setMyPosts(postsSnap.docs.map(d => ({ id: d.id,...d.data() as any })));
-    } catch(e) {
-      console.log(e)
+    } catch(e: any) {
+      console.log("Fetch Error:", e.message)
       const cached = getFromStorage(`nexora_profile_${user.uid}`, null);
-      if(cached) setProfile(cached); // FIREBASE FAIL AITE LOCAL
-      toast("Showing cached data")
+      if(cached) setProfile(cached);
     }
     setLoading(false);
   }
@@ -543,35 +545,57 @@ function ProfileTab({user}: any) {
   useEffect(() => { 
     if(user) {
       const cached = getFromStorage(`nexora_profile_${user.uid}`, null);
-      if(cached) { // MUNDU CACHE LOAD
+      if(cached) {
         setProfile(cached);
         setName(cached.name || "");
+        setUsername(cached.username || ""); // LOAD CHESAM
         setBio(cached.bio || "");
         setSkills(cached.skills?.join(", ") || "");
         setFutureGoal(cached.futureGoal || "");
         setProjects(cached.projects || []);
         setLoading(false);
       }
-      fetchProfile() // TARVATHA FIREBASE
+      fetchProfile() 
     }
   },[user]);
 
   const handleSave = async () => {
     if(!user) return;
+    if(username.length < 3) return toast("Username 3 chars min");
+    
     setLoading(true);
+    
+    // USERNAME UNIQUE CHECK CHESAM
+    if(username !== profile.username) {
+      const q = query(collection(db, "users"), where("username", "==", username));
+      const snap = await getDocs(q);
+      if(!snap.empty) {
+        toast("Username already taken ❌");
+        setLoading(false);
+        return;
+      }
+    }
+
     const updatedData = {
-      name, bio, futureGoal,
+      name, 
+      username: username.toLowerCase(), // LOWERCASE LO SAVE
+      bio, 
+      futureGoal,
       skills: skills.split(",").map(s => s.trim()).filter(s => s!== ""),
-      projects
+      projects,
+      uid: user.uid,
+      email: user.email,
+      photoURL: user.photoURL,
     };
     try {
-      await updateDoc(doc(db, "users", user.uid), updatedData);
-      saveToStorage(`nexora_profile_${user.uid}`, {...profile, ...updatedData}); // LOCAL LO KUDA SAVE
+      await setDoc(doc(db, "users", user.uid), updatedData, { merge: true });
+      saveToStorage(`nexora_profile_${user.uid}`, {...profile, ...updatedData});
       setIsEditing(false);
-      toast("Profile Updated! ✅");
+      toast("Profile Saved! ✅");
       await fetchProfile();
-    } catch(e) {
-      toast("Save failed")
+    } catch(e: any) {
+      toast("Save failed: " + e.message)
+      console.log(e)
       setLoading(false)
     }
   };
@@ -600,7 +624,7 @@ function ProfileTab({user}: any) {
           {!isEditing?
             <button onClick={() => setIsEditing(true)} className="p-2 hover:bg-gray-800 rounded"><Edit /></button>
             :
-            <button onClick={handleSave} disabled={loading} className="p-2 bg-green-500 hover:bg-green-600 rounded"><Save /></button>
+            <button onClick={handleSave} disabled={loading} className="p-2 bg-green-500 hover:bg-green-600 rounded">{loading? "..." : <Save />}</button>
           }
         </div>
 
@@ -621,6 +645,7 @@ function ProfileTab({user}: any) {
             {isEditing? (
               <div className="space-y-3 mt-4">
                 <input value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Name" />
+                <input value={username} onChange={e => setUsername(e.target.value.toLowerCase().replace(/\s/g, ''))} className="w-full bg-gray-800 p-2 rounded" placeholder="Username: no spaces" /> {/* KOTHADI IDHI */}
                 <input value={futureGoal} onChange={e => setFutureGoal(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Future Goal: AI Founder" />
                 <textarea value={bio} onChange={e => setBio(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Bio" rows={3} />
                 <input value={skills} onChange={e => setSkills(e.target.value)} className="w-full bg-gray-800 p-2 rounded" placeholder="Skills: Coding, Design, AI" />
@@ -673,7 +698,7 @@ function ProfileTab({user}: any) {
       {activeTab!== "settings" && <ProfileFooter />}
     </div>
   );
-    }
+  }
 
 function ProfileFooter() {
   const handleLogout = async () => {
@@ -716,7 +741,7 @@ function UsernameSetup({user, setUsernameSetup}: any) {
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
       <div className="bg-gray-900 p-6 rounded-xl w-96">
         <h2 className="text-xl font-bold mb-4">Pick your Username</h2>
-        <input value={username} onChange={e => setUsername(e.target.value.toLowerCase())} placeholder="@yourname" className="w-full bg-gray-800 p-3 rounded mb-4" />
+        <input value={username} onChange={e => setUsername(e.target.value.toLowerCase().replace(/\s/g, ''))} placeholder="@yourname" className="w-full bg-gray-800 p-3 rounded mb-4" />
         <button onClick={handleSave} className="w-full bg-blue-500 py-2 rounded font-bold">Continue</button>
       </div>
     </div>

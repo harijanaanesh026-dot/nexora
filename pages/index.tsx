@@ -90,7 +90,7 @@ function Navbar({user, setTab, tab, searchQuery, setSearchQuery}: any) {
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, "notifications"), where("to", "==", user.uid), orderBy("createdAt", "desc"));
-    return onSnapshot(q, (snap) => setNotifications(snap.docs.map(d => ({ id: d.id,...d.data() }))));
+    return onSnapshot(q, (snap) => setNotifications(snap.docs.map(d => ({ id: d.id,...d.data() as any }))));
   }, [user]);
   const unreadCount = notifications.filter(n =>!n.read).length;
   const handleRead = async (id: string) => await updateDoc(doc(db, "notifications", id), { read: true });
@@ -145,7 +145,8 @@ function BottomNav({user, setTab, tab}: any) {
       </div>
     </nav>
   );
-    }
+}
+
 function FeedTab({user, activeHashtag, setActiveHashtag}: any) {
   const [posts, setPosts] = useState<any[]>([]);
   const [newPost, setNewPost] = useState(getFromStorage("nexora_draft", ""));
@@ -157,13 +158,13 @@ function FeedTab({user, activeHashtag, setActiveHashtag}: any) {
   useEffect(() => saveToStorage("nexora_draft", newPost), [newPost]);
   useEffect(() => {
     if(!user) return;
-    getDocs(query(collection(db, "follows"), where("followerId", "==", user.uid))).then(s => setFollowing(s.docs.map(d => d.data().followingId)));
+    getDocs(query(collection(db, "follows"), where("followerId", "==", user.uid))).then(s => setFollowing(s.docs.map(d => (d.data() as any).followingId)));
   }, [user]);
 
   useEffect(() => {
     let q = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(50));
     return onSnapshot(q, (snap) => {
-      let allPosts = snap.docs.map((d) => ({ id: d.id,...d.data() }));
+      let allPosts: any[] = snap.docs.map((d) => ({ id: d.id,...d.data() as any })); // FIX HERE
       if(following.length > 0) allPosts = allPosts.filter(p => [...following, user?.uid].includes(p.userId));
       if(activeHashtag) allPosts = allPosts.filter(p => p.text?.includes(activeHashtag));
       setPosts(allPosts);
@@ -251,9 +252,9 @@ function PostCard({post, user, renderText}: any) {
 
   useEffect(() => {
     if(!user) return;
-    getDoc(doc(db, "users", user.uid)).then(d => setIsBookmarked(d.data()?.bookmarks?.includes(post.id)));
+    getDoc(doc(db, "users", user.uid)).then(d => setIsBookmarked((d.data() as any)?.bookmarks?.includes(post.id)));
     const q = query(collection(db, "comments"), where("postId", "==", post.id), orderBy("createdAt", "asc"));
-    return onSnapshot(q, (snap) => setComments(snap.docs.map((d) => ({ id: d.id,...d.data() }))));
+    return onSnapshot(q, (snap) => setComments(snap.docs.map((d) => ({ id: d.id,...d.data() as any }))));
   }, [post.id, user]);
 
   const handleLike = async () => {
@@ -302,11 +303,11 @@ function BookmarksTab({user}: any) {
   useEffect(() => {
     if(!user) return;
     getDoc(doc(db, "users", user.uid)).then(async (d) => {
-      const bookmarks = d.data()?.bookmarks || [];
+      const bookmarks = (d.data() as any)?.bookmarks || [];
       if(bookmarks.length > 0) {
         const q = query(collection(db, "posts"), where("__name__", "in", bookmarks));
         const snap = await getDocs(q);
-        setBookmarkedPosts(snap.docs.map(doc => ({ id: doc.id,...doc.data() })));
+        setBookmarkedPosts(snap.docs.map(doc => ({ id: doc.id,...doc.data() as any }))); // FIX HERE
       }
     })
   }, [user]);
@@ -317,7 +318,7 @@ function BookmarksTab({user}: any) {
       {bookmarkedPosts.map((post) => <PostCard key={post.id} post={post} user={user} renderText={(t:string) => t} />)}
     </div>
   );
-  }
+          }
 
 function DiscoverTab({user, setTab}: any) {
   const [users, setUsers] = useState<any[]>([]);
@@ -325,7 +326,7 @@ function DiscoverTab({user, setTab}: any) {
   const searchSkill = async (skill: string) => {
     const q = query(collection(db, "users"), where("skills", "array-contains", skill));
     const snap = await getDocs(q);
-    setUsers(snap.docs.map(d => ({ id: d.id,...d.data() })));
+    setUsers(snap.docs.map(d => ({ id: d.id,...d.data() as any })));
   };
   return (
     <div>
@@ -368,7 +369,7 @@ function TrendingTab({user, onHashtagClick}: any) {
   useEffect(() => {
     const q = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(200));
     return onSnapshot(q, (snap) => {
-      const allPosts = snap.docs.map((d) => d.data());
+      const allPosts = snap.docs.map((d) => d.data() as any);
       const tagCount: any = {};
       allPosts.forEach(p => { if(p.hashtags) p.hashtags.forEach((t: string) => tagCount[t] = (tagCount[t] || 0) + 1); });
       const sorted = Object.entries(tagCount).sort((a: any, b: any) => b[1] - a[1]).slice(0, 10).map(([tag, count]) => ({ tag, count }));
@@ -429,7 +430,7 @@ function SearchResults({query, setSearchQuery, setTab}: any) {
 function MessagesTab({user}: any) {
   const [chats, setChats] = useState<any[]>([]);
   const [activeChat, setActiveChat] = useState<any>(null);
-  useEffect(() => { if (!user) return; const q = query(collection(db, "chats"), where("members", "array-contains", user.uid), orderBy("updatedAt", "desc")); return onSnapshot(q, (snap) => setChats(snap.docs.map(d => ({ id: d.id,...d.data() })))) }, [user]);
+  useEffect(() => { if (!user) return; const q = query(collection(db, "chats"), where("members", "array-contains", user.uid), orderBy("updatedAt", "desc")); return onSnapshot(q, (snap) => setChats(snap.docs.map(d => ({ id: d.id,...d.data() as any })))) }, [user]);
   return (
     <div className="grid md:grid-cols-3 gap-4 h-[70vh]">
       <div className="md:col-span-1 border rounded-xl p-2 overflow-y-auto border-gray-800">
@@ -451,7 +452,7 @@ function ChatRoom({chat, user}: any) {
   const [text, setText] = useState("");
   useEffect(() => {
     const q = query(collection(db, "messages"), where("chatId", "==", chat.id), orderBy("createdAt", "asc"));
-    return onSnapshot(q, (snap) => setMessages(snap.docs.map(d => ({ id: d.id,...d.data() }))))
+    return onSnapshot(q, (snap) => setMessages(snap.docs.map(d => ({ id: d.id,...d.data() as any }))))
   }, [chat]);
 
   const sendMessage = async () => {
@@ -478,45 +479,44 @@ function ChatRoom({chat, user}: any) {
       </div>
     </>
   );
-        }
+                                                                                                     }
 
 function ProfileTab({user}: any) {
   const [profile, setProfile] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState("");
-  const [bio, setBio] = useState("");
+  const [name, setName] = useState(""); 
+  const [bio, setBio] = useState(""); 
   const [skills, setSkills] = useState("");
-  const [futureGoal, setFutureGoal] = useState("");
+  const [futureGoal, setFutureGoal] = useState(""); 
   const [projects, setProjects] = useState<any[]>([]);
   const [newProject, setNewProject] = useState({title: "", link: "", id: 0});
-  const [followers, setFollowers] = useState(0);
+  const [followers, setFollowers] = useState(0); 
   const [following, setFollowing] = useState(0);
-  const [myPosts, setMyPosts] = useState<any[]>([]);
+  const [myPosts, setMyPosts] = useState<any[]>([]); 
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("about"); // about, posts, settings
 
   const fetchProfile = async () => {
-    if(!user) return;
-    setLoading(true);
+    if(!user) return; setLoading(true);
     const userDoc = await getDoc(doc(db, "users", user.uid));
-    if(userDoc.exists()){
-      const data = userDoc.data();
-      setProfile(data);
-      setName(data.name || "");
-      setBio(data.bio || "");
-      setSkills(data.skills?.join(", ") || "");
-      setFutureGoal(data.futureGoal || "");
-      setProjects(data.projects || []);
+    if(userDoc.exists()){ 
+      const data = userDoc.data() as any; 
+      setProfile(data); 
+      setName(data.name || ""); 
+      setBio(data.bio || ""); 
+      setSkills(data.skills?.join(", ") || ""); 
+      setFutureGoal(data.futureGoal || ""); 
+      setProjects(data.projects || []); 
     }
-    const followersSnap = await getDocs(query(collection(db, "follows"), where("followingId", "==", user.uid)));
+    const followersSnap = await getDocs(query(collection(db, "follows"), where("followingId", "==", user.uid))); 
     setFollowers(followersSnap.size);
-    const followingSnap = await getDocs(query(collection(db, "follows"), where("followerId", "==", user.uid)));
+    const followingSnap = await getDocs(query(collection(db, "follows"), where("followerId", "==", user.uid))); 
     setFollowing(followingSnap.size);
-    const postsSnap = await getDocs(query(collection(db, "posts"), where("userId", "==", user.uid), orderBy("createdAt", "desc")));
-    setMyPosts(postsSnap.docs.map(d => ({ id: d.id,...d.data() })));
+    const postsSnap = await getDocs(query(collection(db, "posts"), where("userId", "==", user.uid), orderBy("createdAt", "desc"))); 
+    setMyPosts(postsSnap.docs.map(d => ({ id: d.id,...d.data() as any })));
     setLoading(false);
   }
-
+  
   useEffect(() => { fetchProfile() },[user]);
 
   const handleSave = async () => {
@@ -634,7 +634,8 @@ function ProfileTab({user}: any) {
       {activeTab!== "settings" && <ProfileFooter />}
     </div>
   );
-                }
+            }
+
 
 function ProfileFooter() {
   const handleLogout = async () => {

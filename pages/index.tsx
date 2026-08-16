@@ -172,22 +172,26 @@ function FeedTab({user}: any) {
 
 // ===== REELS TAB =====
 // ===== REELS TAB WITH AUTO-PLAY FIXED =====
+// ===== REELS TAB WITH AUTO-PLAY FIXED =====
 function ReelsTab({user}: any) {
   const [reels, setReels] = useState<any[]>([]);
-  const videoRefs = useRef<(HTMLVideoElement | null)[]>([]); // <- FIX HERE
+  const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
 
   useEffect(() => { 
     const q = query(collection(db, "posts"), where("mediaType", "==", "video"), orderBy("createdAt", "desc"), limit(20)); 
     return onSnapshot(q, (snap) => setReels(snap.docs.map(d => ({ id: d.id,...d.data() as any })))) 
   }, []);
 
-  const handleScroll = (e: any) => { 
+  const handleScroll = () => { 
     videoRefs.current.forEach((video) => { 
-      if(!video) return; // <- FIX HERE
+      if(!video) return;
       const rect = video.getBoundingClientRect(); 
-      const inView = rect.top >= 0 && rect.bottom <= window.innerHeight; 
-      if(inView) video.play(); 
-      else video.pause(); 
+      const inView = rect.top >= -100 && rect.bottom <= window.innerHeight + 100; 
+      if(inView) {
+        video.play().catch(() => {}); 
+      } else {
+        video.pause(); 
+      }
     }) 
   }
 
@@ -202,7 +206,7 @@ function ReelsTab({user}: any) {
       {reels.map((reel, index) => (
         <div key={reel.id} className="h-[80vh] w-full flex items-center justify-center snap-start relative bg-black">
           <video 
-            ref={el => videoRefs.current[index] = el} 
+            ref={(el: HTMLVideoElement | null) => { videoRefs.current[index] = el }}
             src={reel.media} 
             loop 
             muted 
@@ -213,7 +217,7 @@ function ReelsTab({user}: any) {
             <img src={reel.userPhoto} className="w-10 h-10 rounded-full border-2 border-white"/>
             <div><p className="font-bold">{reel.userName}</p><p className="text-sm">{reel.text}</p></div>
           </div>
-          <div className="absolute bottom-20 right-4 flex flex-col gap-4">
+          <div className="absolute bottom-20 right-4 flex-col gap-4 text-white">
             <button onClick={() => handleLike(reel.id, reel.likes)} className="flex flex-col items-center">
               <Heart size={28} className={reel.likes?.includes(user.uid)? "fill-red-500 text-red-500" : ""}/>
               <span>{reel.likes?.length || 0}</span>

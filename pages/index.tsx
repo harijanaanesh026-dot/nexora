@@ -7,13 +7,15 @@ import { Home, Search, Bell, User, Plus, Flame, Star, Award, Edit, Save, Message
 import { toast, Toaster } from "sonner";
 
 // ===== FIREBASE CONFIG =====
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
+  authDomain: "nexoraai-75ae2.firebaseapp.com",
+  projectId: "nexoraai-75ae2",
+  storageBucket: "nexoraai-75ae2.firebasestorage.app",
+  messagingSenderId: "173122711177",
+  appId: "1:173122711177:web:68e373598d110d80c1e058",
+  measurementId: "G-11Y8XF8MBC"
 };
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);

@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, increment, where, arrayUnion } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { ArrowBigUp, ArrowBigDown, MessageCircle, Flag, Flame, Bell, User, Shield, Trash, Search } from "lucide-react";
+import { ArrowBigUp, ArrowBigDown, MessageCircle, Flag, Plus, Flame, Bell, User } from "lucide-react";
 
 // ========== FIREBASE CONFIG ==========
 const firebaseConfig = {
@@ -15,216 +14,184 @@ const firebaseConfig = {
   appId: "1:173122711177:web:68e373598d110d80c1e058",
   measurementId: "G-11Y8XF8MBC"
 };
-
 const app =!getApps().length? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app);
 const provider = new GoogleAuthProvider();
 // =====================================
 
-export default function CampusYak() {
-  const [user, setUser] = useState<any>(null);
-  const [college, setCollege] = useState("SVUCE Tirupati");
-  const [tab, setTab] = useState("feed");
-  const [posts, setPosts] = useState<any[]>([]);
-  const [search, setSearch] = useState("");
+const COLLEGES = ["SVUCE Tirupati", "JNTU Hyderabad", "IIT Madras", "VIT Vellore", "NIT Warangal", "BITS Pilani"];
 
+export default function CampusYakMVP() {
+  const [screen, setScreen] = useState(1);
+  const [user, setUser] = useState<any>(null);
+  const [college, setCollege] = useState("");
+  const [posts, setPosts] = useState<any[]>([]);
+  const [quickPost, setQuickPost] = useState(""); // Powerful idea
+  const [anonId] = useState(Math.floor(Math.random() * 9000 + 1000)); // Student #2481
+
+  // Login
   const login = async () => {
     const res = await signInWithPopup(auth, provider);
     setUser(res.user);
+    setScreen(3);
   }
 
+  // Load posts when college selected
   useEffect(() => {
-    const q = query(collection(db, "posts"), where("college", "==", college), orderBy("score", "desc"));
-    return onSnapshot(q, (snap) => setPosts(snap.docs.map(d => ({ id: d.id,...d.data() }))));
-  }, [college]);
+    if(screen >= 4 && college) {
+      const q = query(collection(db, "posts"), where("college", "==", college), orderBy("createdAt", "desc"));
+      return onSnapshot(q, (snap) => setPosts(snap.docs.map(d => ({ id: d.id,...d.data() }))));
+    }
+  }, [screen, college]);
+
+  const createPost = async (text: string, category: string = "🎓 Campus") => {
+    if(!text.trim()) return;
+    await addDoc(collection(db, "posts"), {
+      text, category, college, score: 0, anonId, owner: user.uid,
+      comments: [], createdAt: serverTimestamp()
+    });
+    setQuickPost("");
+    if(screen === 1 || screen === 4) alert("Posted!");
+  }
 
   const handleVote = async (postId: string, type: "up" | "down") => {
     await updateDoc(doc(db, "posts", postId), { score: increment(type === "up"? 1 : -1) });
   }
 
-  if(!user) return <LoginScreen onLogin={login} />;
+  // SCREEN 1: SPLASH
+  if(screen === 1) return (
+    <div className="h-screen bg-black text-white flex-col items-center justify-center p-6">
+      <h1 className="text-5xl font-bold text-purple-500">CampusYak</h1>
+      <p className="mt-2 text-gray-400">Your Campus. Your Voice.</p>
+      <button onClick={()=>setScreen(2)} className="mt-8 bg-purple-600 px-8 py-3 rounded-full font-bold text-lg">Get Started</button>
+    </div>
+  )
 
-  const filteredPosts = posts.filter(p => p.text?.toLowerCase().includes(search.toLowerCase()));
+  // SCREEN 2: GOOGLE LOGIN
+  if(screen === 2) return (
+    <div className="h-screen bg-black text-white flex flex-col items-center justify-center p-6">
+      <h1 className="text-2xl font-bold">Login</h1>
+      <button onClick={login} className="mt-4 bg-white text-black px-6 py-3 rounded-full font-bold">Continue with Google</button>
+    </div>
+  )
 
+  // SCREEN 3: SELECT COLLEGE
+  if(screen === 3) return (
+    <div className="h-screen bg-black text-white p-6">
+      <h1 className="text-2xl font-bold">Select Your College</h1>
+      <div className="mt-4 space-y-2 max-h-[70vh] overflow-y-auto">
+        {COLLEGES.map(c => <button key={c} onClick={()=>{setCollege(c); setScreen(4)}} className="w-full p-3 rounded bg-gray-900 text-left hover:bg-purple-900">{c}</button>)}
+      </div>
+    </div>
+  )
+
+  // MAIN APP WITH BOTTOM NAV
   return (
     <div className="pb-20 bg-black text-white min-h-screen">
-      <div className="sticky top-0 bg-black p-2 z-10">
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔎 Search #hashtag or keyword" className="w-full bg-gray-900 p-2 rounded-full"/>
+      {screen === 4 && <HomeFeed posts={posts} onVote={handleVote} onQuickPost={createPost} quickPost={quickPost} setQuickPost={setQuickPost} />}
+      {screen === 5 && <CreatePostScreen onPost={createPost} />}
+      {screen === 6 && <NotificationsScreen />}
+      {screen === 7 && <ProfileScreen posts={posts.filter(p=>p.owner===user.uid)} anonId={anonId} />}
+      {screen === 8 && <TrendingScreen posts={posts} onVote={handleVote} />}
+
+      <BottomNav screen={screen} setScreen={setScreen} />
+    </div>
+  )
+}
+
+// SCREEN 4: HOME FEED
+function HomeFeed({posts, onVote, onQuickPost, quickPost, setQuickPost}: any) {
+  return (
+    <div className="p-4">
+      <h1 className="text-2xl font-bold">🏠 Home Feed</h1>
+
+      {/* POWERFUL IDEA: QUICK POST BOX */}
+      <div className="bg-gray-900 p-3 rounded-xl my-4">
+        <input value={quickPost} onChange={e=>setQuickPost(e.target.value)} placeholder="What's happening in your campus today?" className="w-full bg-transparent outline-none"/>
+        <button onClick={()=>onQuickPost(quickPost)} className="mt-2 bg-purple-600 px-4 py-2 rounded-full font-bold">Post</button>
       </div>
 
-      {tab === "feed" && <Feed posts={filteredPosts} onVote={handleVote} />}
-      {tab === "post" && <CreatePost user={user} college={college} />}
-      {tab === "trending" && <Feed posts={filteredPosts.sort((a,b)=>(b.score||0)-(a.score||0)).slice(0,10)} onVote={handleVote} title="🔥 Trending" />}
-      {tab === "admin" && <Admin posts={posts} />}
-      {tab === "profile" && <Profile user={user} posts={posts} />}
-
-      <BottomNav tab={tab} setTab={setTab} />
-    </div>
-  )
-}
-
-function Feed({posts, onVote, title="🏠 Home Feed"}: any) {
-  return (
-    <div className="p-4 space-y-4">
-      <h1 className="text-2xl font-bold">{title}</h1>
-      {posts.filter((p:any)=>!p.deleted).map((p: any) => <PostCard key={p.id} post={p} onVote={onVote} />)}
-    </div>
-  )
-}
-
-function PostCard({post, onVote}: any) {
-  const [open, setOpen] = useState(false);
-  if(post.score <= -5) return null; // YIK YAK RULE
-
-  return (
-    <div className="border border-gray-800 rounded-xl p-4">
-      <div className="flex gap-3">
-        <div className="flex flex-col items-center w-10">
-          <button onClick={() => onVote(post.id, "up")}><ArrowBigUp /></button>
-          <span className={`font-bold ${post.score > 0? "text-green-400" : post.score < 0? "text-red-400" : ""}`}>{post.score || 0}</span>
-          <button onClick={() => onVote(post.id, "down")}><ArrowBigDown /></button>
-        </div>
-        <div className="flex-1">
-          <span className="bg-purple-600 text-xs px-2 py-1 rounded-full">{post.category}</span>
-          {post.image && <img src={post.image} className="w-full rounded mt-2"/>}
-
-          {post.type === "poll"? <Poll post={post} /> : <p className="mt-2">{post.text}</p>}
-
+      {posts.map((p: any) => (
+        <div key={p.id} className="border border-gray-800 rounded-xl p-4 mb-4">
+          <span className="bg-purple-600 text-xs px-2 py-1 rounded-full">{p.category}</span>
+          <p className="mt-2">{p.text}</p>
           <div className="flex gap-4 mt-3 opacity-70 text-sm">
-            <span>Yakker #{post.anonId}</span>
-            <button onClick={() => setOpen(!open)}><MessageCircle size={16} className="inline"/> {post.comments?.length || 0}</button>
+            <button onClick={() => onVote(p.id, "up")}><ArrowBigUp className="inline"/> {p.score || 0}</button>
+            <button onClick={() => onVote(p.id, "down")}><ArrowBigDown className="inline"/></button>
+            <button><MessageCircle size={16} className="inline"/> {p.comments?.length || 0}</button>
             <button><Flag size={16} className="inline"/></button>
           </div>
-          {open && <Comments postId={post.id} comments={post.comments || []} />}
         </div>
-      </div>
-    </div>
-  )
-}
-
-function Poll({post}: any) {
-  const [voted, setVoted] = useState(false);
-  const vote = async (i: number) => {
-    await updateDoc(doc(db, "posts", post.id), { [`pollVotes.${i}`]: increment(1) });
-    setVoted(true);
-  }
-  const total = post.pollVotes?.reduce((a:number,b:number)=>a+b,0) || 0;
-  return (
-    <div className="mt-2">
-      <p className="font-bold">{post.text}</p>
-      {post.pollOptions.map((opt: string, i: number) => (
-        <button key={i} onClick={() =>!voted && vote(i)} className="w-full bg-gray-800 p-2 rounded mt-2 text-left">
-          {opt} <span className="float-right">{total > 0? Math.round((post.pollVotes?.[i]||0)/total*100) : 0}%</span>
-        </button>
       ))}
     </div>
   )
 }
 
-function Comments({postId, comments}: any) {
+// SCREEN 5: CREATE POST
+function CreatePostScreen({onPost}: any) {
   const [text, setText] = useState("");
-  const add = async () => {
-    await updateDoc(doc(db, "posts", postId), {
-      comments: arrayUnion({ text, anonId: Math.floor(Math.random() * 9000 + 1000), time: Date.now() })
-    });
-    setText("");
-  }
-  return (
-    <div className="mt-3 border-t border-gray-800 pt-3 space-y-2">
-      {comments.map((c: any, i: number) => <p key={i} className="text-sm"><b>Yakker #{c.anonId}</b>: {c.text}</p>)}
-      <div className="flex gap-2">
-        <input value={text} onChange={e => setText(e.target.value)} placeholder="Reply..." className="flex-1 bg-gray-900 p-2 rounded"/>
-        <button onClick={add} className="bg-purple-600 px-3 rounded">Reply</button>
-      </div>
-    </div>
-  )
-}
-
-function CreatePost({user, college}: any) {
-  const [text, setText] = useState("");
-  const [category, setCategory] = useState("Confession");
+  const [category, setCategory] = useState("🎓 Campus");
   const [type, setType] = useState("text");
-  const [options, setOptions] = useState(["", ""]);
-  const [file, setFile] = useState<any>(null);
-
-  const post = async () => {
-    let imageUrl = "";
-    if(file) {
-      const storageRef = ref(storage, `posts/${Date.now()}`);
-      const snap = await uploadBytes(storageRef, file);
-      imageUrl = await getDownloadURL(snap.ref);
-    }
-    await addDoc(collection(db, "posts"), {
-      text, category, college, type, image: imageUrl, score: 0, anonId: Math.floor(Math.random() * 9000 + 1000),
-      pollOptions: type === "poll"? options : [], pollVotes: type === "poll"? [0,0] : [],
-      comments: [], deleted: false, createdAt: serverTimestamp()
-    });
-    setText(""); setFile(null);
-    alert("Posted!");
-  }
+  const categories = ["🎓 Campus", "❓ Question", "😂 Meme", "❤️ Confession", "🔍 Lost & Found"];
 
   return (
     <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">➕ Create Yak</h1>
-      <select value={type} onChange={e => setType(e.target.value)} className="w-full bg-gray-900 p-2 rounded mb-2">
-        <option value="text">Text</option><option value="poll">Poll</option>
-      </select>
-      <select value={category} onChange={e => setCategory(e.target.value)} className="w-full bg-gray-900 p-2 rounded mb-2">
-        <option>Confession</option><option>Question</option><option>Meme</option><option>Lost & Found</option>
-      </select>
-
-      {type === "poll" && options.map((opt, i) => (
-        <input key={i} value={opt} onChange={e => {const o=[...options]; o[i]=e.target.value; setOptions(o)}}
-        placeholder={`Option ${i+1}`} className="w-full bg-gray-900 p-2 rounded mb-2"/>
-      ))}
-
-      <textarea value={text} onChange={e => setText(e.target.value)} placeholder="What's on your campus mind?" className="w-full h-32 bg-gray-900 p-3 rounded"/>
-      <input type="file" onChange={e => setFile(e.target.files?.[0])} className="mt-2"/>
-      <button onClick={post} className="bg-purple-600 w-full px-6 py-3 rounded-full mt-2 font-bold">Post Anonymously</button>
+      <h1 className="text-2xl font-bold">➕ Create Post</h1>
+      <div className="flex gap-2 my-3">
+        <button onClick={()=>setType("text")} className={`px-3 py-1 rounded-full ${type==="text"? "bg-purple-600" : "bg-gray-800"}`}>Text</button>
+        <button onClick={()=>setType("poll")} className={`px-3 py-1 rounded-full ${type==="poll"? "bg-purple-600" : "bg-gray-800"}`}>Poll</button>
+      </div>
+      <div className="flex gap-2 overflow-x-auto my-3">
+        {categories.map(c => <button key={c} onClick={()=>setCategory(c)} className={`px-3 py-1 rounded-full ${category===c? "bg-purple-600" : "bg-gray-800"}`}>{c}</button>)}
+      </div>
+      <textarea value={text} onChange={e => setText(e.target.value)} placeholder={type==="poll"? "Ask a question..." : "Write your yak..."} className="w-full h-40 bg-gray-900 p-3 rounded"/>
+      <button onClick={()=>onPost(text, category)} className="bg-purple-600 w-full py-3 rounded-full mt-2 font-bold">Post Anonymously</button>
     </div>
   )
 }
 
-function Admin({posts}: any) {
-  const del = async (id: string) => await updateDoc(doc(db, "posts", id), { deleted: true });
+// SCREEN 6: NOTIFICATIONS
+function NotificationsScreen() {
+  const notifs = ["Yakker #1234 replied to your post", "Your post got 10 upvotes", "Someone mentioned you"];
   return (
     <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">👮 Admin Panel</h1>
-      {posts.map((p: any) => (
-        <div key={p.id} className="border border-red-800 p-3 rounded mb-2 flex justify-between">
-          <div><p>{p.text}</p><p className="text-xs opacity-50">Score: {p.score} | Yakker #{p.anonId}</p></div>
-          <button onClick={() => del(p.id)}><Trash className="text-red-500"/></button>
-        </div>
-      ))}
+      <h1 className="text-2xl font-bold">🔔 Notifications</h1>
+      {notifs.map((n,i) => <div key={i} className="border-b border-gray-800 p-3">{n}</div>)}
     </div>
   )
 }
 
-function Profile({user, posts}: any) {
+// SCREEN 7: PROFILE
+function ProfileScreen({posts, anonId}: any) {
   const karma = posts.reduce((a,p)=>a+(p.score||0),0);
   return (
     <div className="p-4">
-      <h1 className="text-2xl font-bold">👤 Yakker #{Math.floor(Math.random() * 9000 + 1000)}</h1>
-      <p className="mt-2">🏆 Karma: {karma}</p>
-      <p>📝 Your Yaks: {posts.length}</p>
+      <h1 className="text-2xl font-bold">👤 Profile</h1>
+      <p className="mt-2 text-lg">Anonymous ID: <b>Student #{anonId}</b></p>
+      <p>🏆 Karma: {karma}</p>
+      <h2 className="mt-4 font-bold">My Posts</h2>
+      {posts.length === 0 && <p className="opacity-50">No posts yet</p>}
+      {posts.map((p:any) => <div key={p.id} className="bg-gray-900 p-2 rounded mt-2">{p.text}</div>)}
     </div>
   )
 }
 
-function BottomNav({tab, setTab}: any) {
+// SCREEN 8: TRENDING
+function TrendingScreen({posts, onVote}: any) {
+  const trending = [...posts].sort((a,b)=>(b.score||0)-(a.score||0)).slice(0,10);
+  return <HomeFeed posts={trending} onVote={onVote} />
+}
+
+// BOTTOM NAV
+function BottomNav({screen, setScreen}: any) {
   const tabs = [
-    {id: "feed", icon: "🏠"}, {id: "post", icon: "➕"}, {id: "trending", icon: "🔥"},
-    {id: "admin", icon: "👮"}, {id: "profile", icon: "👤"}
+    {id: 4, icon: "🏠"}, {id: 5, icon: "➕"}, {id: 8, icon: "🔥"},
+    {id: 6, icon: "🔔"}, {id: 7, icon: "👤"}
   ];
   return (
     <div className="fixed bottom-0 w-full flex justify-around bg-gray-950 p-3 border-t border-gray-800">
-      {tabs.map(t => <button key={t.id} onClick={() => setTab(t.id)} className={`text-2xl ${tab === t.id? "" : "opacity-50"}`}>{t.icon}</button>)}
+      {tabs.map(t => <button key={t.id} onClick={() => setScreen(t.id)} className={`text-2xl ${screen === t.id? "" : "opacity-50"}`}>{t.icon}</button>)}
     </div>
   )
-}
-
-function LoginScreen({onLogin}: any) {
-  return <div className="h-screen flex flex-col items-center justify-center"><h1 className="text-4xl font-bold">CampusYak</h1><p>100% Anonymous. 100% Your College.</p><button onClick={onLogin} className="bg-white text-black px-6 py-3 rounded-full mt-4">Login with Google</button></div>
-                                                           }
+                         }

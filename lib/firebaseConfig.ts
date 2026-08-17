@@ -1,10 +1,11 @@
-import { getApps, initializeApp, getApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth'; // GoogleAuthProvider add chesam
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage'; // storage add chesam
+// lib/firebase.ts
+import { initializeApp, getApps } from "firebase/app";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
+import { getAnalytics } from "firebase/analytics";
 
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// Nuvvu ichina keys
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
   authDomain: "nexoraai-75ae2.firebaseapp.com",
@@ -15,9 +16,13 @@ const firebaseConfig = {
   measurementId: "G-11Y8XF8MBC"
 };
 
-const app =!getApps().length? initializeApp(firebaseConfig) : getApp();
+// App initialize
+const app =!getApps().length? initializeApp(firebaseConfig) : getApps()[0];
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app); // IDI KOTHAGA ADD CHESAM
-export const googleProvider = new GoogleAuthProvider(); // IDI KUDA ADD CHESAM
+export const storage = getStorage(app);
+export const provider = new GoogleAuthProvider();
+
+// Analytics - browser lo matrame run avthadi
+export const analytics = typeof window!== "undefined"? getAnalytics(app) : null;

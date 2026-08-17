@@ -3,7 +3,7 @@ import { initializeApp, getApps } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, increment, where, arrayUnion } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { ArrowBigUp, ArrowBigDown, MessageCircle, Flag, Flame, Bell, User, Trash, Shield, Image as ImageIcon } from "lucide-react";
+import { ArrowBigUp, ArrowBigDown, MessageCircle, Flag, Flame, Bell, User, Trash, Shield } from "lucide-react";
 
 // ========== FIREBASE CONFIG ==========
 const firebaseConfig = {
@@ -22,10 +22,8 @@ const storage = getStorage(app);
 const provider = new GoogleAuthProvider();
 // =====================================
 
-// 3. ADMIN EMAILS - Ikkada nee email pettu
-const ADMIN_EMAILS = ["your_email@gmail.com"];
-
-const COLLEGES = ["SVUCE Tirupati", "JNTU Hyderabad", "IIT Madras", "VIT Vellore"];
+const ADMIN_EMAILS = ["your_email@gmail.com"]; // Nee gmail id pettu
+const COLLEGES = ["BITS Adoni", "Arts & Science Adoni", "SRET Tirupati", "Junior College Mantralayam"];
 
 export default function CampusYakMVP() {
   const [screen, setScreen] = useState(1);
@@ -35,7 +33,7 @@ export default function CampusYakMVP() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [quickPost, setQuickPost] = useState("");
   const [anonId] = useState(Math.floor(Math.random() * 9000 + 1000));
-  const isAdmin = user && ADMIN_EMAILS.includes(user.email); // 3. ADMIN CHECK
+  const isAdmin = user && ADMIN_EMAILS.includes(user.email);
 
   const login = async () => {
     const res = await signInWithPopup(auth, provider);
@@ -46,11 +44,10 @@ export default function CampusYakMVP() {
   useEffect(() => {
     if(screen >= 4 && college) {
       const q = query(collection(db, "posts"), where("college", "==", college), orderBy("createdAt", "desc"));
-      return onSnapshot(q, (snap) => setPosts(snap.docs.map(d => ({ id: d.id,...d.data() }))));
+      return onSnapshot(q, (snap) => setPosts(snap.docs.map(d => ({ id: d.id,...d.data() })))));
     }
   }, [screen, college]);
 
-  // 2. REAL NOTIFICATIONS
   useEffect(() => {
     if(user) {
       const q = query(collection(db, "notifications"), where("to", "==", user.uid), orderBy("time", "desc"));
@@ -61,7 +58,7 @@ export default function CampusYakMVP() {
   const createPost = async (text: string, category: string = "🎓 Campus", file: any = null) => {
     if(!text.trim() &&!file) return;
     let imageUrl = "";
-    if(file) { // 1. IMAGE UPLOAD
+    if(file) {
       const storageRef = ref(storage, `posts/${Date.now()}`);
       const snap = await uploadBytes(storageRef, file);
       imageUrl = await getDownloadURL(snap.ref);
@@ -75,7 +72,6 @@ export default function CampusYakMVP() {
 
   const handleVote = async (postId: string, type: "up" | "down", owner: string) => {
     await updateDoc(doc(db, "posts", postId), { score: increment(type === "up"? 1 : -1) });
-    // 2. SEND NOTIFICATION
     await addDoc(collection(db, "notifications"), {
       to: owner, text: `Your post got ${type}voted!`, time: serverTimestamp(), read: false
     });
@@ -85,7 +81,6 @@ export default function CampusYakMVP() {
     await updateDoc(doc(db, "posts", postId), {
       comments: arrayUnion({ text: comment, anonId: Math.floor(Math.random() * 9000 + 1000) })
     });
-    // 2. SEND NOTIFICATION
     await addDoc(collection(db, "notifications"), {
       to: owner, text: `New comment on your post`, time: serverTimestamp(), read: false
     });
@@ -104,8 +99,11 @@ export default function CampusYakMVP() {
     await updateDoc(doc(db, "notifications", id), { read: true });
   }
 
+  // SCREEN 1: SPLASH
   if(screen === 1) return <Splash onNext={()=>setScreen(2)} />
+  // SCREEN 2: LOGIN
   if(screen === 2) return <Login onLogin={login} />
+  // SCREEN 3: COLLEGE
   if(screen === 3) return <SelectCollege colleges={COLLEGES} onSelect={(c)=>{setCollege(c); setScreen(4)}} />
 
   return (
@@ -116,14 +114,43 @@ export default function CampusYakMVP() {
       {screen === 7 && <ProfileScreen posts={posts.filter(p=>p.owner===user.uid)} anonId={anonId} />}
       {screen === 8 && <TrendingScreen posts={posts} onVote={handleVote} onReport={handleReport} onComment={handleComment} user={user} />}
       {screen === 9 && isAdmin && <AdminScreen posts={posts} onDelete={handleDelete} />}
-
       <BottomNav screen={screen} setScreen={setScreen} isAdmin={isAdmin} notifCount={notifications.filter(n=>!n.read).length} />
     </div>
   )
 }
 
-//... Splash, Login, SelectCollege same as before...
+// FIXED: MISSING COMPONENTS ADDED
+function Splash({onNext}: any) {
+  return (
+    <div className="h-screen bg-black text-white flex-col items-center justify-center p-6">
+      <h1 className="text-5xl font-bold text-purple-500">CampusYak</h1>
+      <p className="mt-2 text-gray-400">Your Campus. Your Voice.</p>
+      <button onClick={onNext} className="mt-8 bg-purple-600 px-8 py-3 rounded-full font-bold text-lg">Get Started</button>
+    </div>
+  )
+}
 
+function Login({onLogin}: any) {
+  return (
+    <div className="h-screen bg-black text-white flex-col items-center justify-center p-6">
+      <h1 className="text-2xl font-bold">Login</h1>
+      <button onClick={onLogin} className="mt-4 bg-white text-black px-6 py-3 rounded-full font-bold">Continue with Google</button>
+    </div>
+  )
+}
+
+function SelectCollege({colleges, onSelect}: any) {
+  return (
+    <div className="h-screen bg-black text-white p-6">
+      <h1 className="text-2xl font-bold">Select Your College</h1>
+      <div className="mt-4 space-y-2">
+        {colleges.map((c:string) => <button key={c} onClick={()=>onSelect(c)} className="w-full p-3 rounded bg-gray-900 text-left hover:bg-purple-900">{c}</button>)}
+      </div>
+    </div>
+  )
+}
+
+// REST OF COMPONENTS...
 function HomeFeed({posts, onVote, onComment, onReport, onQuickPost, quickPost, setQuickPost, user}: any) {
   return (
     <div className="p-4">
@@ -142,12 +169,11 @@ function HomeFeed({posts, onVote, onComment, onReport, onQuickPost, quickPost, s
 function PostCard({post, onVote, onComment, onReport, user}: any) {
   const [open, setOpen] = useState(false);
   const [comment, setComment] = useState("");
-
   return (
     <div className="border border-gray-800 rounded-xl p-4 mb-4">
       <span className="bg-purple-600 text-xs px-2 py-1 rounded-full">{post.category}</span>
       <p className="mt-2">{post.text}</p>
-      {post.image && <img src={post.image} className="w-full rounded mt-2"/>} {/* 1. IMAGE SHOW */}
+      {post.image && <img src={post.image} className="w-full rounded mt-2"/>}
       <div className="flex gap-4 mt-3 opacity-70 text-sm">
         <span>Student #{post.anonId}</span>
         <button onClick={() => onVote(post.id, "up", post.owner)}><ArrowBigUp className="inline"/> {post.score || 0}</button>
@@ -155,7 +181,6 @@ function PostCard({post, onVote, onComment, onReport, user}: any) {
         <button onClick={() => setOpen(!open)}><MessageCircle size={16} className="inline"/> {post.comments?.length || 0}</button>
         <button onClick={() => onReport(post.id)}><Flag size={16} className="inline"/></button>
       </div>
-
       {open && (
         <div className="mt-3 border-t border-gray-800 pt-3">
           {post.comments?.map((c: any, i: number) => <p key={i} className="text-sm"><b>Student #{c.anonId}</b>: {c.text}</p>)}
@@ -172,9 +197,8 @@ function PostCard({post, onVote, onComment, onReport, user}: any) {
 function CreatePostScreen({onPost}: any) {
   const [text, setText] = useState("");
   const [category, setCategory] = useState("🎓 Campus");
-  const [file, setFile] = useState<any>(null); // 1. IMAGE STATE
+  const [file, setFile] = useState<any>(null);
   const categories = ["🎓 Campus", "❓ Question", "😂 Meme", "❤️ Confession", "🔍 Lost & Found"];
-
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold">➕ Create Post</h1>
@@ -182,21 +206,18 @@ function CreatePostScreen({onPost}: any) {
         {categories.map(c => <button key={c} onClick={()=>setCategory(c)} className={`px-3 py-1 rounded-full ${category===c? "bg-purple-600" : "bg-gray-800"}`}>{c}</button>)}
       </div>
       <textarea value={text} onChange={e => setText(e.target.value)} placeholder="Write your yak..." className="w-full h-40 bg-gray-900 p-3 rounded"/>
-      <input type="file" onChange={e=>setFile(e.target.files?.[0])} className="mt-2"/> {/* 1. IMAGE INPUT */}
+      <input type="file" onChange={e=>setFile(e.target.files?.[0])} className="mt-2"/>
       <button onClick={()=>onPost(text, category, file)} className="bg-purple-600 w-full py-3 rounded-full mt-2 font-bold">Post</button>
     </div>
   )
 }
 
-// 2. REAL NOTIFICATIONS SCREEN
 function NotificationsScreen({notifications, onRead}: any) {
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold">🔔 Notifications</h1>
       {notifications.map((n:any) => (
-        <div key={n.id} onClick={()=>onRead(n.id)} className={`border-b border-gray-800 p-3 ${n.read? "opacity-50" : "bg-purple-900/20"}`}>
-          {n.text}
-        </div>
+        <div key={n.id} onClick={()=>onRead(n.id)} className={`border-b border-gray-800 p-3 ${n.read? "opacity-50" : "bg-purple-900/20"}`}>{n.text}</div>
       ))}
     </div>
   )
@@ -220,7 +241,6 @@ function TrendingScreen({posts, onVote, onReport, onComment, user}: any) {
   return <HomeFeed posts={trending} onVote={onVote} onComment={onComment} onReport={onReport} user={user} />
 }
 
-// 3. ADMIN PANEL
 function AdminScreen({posts, onDelete}: any) {
   const reported = posts.filter((p:any)=>p.reports > 0 &&!p.deleted);
   return (
@@ -244,7 +264,6 @@ function BottomNav({screen, setScreen, isAdmin, notifCount}: any) {
     {id: 6, icon: "🔔"}, {id: 7, icon: "👤"}
   ];
   if(isAdmin) tabs.push({id: 9, icon: "👮"});
-
   return (
     <div className="fixed bottom-0 w-full flex justify-around bg-gray-950 p-3 border-t border-gray-800">
       {tabs.map(t => <button key={t.id} onClick={() => setScreen(t.id)} className={`text-2xl relative ${screen === t.id? "" : "opacity-50"}`}>
@@ -253,4 +272,4 @@ function BottomNav({screen, setScreen, isAdmin, notifCount}: any) {
       </button>)}
     </div>
   )
-    }
+                        }

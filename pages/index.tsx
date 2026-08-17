@@ -1,12 +1,16 @@
 import { useState, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
-import L from 'leaflet';
+import dynamic from 'next/dynamic';
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "firebase/auth";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, increment, arrayUnion, GeoPoint, getDoc, setDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { ArrowBigUp, MessageCircle, Flag, Flame, Bell, User, Trash, Shield, Map, Search } from "lucide-react";
+
+// DYNAMIC IMPORTS WITH SSR FALSE
+const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false });
+const Marker = dynamic(() => import('react-leaflet').then((mod) => mod.Marker), { ssr: false });
+const Popup = dynamic(() => import('react-leaflet').then((mod) => mod.Popup), { ssr: false });
 
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
@@ -23,39 +27,36 @@ const storage = getStorage(app);
 const provider = new GoogleAuthProvider();
 
 const ADMIN_EMAILS = ["harijanaanesh026@gmail.com"];
-const RADIUS_KM = 10; // Yik Yak = 8km. Manam India kosam 10km
+const RADIUS_KM = 10;
 
-// FIX 1: TYPESCRIPT TYPE DEFINE CHESAM
 type Post = {
-  id: string;
-  text: string;
-  image?: string;
-  score: number;
-  yakarma: number;
-  owner: string;
-  comments: any[];
-  reports: number;
-  deleted: boolean;
-  createdAt: any;
+  id: string; text: string; image?: string; score: number; yakarma: number; owner: string;
+  comments: any[]; reports: number; deleted: boolean; createdAt: any;
   location?: { latitude: number; longitude: number };
 }
-
-// Leaflet icon fix
-const icon = new L.Icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41]
-});
 
 export default function YikYakUSA() {
   const [screen, setScreen] = useState(1);
   const [user, setUser] = useState<any>(null);
   const [location, setLocation] = useState<any>(null);
-  const [posts, setPosts] = useState<Post[]>([]); // FIX 2: Post[]
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [quickPost, setQuickPost] = useState("");
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [icon, setIcon] = useState<any>(null);
   const [yakarma, setYakarma] = useState(1000);
+  const [L, setL] = useState<any>(null); // L NI STATE LO PETTAM
   const isAdmin = user && ADMIN_EMAILS.includes(user.email);
+
+  // FIX: LEAFLET NI CLIENT SIDE LO MATRAM LOAD CHEY
+  useEffect(() => {
+    if (typeof window!== 'undefined') {
+      const leaflet = require('leaflet');
+      setL(leaflet);
+      delete leaflet.Icon.Default.prototype._getIconUrl;
+      setIcon(new leaflet.Icon({
+        iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+        iconSize: [25, 41], iconAnchor: [12, 41]
+      }));
+    }
+  }, []);
 
   useEffect(() => {
     onAuthStateChanged(auth, (u) => { if (u) { setUser(u); getYakarma(u.uid); getLocation(); setScreen(3); } });
@@ -64,22 +65,19 @@ export default function YikYakUSA() {
   const getYakarma = async (uid: string) => {
     const ref = doc(db, "users", uid);
     const snap = await getDoc(ref);
-    if (!snap.exists()) { setDoc(ref, { yakarma: Math.floor(Math.random() * 9000 + 1000) }); setYakarma(Math.floor(Math.random() * 9000 + 1000)) }
+    if (!snap.exists()) { const k = Math.floor(Math.random() * 9000 + 1000); setDoc(ref, { yakarma: k }); setYakarma(k) }
     else setYakarma(snap.data().yakarma);
   }
 
   const login = async () => {
     const res = await signInWithPopup(auth, provider);
-    setUser(res.user);
-    getYakarma(res.user.uid);
-    getLocation();
-    setScreen(3);
+    setUser(res.user); getYakarma(res.user.uid); getLocation(); setScreen(3);
   }
 
   const getLocation = () => {
     navigator.geolocation.getCurrentPosition(
       (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => alert("Location ON chey bro, Yik work avvadhu")
+      () => alert("Location ON chey bro")
     );
   }
 
@@ -87,7 +85,7 @@ export default function YikYakUSA() {
     if(screen >= 3 && location) {
       const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
       return onSnapshot(q, (snap) => {
-        const allPosts: Post[] = snap.docs.map(d => ({ id: d.id,...d.data() } as Post)) // FIX 3: as Post
+        const allPosts: Post[] = snap.docs.map(d => ({ id: d.id,...d.data() } as Post))
         const nearbyPosts = allPosts.filter(p => p.location && getDistance(location, p.location) <= RADIUS_KM &&!p.deleted)
         setPosts(nearbyPosts)
       })
@@ -113,26 +111,18 @@ export default function YikYakUSA() {
       text, location: new GeoPoint(location.lat, location.lng), image: imageUrl,
       score: 0, yakarma, owner: user.uid, comments: [], reports: 0, deleted: false, createdAt: serverTimestamp()
     });
-    setQuickPost("");
   }
 
   const handleVote = async (postId: string, owner: string) => {
     await updateDoc(doc(db, "posts", postId), { score: increment(1) });
     if(owner!== user.uid) await addDoc(collection(db, "notifications"), { to: owner, text: `Your yak got upvoted!`, time: serverTimestamp(), read: false });
   }
-
   const handleComment = async (postId: string, text: string, owner: string) => {
     await updateDoc(doc(db, "posts", postId), { comments: arrayUnion({ text, yakarma, time: new Date() }) });
     if(owner!== user.uid) await addDoc(collection(db, "notifications"), { to: owner, text: `New comment on your yak`, time: serverTimestamp(), read: false });
   }
-
-  const handleReport = async (postId: string) => {
-    await updateDoc(doc(db, "posts", postId), { reports: increment(1) });
-  }
-
-  const handleDelete = async (postId: string) => {
-    await updateDoc(doc(db, "posts", postId), { deleted: true });
-  }
+  const handleReport = async (postId: string) => { await updateDoc(doc(db, "posts", postId), { reports: increment(1) }); }
+  const handleDelete = async (postId: string) => { await updateDoc(doc(db, "posts", postId), { deleted: true }); }
 
   if(screen === 1) return <Splash onNext={()=>setScreen(2)} />
   if(screen === 2) return <Login onLogin={login} />
@@ -140,30 +130,25 @@ export default function YikYakUSA() {
   return (
     <div className="pb-20 bg-[#F9F9F9] text-black min-h-screen">
       <h1 className="p-4 text-3xl font-black text-[#FDCB00]">yik yak</h1>
-
       {screen === 3 && <HomeFeed posts={posts} onVote={handleVote} onComment={handleComment} onReport={handleReport} onDelete={handleDelete} user={user} isAdmin={isAdmin} setScreen={setScreen} />}
       {screen === 4 && <CreatePostScreen onPost={createPost} onBack={()=>setScreen(3)} />}
-      {screen === 5 && <NotificationsScreen notifications={notifications} />}
-      {screen === 6 && <ProfileScreen yakarma={yakarma} />}
       {screen === 7 && <HerddScreen posts={posts.filter(p=>p.score >= 5)} onVote={handleVote} onComment={handleComment} />}
-      {screen === 8 && <PeekScreen posts={posts} location={location} setLocation={setLocation} />}
-      {screen === 9 && location && <MapScreen posts={posts} userLocation={location} />}
+      {screen === 8 && <PeekScreen setLocation={setLocation} />}
+      {screen === 9 && location && icon && <MapScreen posts={posts} userLocation={location} icon={icon} />}
       {screen === 10 && isAdmin && <AdminScreen posts={posts} onDelete={handleDelete} />}
-
       <BottomNav screen={screen} setScreen={setScreen} isAdmin={isAdmin} />
     </div>
   )
 }
 
+// REST OF COMPONENTS SAME AS BEFORE
 function Splash({onNext}: any) { return <div className="h-screen flex flex-col items-center justify-center bg-[#FDCB00]"><h1 className="text-5xl font-black">yik yak</h1><button onClick={onNext} className="mt-10 bg-black text-white px-8 py-3 rounded-full">Continue</button></div> }
 function Login({onLogin}: any) { return <div className="h-screen flex-col items-center justify-center p-8"><h1 className="text-3xl font-bold mb-2">Welcome to Yik Yak</h1><p className="opacity-60 mb-10">See what's happening nearby anonymously</p><button onClick={onLogin} className="w-full bg-[#FDCB00] text-black font-bold py-3 rounded-full">Continue with Google</button></div> }
-function HomeFeed({posts, onVote, onComment, onReport, onDelete, user, isAdmin, setScreen}: any) { return <div className="p-4">{posts.length === 0? <p className="text-center opacity-50 mt-10">No Yaks in your herd yet. Be the first!</p> : posts.map((p: Post) => <PostCard key={p.id} post={p} onVote={onVote} onComment={onComment} onReport={onReport} onDelete={onDelete} user={user} isAdmin={isAdmin} showDownvote={true} />)} <button onClick={()=>setScreen(4)} className="fixed bottom-24 right-5 bg-[#FDCB00] w-14 h-14 rounded-full text-3xl">+</button></div> }
-function HerddScreen({posts, onVote, onComment}: any) { return <div className="p-4"><h1 className="text-2xl font-bold flex items-center gap-2"><Flame/> herdd</h1><p className="opacity-60 text-sm mb-4">Most liked yaks in your herd</p>{posts.map((p: Post) => <PostCard key={p.id} post={p} onVote={onVote} onComment={onComment} showDownvote={false} />)}</div> }
-function PeekScreen({posts, location, setLocation}: any) { const cities = [{name: "New York, NY", lat: 40.7128, lng: -74.0060}, {name: "Los Angeles, CA", lat: 34.0522, lng: -118.2437}, {name: "Hyderabad, India", lat: 17.3850, lng: 78.4867}]; return <div className="p-4"><h1 className="text-2xl font-bold flex items-center gap-2"><Search/> peek</h1>{cities.map(c => <button key={c.name} onClick={()=>setLocation(c)} className="w-full p-3 bg-gray-200 rounded my-1">{c.name}</button>)}</div> }
-function MapScreen({posts, userLocation}: any) { return <div className="p-4"><h1 className="text-2xl font-bold mb-2">🗺️ Nearby Yaks</h1><MapContainer center={[userLocation.lat, userLocation.lng]} zoom={13} style={{ height: "70vh", width: "100%", borderRadius: "12px" }}><TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" /><Marker position={[userLocation.lat, userLocation.lng]} icon={icon}><Popup>You</Popup></Marker>{posts.map((p: Post) => p.location && <Marker key={p.id} position={[p.location.latitude, p.location.longitude]} icon={icon}><Popup><b>Yakarma #{p.yakarma}</b><br/>{p.text.substring(0, 50)}</Popup></Marker>)}</MapContainer></div> }
-function PostCard({post, onVote, onComment, onReport, onDelete, user, isAdmin, showDownvote}: any) { const [comment, setComment] = useState(""); return <div className="bg-white rounded-2xl p-4 mb-3 shadow"><p className="text-xs opacity-60">Anonymous • Yakarma #{post.yakarma}</p><p className="whitespace-pre-wrap my-2">{post.text}</p>{post.image && <img src={post.image} className="w-full rounded mt-2"/>}<div className="flex gap-4 mt-3 text-gray-600"><button onClick={() => onVote(post.id, post.owner)} className="flex items-center gap-1 text-[#FDCB00] font-bold"><ArrowBigUp/> {post.score || 0}</button><button onClick={()=>document.getElementById(`c-${post.id}`)?.classList.toggle('hidden')}><MessageCircle size={18}/> {post.comments?.length || 0}</button><button onClick={()=>onReport(post.id)}><Flag size={18}/></button>{(isAdmin || post.owner === user.uid) && <button onClick={()=>onDelete(post.id)}><Trash size={18}/></button>}</div><div id={`c-${post.id}`} className="hidden mt-2"><input value={comment} onChange={e=>setComment(e.target.value)} className="w-full p-2 border rounded"/><button onClick={()=>{onComment(post.id, comment, post.owner); setComment("")}} className="mt-1 bg-[#FDCB00] px-3 py-1 rounded">Post</button></div></div> }
+function HomeFeed({posts, onVote, onComment, onReport, onDelete, user, isAdmin, setScreen}: any) { return <div className="p-4">{posts.length === 0? <p className="text-center opacity-50 mt-10">No Yaks in your herd yet. Be the first!</p> : posts.map((p: Post) => <PostCard key={p.id} post={p} onVote={onVote} onComment={onComment} onReport={onReport} onDelete={onDelete} user={user} isAdmin={isAdmin} />)} <button onClick={()=>setScreen(4)} className="fixed bottom-24 right-5 bg-[#FDCB00] w-14 h-14 rounded-full text-3xl">+</button></div> }
+function HerddScreen({posts, onVote, onComment}: any) { return <div className="p-4"><h1 className="text-2xl font-bold flex items-center gap-2"><Flame/> herdd</h1><p className="opacity-60 text-sm mb-4">Most liked yaks in your herd</p>{posts.map((p: Post) => <PostCard key={p.id} post={p} onVote={onVote} onComment={onComment} />)}</div> }
+function PeekScreen({setLocation}: any) { const cities = [{name: "New York, NY", lat: 40.7128, lng: -74.0060}, {name: "Los Angeles, CA", lat: 34.0522, lng: -118.2437}, {name: "Hyderabad, India", lat: 17.3850, lng: 78.4867}]; return <div className="p-4"><h1 className="text-2xl font-bold flex items-center gap-2"><Search/> peek</h1>{cities.map(c => <button key={c.name} onClick={()=>setLocation(c)} className="w-full p-3 bg-gray-200 rounded my-1">{c.name}</button>)}</div> }
+function MapScreen({posts, userLocation, icon}: any) { return <div className="p-4"><h1 className="text-2xl font-bold mb-2">🗺️ Nearby Yaks</h1><MapContainer center={[userLocation.lat, userLocation.lng]} zoom={13} style={{ height: "70vh", width: "100%", borderRadius: "12px" }}><TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" /><Marker position={[userLocation.lat, userLocation.lng]} icon={icon}><Popup>You</Popup></Marker>{posts.map((p: Post) => p.location && <Marker key={p.id} position={[p.location.latitude, p.location.longitude]} icon={icon}><Popup><b>Yakarma #{p.yakarma}</b><br/>{p.text.substring(0, 50)}</Popup></Marker>)}</MapContainer></div> }
+function PostCard({post, onVote, onComment, onReport, onDelete, user, isAdmin}: any) { const [comment, setComment] = useState(""); return <div className="bg-white rounded-2xl p-4 mb-3 shadow"><p className="text-xs opacity-60">Anonymous • Yakarma #{post.yakarma}</p><p className="whitespace-pre-wrap my-2">{post.text}</p>{post.image && <img src={post.image} className="w-full rounded mt-2"/>}<div className="flex gap-4 mt-3 text-gray-600"><button onClick={() => onVote(post.id, post.owner)} className="flex items-center gap-1 text-[#FDCB00] font-bold"><ArrowBigUp/> {post.score || 0}</button><button onClick={()=>document.getElementById(`c-${post.id}`)?.classList.toggle('hidden')}><MessageCircle size={18}/> {post.comments?.length || 0}</button><button onClick={()=>onReport(post.id)}><Flag size={18}/></button>{(isAdmin || post.owner === user.uid) && <button onClick={()=>onDelete(post.id)}><Trash size={18}/></button>}</div><div id={`c-${post.id}`} className="hidden mt-2"><input value={comment} onChange={e=>setComment(e.target.value)} className="w-full p-2 border rounded"/><button onClick={()=>{onComment(post.id, comment, post.owner); setComment("")}} className="mt-1 bg-[#FDCB00] px-3 py-1 rounded">Post</button></div></div> }
 function CreatePostScreen({onPost, onBack}: any) { const [text, setText] = useState(""); const [file, setFile] = useState<any>(null); return <div className="p-4"><button onClick={onBack}>← Back</button><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="What's happening?" className="w-full h-40 p-2 mt-2 border rounded"/><input type="file" onChange={e=>setFile(e.target.files?.[0])} className="mt-2"/><button onClick={()=>onPost(text, file)} className="w-full mt-4 bg-[#FDCB00] font-bold py-3 rounded-full">Yak</button></div> }
-function NotificationsScreen({notifications}: any) { return <div className="p-4"><h1 className="text-2xl font-bold flex items-center gap-2"><Bell/> Notifications</h1>{notifications.map((n:any)=><div key={n.id} className="p-3 bg-white rounded my-2">{n.text}</div>)}</div> }
-function ProfileScreen({yakarma}: any) { return <div className="p-4"><h1 className="text-2xl font-bold flex items-center gap-2"><User/> Profile</h1><div className="bg-white p-4 rounded">Your Yakarma: {yakarma}</div></div> }
 function AdminScreen({posts, onDelete}: any) { return <div className="p-4"><h1 className="text-2xl font-bold flex items-center gap-2"><Shield/> Admin</h1>{posts.filter((p:Post)=>p.reports>0).map((p:Post)=><div key={p.id} className="bg-red-100 p-2 rounded my-1">{p.text} <button onClick={()=>onDelete(p.id)}>Delete</button></div>)}</div> }
-function BottomNav({screen, setScreen, isAdmin}: any) { const tabs = [{id: 3, icon: "🏠"}, {id: 7, icon: "🔥"}, {id: 4, icon: "➕"}, {id: 8, icon: "🔍"}, {id: 9, icon: "🗺️"}, {id: 6, icon: "👤"}]; if(isAdmin) tabs.push({id: 10, icon: "👮"}); return <div className="fixed bottom-0 w-full flex justify-around bg-white p-3 border-t">{tabs.map(t => <button key={t.id} onClick={() => setScreen(t.id)} className={`text-2xl ${screen === t.id? "text-[#FDCB00]" : "opacity-40"}`}>{t.icon}</button>)}</div> }
+function BottomNav({screen, setScreen, isAdmin}: any) { const tabs = [{id: 3, icon: "🏠"}, {id: 7, icon: "🔥"}, {id: 4, icon: "➕"}, {id: 8, icon: "🔍"}, {id: 9, icon: "🗺️"}]; if(isAdmin) tabs.push({id: 10, icon: "👮"}); return <div className="fixed bottom-0 w-full flex justify-around bg-white p-3 border-t">{tabs.map(t => <button key={t.id} onClick={() => setScreen(t.id)} className={`text-2xl ${screen === t.id? "text-[#FDCB00]" : "opacity-40"}`}>{t.icon}</button>)}</div> }

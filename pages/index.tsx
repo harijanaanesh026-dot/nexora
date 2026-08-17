@@ -22,8 +22,8 @@ const storage = getStorage(app);
 const provider = new GoogleAuthProvider();
 // =====================================
 
-const ADMIN_EMAILS = ["your_email@gmail.com"]; // Nee gmail id pettu
-const COLLEGES = ["BITS Adoni", "Arts & Science Adoni", "SRET Tirupati", "Junior College Mantralayam"];
+const ADMIN_EMAILS = ["harijanaanesh026@gmail.com"]; 
+const COLLEGES = ["SVUCE Tirupati", "JNTU Hyderabad", "IIT Madras", "VIT Vellore", "NIT Warangal", "BITS Pilani"];
 
 export default function CampusYakMVP() {
   const [screen, setScreen] = useState(1);
@@ -44,14 +44,14 @@ export default function CampusYakMVP() {
   useEffect(() => {
     if(screen >= 4 && college) {
       const q = query(collection(db, "posts"), where("college", "==", college), orderBy("createdAt", "desc"));
-      return onSnapshot(q, (snap) => setPosts(snap.docs.map(d => ({ id: d.id,...d.data() })))));
+      return onSnapshot(q, (snap) => setPosts(snap.docs.map(d => ({ id: d.id,...d.data() }))))
     }
   }, [screen, college]);
 
   useEffect(() => {
     if(user) {
       const q = query(collection(db, "notifications"), where("to", "==", user.uid), orderBy("time", "desc"));
-      return onSnapshot(q, (snap) => setNotifications(snap.docs.map(d => ({id: d.id,...d.data()}))));
+      return onSnapshot(q, (snap) => setNotifications(snap.docs.map(d => ({id: d.id,...d.data()}))))
     }
   }, [user]);
 
@@ -72,23 +72,27 @@ export default function CampusYakMVP() {
 
   const handleVote = async (postId: string, type: "up" | "down", owner: string) => {
     await updateDoc(doc(db, "posts", postId), { score: increment(type === "up"? 1 : -1) });
-    await addDoc(collection(db, "notifications"), {
-      to: owner, text: `Your post got ${type}voted!`, time: serverTimestamp(), read: false
-    });
+    if(owner!== user.uid) {
+      await addDoc(collection(db, "notifications"), {
+        to: owner, text: `Your post got ${type}voted!`, time: serverTimestamp(), read: false
+      });
+    }
   }
 
   const handleComment = async (postId: string, comment: string, owner: string) => {
     await updateDoc(doc(db, "posts", postId), {
       comments: arrayUnion({ text: comment, anonId: Math.floor(Math.random() * 9000 + 1000) })
     });
-    await addDoc(collection(db, "notifications"), {
-      to: owner, text: `New comment on your post`, time: serverTimestamp(), read: false
-    });
+    if(owner!== user.uid) {
+      await addDoc(collection(db, "notifications"), {
+        to: owner, text: `New comment on your post`, time: serverTimestamp(), read: false
+      });
+    }
   }
 
   const handleReport = async (postId: string) => {
     await updateDoc(doc(db, "posts", postId), { reports: increment(1) });
-    alert("Reported");
+    alert("Reported to Admin");
   }
 
   const handleDelete = async (postId: string) => {
@@ -99,15 +103,12 @@ export default function CampusYakMVP() {
     await updateDoc(doc(db, "notifications", id), { read: true });
   }
 
-  // SCREEN 1: SPLASH
   if(screen === 1) return <Splash onNext={()=>setScreen(2)} />
-  // SCREEN 2: LOGIN
   if(screen === 2) return <Login onLogin={login} />
-  // SCREEN 3: COLLEGE
   if(screen === 3) return <SelectCollege colleges={COLLEGES} onSelect={(c)=>{setCollege(c); setScreen(4)}} />
 
   return (
-    <div className="pb-20 bg-black text-white min-h-screen">
+    <div className="pb-20 bg-black text-white min-h-screen font-sans">
       {screen === 4 && <HomeFeed posts={posts} onVote={handleVote} onComment={handleComment} onReport={handleReport} onQuickPost={createPost} quickPost={quickPost} setQuickPost={setQuickPost} user={user} />}
       {screen === 5 && <CreatePostScreen onPost={createPost} />}
       {screen === 6 && <NotificationsScreen notifications={notifications} onRead={markRead} />}
@@ -119,10 +120,10 @@ export default function CampusYakMVP() {
   )
 }
 
-// FIXED: MISSING COMPONENTS ADDED
+// SCREEN 1: SPLASH
 function Splash({onNext}: any) {
   return (
-    <div className="h-screen bg-black text-white flex-col items-center justify-center p-6">
+    <div className="h-screen bg-black text-white flex flex-col items-center justify-center p-6">
       <h1 className="text-5xl font-bold text-purple-500">CampusYak</h1>
       <p className="mt-2 text-gray-400">Your Campus. Your Voice.</p>
       <button onClick={onNext} className="mt-8 bg-purple-600 px-8 py-3 rounded-full font-bold text-lg">Get Started</button>
@@ -130,27 +131,30 @@ function Splash({onNext}: any) {
   )
 }
 
+// SCREEN 2: LOGIN
 function Login({onLogin}: any) {
   return (
     <div className="h-screen bg-black text-white flex-col items-center justify-center p-6">
-      <h1 className="text-2xl font-bold">Login</h1>
+      <h1 className="text-2xl font-bold mb-2">Login</h1>
+      <p className="opacity-70 mb-4">Use your college Google account</p>
       <button onClick={onLogin} className="mt-4 bg-white text-black px-6 py-3 rounded-full font-bold">Continue with Google</button>
     </div>
   )
 }
 
+// SCREEN 3: SELECT COLLEGE
 function SelectCollege({colleges, onSelect}: any) {
   return (
     <div className="h-screen bg-black text-white p-6">
       <h1 className="text-2xl font-bold">Select Your College</h1>
-      <div className="mt-4 space-y-2">
+      <div className="mt-4 space-y-2 max-h-[70vh] overflow-y-auto">
         {colleges.map((c:string) => <button key={c} onClick={()=>onSelect(c)} className="w-full p-3 rounded bg-gray-900 text-left hover:bg-purple-900">{c}</button>)}
       </div>
     </div>
   )
 }
 
-// REST OF COMPONENTS...
+// SCREEN 4: HOME FEED + QUICK POST
 function HomeFeed({posts, onVote, onComment, onReport, onQuickPost, quickPost, setQuickPost, user}: any) {
   return (
     <div className="p-4">
@@ -159,6 +163,7 @@ function HomeFeed({posts, onVote, onComment, onReport, onQuickPost, quickPost, s
         <input value={quickPost} onChange={e=>setQuickPost(e.target.value)} placeholder="What's happening in your campus today?" className="w-full bg-transparent outline-none"/>
         <button onClick={()=>onQuickPost(quickPost)} className="mt-2 bg-purple-600 px-4 py-2 rounded-full font-bold">Post</button>
       </div>
+      {posts.filter((p:any)=>!p.deleted).length === 0 && <p className="opacity-50 text-center mt-10">No posts yet. Be the first to post!</p>}
       {posts.filter((p:any)=>!p.deleted).map((p: any) => (
         <PostCard key={p.id} post={p} onVote={onVote} onComment={onComment} onReport={onReport} user={user} />
       ))}
@@ -172,7 +177,7 @@ function PostCard({post, onVote, onComment, onReport, user}: any) {
   return (
     <div className="border border-gray-800 rounded-xl p-4 mb-4">
       <span className="bg-purple-600 text-xs px-2 py-1 rounded-full">{post.category}</span>
-      <p className="mt-2">{post.text}</p>
+      <p className="mt-2 whitespace-pre-wrap">{post.text}</p>
       {post.image && <img src={post.image} className="w-full rounded mt-2"/>}
       <div className="flex gap-4 mt-3 opacity-70 text-sm">
         <span>Student #{post.anonId}</span>
@@ -194,6 +199,7 @@ function PostCard({post, onVote, onComment, onReport, user}: any) {
   )
 }
 
+// SCREEN 5: CREATE POST
 function CreatePostScreen({onPost}: any) {
   const [text, setText] = useState("");
   const [category, setCategory] = useState("🎓 Campus");
@@ -203,26 +209,29 @@ function CreatePostScreen({onPost}: any) {
     <div className="p-4">
       <h1 className="text-2xl font-bold">➕ Create Post</h1>
       <div className="flex gap-2 overflow-x-auto my-3">
-        {categories.map(c => <button key={c} onClick={()=>setCategory(c)} className={`px-3 py-1 rounded-full ${category===c? "bg-purple-600" : "bg-gray-800"}`}>{c}</button>)}
+        {categories.map(c => <button key={c} onClick={()=>setCategory(c)} className={`px-3 py-1 rounded-full whitespace-nowrap ${category===c? "bg-purple-600" : "bg-gray-800"}`}>{c}</button>)}
       </div>
       <textarea value={text} onChange={e => setText(e.target.value)} placeholder="Write your yak..." className="w-full h-40 bg-gray-900 p-3 rounded"/>
-      <input type="file" onChange={e=>setFile(e.target.files?.[0])} className="mt-2"/>
-      <button onClick={()=>onPost(text, category, file)} className="bg-purple-600 w-full py-3 rounded-full mt-2 font-bold">Post</button>
+      <input type="file" accept="image/*" onChange={e=>setFile(e.target.files?.[0])} className="mt-2"/>
+      <button onClick={()=>onPost(text, category, file)} className="bg-purple-600 w-full py-3 rounded-full mt-2 font-bold">Post Anonymously</button>
     </div>
   )
 }
 
+// SCREEN 6: NOTIFICATIONS
 function NotificationsScreen({notifications, onRead}: any) {
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold">🔔 Notifications</h1>
+      {notifications.length === 0 && <p className="opacity-50 mt-4">No notifications yet</p>}
       {notifications.map((n:any) => (
-        <div key={n.id} onClick={()=>onRead(n.id)} className={`border-b border-gray-800 p-3 ${n.read? "opacity-50" : "bg-purple-900/20"}`}>{n.text}</div>
+        <div key={n.id} onClick={()=>onRead(n.id)} className={`border-b border-gray-800 p-3 cursor-pointer ${n.read? "opacity-50" : "bg-purple-900/20"}`}>{n.text}</div>
       ))}
     </div>
   )
 }
 
+// SCREEN 7: PROFILE
 function ProfileScreen({posts, anonId}: any) {
   const karma = posts.reduce((a,p)=>a+(p.score||0),0);
   return (
@@ -231,26 +240,35 @@ function ProfileScreen({posts, anonId}: any) {
       <p className="mt-2 text-lg">Anonymous ID: <b>Student #{anonId}</b></p>
       <p>🏆 Karma: {karma}</p>
       <h2 className="mt-4 font-bold">My Posts</h2>
-      {posts.map((p:any) => <div key={p.id} className="bg-gray-900 p-2 rounded mt-2">{p.text}</div>)}
+      {posts.length === 0 && <p className="opacity-50">No posts yet</p>}
+      {posts.map((p:any) => <div key={p.id} className="bg-gray-900 p-2 rounded mt-2">{p.text} - {p.score} pts</div>)}
     </div>
   )
 }
 
+// SCREEN 8: TRENDING
 function TrendingScreen({posts, onVote, onReport, onComment, user}: any) {
   const trending = [...posts].filter(p=>!p.deleted).sort((a,b)=>(b.score||0)-(a.score||0)).slice(0,10);
-  return <HomeFeed posts={trending} onVote={onVote} onComment={onComment} onReport={onReport} user={user} />
+  return (
+    <div className="p-4">
+      <h1 className="text-2xl font-bold">🔥 Trending</h1>
+      {trending.map((p: any) => <PostCard key={p.id} post={p} onVote={onVote} onComment={onComment} onReport={onReport} user={user} />)}
+    </div>
+  )
 }
 
+// SCREEN 9: ADMIN PANEL
 function AdminScreen({posts, onDelete}: any) {
   const reported = posts.filter((p:any)=>p.reports > 0 &&!p.deleted);
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold">👮 Admin Panel <Shield className="inline text-green-400"/></h1>
+      <p className="opacity-70">Reported Posts: {reported.length}</p>
       {reported.map((p: any) => (
         <div key={p.id} className="border border-red-800 p-3 rounded mb-2">
           <p>{p.text}</p>
           {p.image && <img src={p.image} className="w-20 rounded mt-1"/>}
-          <p className="text-xs">Reports: {p.reports}</p>
+          <p className="text-xs">Reports: {p.reports} | Student #{p.anonId} | College: {p.college}</p>
           <button onClick={()=>onDelete(p.id)} className="bg-red-600 px-3 py-1 rounded mt-2"><Trash size={16} className="inline"/> Delete</button>
         </div>
       ))}
@@ -258,18 +276,20 @@ function AdminScreen({posts, onDelete}: any) {
   )
 }
 
+// BOTTOM NAV
 function BottomNav({screen, setScreen, isAdmin, notifCount}: any) {
   const tabs = [
     {id: 4, icon: "🏠"}, {id: 5, icon: "➕"}, {id: 8, icon: "🔥"},
     {id: 6, icon: "🔔"}, {id: 7, icon: "👤"}
   ];
   if(isAdmin) tabs.push({id: 9, icon: "👮"});
+
   return (
     <div className="fixed bottom-0 w-full flex justify-around bg-gray-950 p-3 border-t border-gray-800">
       {tabs.map(t => <button key={t.id} onClick={() => setScreen(t.id)} className={`text-2xl relative ${screen === t.id? "" : "opacity-50"}`}>
         {t.icon}
-        {t.id === 6 && notifCount > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-xs rounded-full w-4 h-4">{notifCount}</span>}
+        {t.id === 6 && notifCount > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-xs rounded-full w-4 h-4 flex items-center justify-center">{notifCount}</span>}
       </button>)}
     </div>
   )
-                        }
+}

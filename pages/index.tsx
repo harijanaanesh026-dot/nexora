@@ -4,7 +4,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChang
 import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
 import { Sun, Moon, Plus, MapPin, TrendingUp } from 'lucide-react';
 
-// NUVVU ICHINA FIREBASE KEYS DIRECT GA IKKADA
+// NUVVU ICHINA FIREBASE KEYS
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
   authDomain: "nexoraai-75ae2.firebaseapp.com",
@@ -21,10 +21,23 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
+// Type for Yak
+type Yak = {
+  id: string;
+  text: string;
+  uid: string;
+  displayName: string;
+  photoURL: string;
+  likes: number;
+  lat: number;
+  lng: number;
+  createdAt: any;
+}
+
 export default function Home() {
   const [user, setUser] = useState<any>(null);
-  const [screen, setScreen] = useState(2);
-  const [yaks, setYaks] = useState<any[]>([]);
+  const [screen, setScreen] = useState(2); // 2=Login, 3=Feed, 4=Post
+  const [yaks, setYaks] = useState<Yak[]>([]);
   const [newYak, setNewYak] = useState('');
   const [location, setLocation] = useState<any>(null);
   const [dark, setDark] = useState(true);
@@ -61,8 +74,11 @@ export default function Home() {
     if (!location) return;
     const q = query(collection(db, 'yaks'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map(d => ({id: d.id,...d.data()}));
-      const filtered = data.filter(y => {
+      const data: Yak[] = snap.docs.map(d => {
+        return { id: d.id,...d.data() } as Yak
+      });
+
+      const filtered = data.filter((y: Yak) => {
         if (!y.lat ||!y.lng) return true;
         const dist = getDistance(location.lat, location.lng, y.lat, y.lng);
         return dist <= 10; // 10KM RADIUS ADONI
@@ -106,6 +122,7 @@ export default function Home() {
   const cardBg = dark? 'bg-[#1A1A1A]' : 'bg-white';
   const text = dark? 'text-white' : 'text-black';
 
+  // LOGIN SCREEN
   if (screen === 2) return (
     <div className={`min-h-screen ${bg} flex flex-col items-center justify-center p-4`}>
       <h1 className="text-6xl font-bold text-yik mb-2">yik yak</h1>
@@ -119,6 +136,7 @@ export default function Home() {
     </div>
   );
 
+  // FEED SCREEN
   return (
     <div className={`min-h-screen ${bg} ${text}`}>
       <div className={`sticky top-0 ${cardBg} p-4 flex justify-between items-center border-b border-gray-700`}>
@@ -141,7 +159,7 @@ export default function Home() {
               <p className="text-lg mb-2">{y.text}</p>
               <div className="flex justify-between text-sm opacity-70">
                 <button onClick={() => likeYak(y.id)}>↑ {y.likes}</button>
-                <span className="flex items-center gap-1"><MapPin size={14}/> 10km lopala</span>
+                <span className="flex items-center gap-1"><MapPin size={14}/> Adoni 10km lopala</span>
               </div>
             </div>
           ))
@@ -176,4 +194,4 @@ export default function Home() {
       )}
     </div>
   );
-                                          }
+}

@@ -1,17 +1,10 @@
-import { useState, useEffect } from "react";
-import dynamic from 'next/dynamic';
-import { initializeApp, getApps } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "firebase/auth";
-import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, increment, arrayUnion, GeoPoint, getDoc, setDoc } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { ArrowBigUp, MessageCircle, Flag, Flame, Bell, User, Trash, Shield, Map, Search } from "lucide-react";
+import { useState, useEffect } from 'react';
+import { initializeApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
+import { Sun, Moon, Plus, MapPin, TrendingUp } from 'lucide-react';
 
-// DYNAMIC IMPORTS WITH SSR FALSE
-const MapContainer = dynamic(() => import('react-leaflet').then((mod) => mod.MapContainer), { ssr: false });
-const TileLayer = dynamic(() => import('react-leaflet').then((mod) => mod.TileLayer), { ssr: false });
-const Marker = dynamic(() => import('react-leaflet').then((mod) => mod.Marker), { ssr: false });
-const Popup = dynamic(() => import('react-leaflet').then((mod) => mod.Popup), { ssr: false });
-
+// NUVVU ICHINA FIREBASE KEYS DIRECT GA IKKADA
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
   authDomain: "nexoraai-75ae2.firebaseapp.com",
@@ -19,136 +12,168 @@ const firebaseConfig = {
   storageBucket: "nexoraai-75ae2.firebasestorage.app",
   messagingSenderId: "173122711177",
   appId: "1:173122711177:web:68e373598d110d80c1e058",
+  measurementId: "G-11Y8XF8MBC"
 };
-const app =!getApps().length? initializeApp(firebaseConfig) : getApps()[0];
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app);
 const provider = new GoogleAuthProvider();
 
-const ADMIN_EMAILS = ["harijanaanesh026@gmail.com"];
-const RADIUS_KM = 10;
-
-type Post = {
-  id: string; text: string; image?: string; score: number; yakarma: number; owner: string;
-  comments: any[]; reports: number; deleted: boolean; createdAt: any;
-  location?: { latitude: number; longitude: number };
-}
-
-export default function YikYakUSA() {
-  const [screen, setScreen] = useState(1);
+export default function Home() {
   const [user, setUser] = useState<any>(null);
+  const [screen, setScreen] = useState(2);
+  const [yaks, setYaks] = useState<any[]>([]);
+  const [newYak, setNewYak] = useState('');
   const [location, setLocation] = useState<any>(null);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [icon, setIcon] = useState<any>(null);
-  const [yakarma, setYakarma] = useState(1000);
-  const [L, setL] = useState<any>(null); // L NI STATE LO PETTAM
-  const isAdmin = user && ADMIN_EMAILS.includes(user.email);
+  const [dark, setDark] = useState(true);
+  const [yakarma, setYakarma] = useState(0);
 
-  // FIX: LEAFLET NI CLIENT SIDE LO MATRAM LOAD CHEY
   useEffect(() => {
-    if (typeof window!== 'undefined') {
-      const leaflet = require('leaflet');
-      setL(leaflet);
-      delete leaflet.Icon.Default.prototype._getIconUrl;
-      setIcon(new leaflet.Icon({
-        iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-        iconSize: [25, 41], iconAnchor: [12, 41]
-      }));
-    }
+    const isDark = localStorage.getItem('dark') === 'true';
+    setDark(isDark);
   }, []);
 
   useEffect(() => {
-    onAuthStateChanged(auth, (u) => { if (u) { setUser(u); getYakarma(u.uid); getLocation(); setScreen(3); } });
+    onAuthStateChanged(auth, (u) => {
+      if (u) {
+        setUser(u);
+        setYakarma(Math.floor(Math.random() * 500));
+        getLocation();
+        setScreen(3);
+      } else { setScreen(2) }
+    });
   }, []);
-
-  const getYakarma = async (uid: string) => {
-    const ref = doc(db, "users", uid);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) { const k = Math.floor(Math.random() * 9000 + 1000); setDoc(ref, { yakarma: k }); setYakarma(k) }
-    else setYakarma(snap.data().yakarma);
-  }
-
-  const login = async () => {
-    const res = await signInWithPopup(auth, provider);
-    setUser(res.user); getYakarma(res.user.uid); getLocation(); setScreen(3);
-  }
 
   const getLocation = () => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => alert("Location ON chey bro")
-    );
-  }
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setLocation({lat: pos.coords.latitude, lng: pos.coords.longitude}),
+        () => setLocation({lat: 15.6327, lng: 77.2768}) // Adoni default
+      );
+    } else {
+      setLocation({lat: 15.6327, lng: 77.2768}) // Adoni default
+    }
+  };
 
   useEffect(() => {
-    if(screen >= 3 && location) {
-      const q = query(collection(db, "posts"), orderBy("createdAt", "desc"));
-      return onSnapshot(q, (snap) => {
-        const allPosts: Post[] = snap.docs.map(d => ({ id: d.id,...d.data() } as Post))
-        const nearbyPosts = allPosts.filter(p => p.location && getDistance(location, p.location) <= RADIUS_KM &&!p.deleted)
-        setPosts(nearbyPosts)
-      })
-    }
-  }, [screen, location]);
-
-  const getDistance = (loc1: any, loc2: any) => {
-    const R = 6371; const dLat = (loc2.latitude - loc1.lat) * Math.PI / 180;
-    const dLon = (loc2.longitude - loc1.lng) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(loc1.lat * Math.PI / 180) * Math.cos(loc2.latitude * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  }
-
-  const createPost = async (text: string, file: any = null) => {
-    if(!text.trim() &&!file) return;
-    let imageUrl = "";
-    if(file) {
-      const storageRef = ref(storage, `posts/${Date.now()}`);
-      const snap = await uploadBytes(storageRef, file);
-      imageUrl = await getDownloadURL(snap.ref);
-    }
-    await addDoc(collection(db, "posts"), {
-      text, location: new GeoPoint(location.lat, location.lng), image: imageUrl,
-      score: 0, yakarma, owner: user.uid, comments: [], reports: 0, deleted: false, createdAt: serverTimestamp()
+    if (!location) return;
+    const q = query(collection(db, 'yaks'), orderBy('createdAt', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      const data = snap.docs.map(d => ({id: d.id,...d.data()}));
+      const filtered = data.filter(y => {
+        if (!y.lat ||!y.lng) return true;
+        const dist = getDistance(location.lat, location.lng, y.lat, y.lng);
+        return dist <= 10; // 10KM RADIUS ADONI
+      });
+      setYaks(filtered);
     });
-  }
+    return () => unsub();
+  }, [location]);
 
-  const handleVote = async (postId: string, owner: string) => {
-    await updateDoc(doc(db, "posts", postId), { score: increment(1) });
-    if(owner!== user.uid) await addDoc(collection(db, "notifications"), { to: owner, text: `Your yak got upvoted!`, time: serverTimestamp(), read: false });
-  }
-  const handleComment = async (postId: string, text: string, owner: string) => {
-    await updateDoc(doc(db, "posts", postId), { comments: arrayUnion({ text, yakarma, time: new Date() }) });
-    if(owner!== user.uid) await addDoc(collection(db, "notifications"), { to: owner, text: `New comment on your yak`, time: serverTimestamp(), read: false });
-  }
-  const handleReport = async (postId: string) => { await updateDoc(doc(db, "posts", postId), { reports: increment(1) }); }
-  const handleDelete = async (postId: string) => { await updateDoc(doc(db, "posts", postId), { deleted: true }); }
+  const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  };
 
-  if(screen === 1) return <Splash onNext={()=>setScreen(2)} />
-  if(screen === 2) return <Login onLogin={login} />
+  const postYak = async () => {
+    if (!newYak.trim() ||!user ||!location) return;
+    await addDoc(collection(db, 'yaks'), {
+      text: newYak,
+      uid: user.uid,
+      displayName: user.displayName,
+      photoURL: user.photoURL,
+      createdAt: serverTimestamp(),
+      likes: 0,
+      lat: location.lat,
+      lng: location.lng,
+    });
+    setNewYak('');
+    setScreen(3);
+  };
+
+  const likeYak = async (id: string) => {
+    await updateDoc(doc(db, 'yaks', id), { likes: increment(1) });
+  };
+
+  const bg = dark? 'bg-[#0A0A0A]' : 'bg-[#F9F9F9]';
+  const cardBg = dark? 'bg-[#1A1A1A]' : 'bg-white';
+  const text = dark? 'text-white' : 'text-black';
+
+  if (screen === 2) return (
+    <div className={`min-h-screen ${bg} flex flex-col items-center justify-center p-4`}>
+      <h1 className="text-6xl font-bold text-yik mb-2">yik yak</h1>
+      <p className={`${text} mb-8`}>Adoni 10km radius lo matrame</p>
+      <button
+        onClick={() => signInWithPopup(auth, provider)}
+        className="bg-yik text-black px-8 py-3 rounded-full font-bold text-lg"
+      >
+        Google tho Continue cheyandi
+      </button>
+    </div>
+  );
 
   return (
-    <div className="pb-20 bg-[#F9F9F9] text-black min-h-screen">
-      <h1 className="p-4 text-3xl font-black text-[#FDCB00]">yik yak</h1>
-      {screen === 3 && <HomeFeed posts={posts} onVote={handleVote} onComment={handleComment} onReport={handleReport} onDelete={handleDelete} user={user} isAdmin={isAdmin} setScreen={setScreen} />}
-      {screen === 4 && <CreatePostScreen onPost={createPost} onBack={()=>setScreen(3)} />}
-      {screen === 7 && <HerddScreen posts={posts.filter(p=>p.score >= 5)} onVote={handleVote} onComment={handleComment} />}
-      {screen === 8 && <PeekScreen setLocation={setLocation} />}
-      {screen === 9 && location && icon && <MapScreen posts={posts} userLocation={location} icon={icon} />}
-      {screen === 10 && isAdmin && <AdminScreen posts={posts} onDelete={handleDelete} />}
-      <BottomNav screen={screen} setScreen={setScreen} isAdmin={isAdmin} />
-    </div>
-  )
-}
+    <div className={`min-h-screen ${bg} ${text}`}>
+      <div className={`sticky top-0 ${cardBg} p-4 flex justify-between items-center border-b border-gray-700`}>
+        <h1 className="text-2xl font-bold text-yik">yik yak</h1>
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1"><TrendingUp size={16}/> {yakarma}</span>
+          <button onClick={() => {setDark(!dark); localStorage.setItem('dark', String(!dark))}}>{dark? <Sun/> : <Moon/>}</button>
+          <button onClick={() => signOut(auth)}>Logout</button>
+        </div>
+      </div>
 
-// REST OF COMPONENTS SAME AS BEFORE
-function Splash({onNext}: any) { return <div className="h-screen flex flex-col items-center justify-center bg-[#FDCB00]"><h1 className="text-5xl font-black">yik yak</h1><button onClick={onNext} className="mt-10 bg-black text-white px-8 py-3 rounded-full">Continue</button></div> }
-function Login({onLogin}: any) { return <div className="h-screen flex-col items-center justify-center p-8"><h1 className="text-3xl font-bold mb-2">Welcome to Yik Yak</h1><p className="opacity-60 mb-10">See what's happening nearby anonymously</p><button onClick={onLogin} className="w-full bg-[#FDCB00] text-black font-bold py-3 rounded-full">Continue with Google</button></div> }
-function HomeFeed({posts, onVote, onComment, onReport, onDelete, user, isAdmin, setScreen}: any) { return <div className="p-4">{posts.length === 0? <p className="text-center opacity-50 mt-10">No Yaks in your herd yet. Be the first!</p> : posts.map((p: Post) => <PostCard key={p.id} post={p} onVote={onVote} onComment={onComment} onReport={onReport} onDelete={onDelete} user={user} isAdmin={isAdmin} />)} <button onClick={()=>setScreen(4)} className="fixed bottom-24 right-5 bg-[#FDCB00] w-14 h-14 rounded-full text-3xl">+</button></div> }
-function HerddScreen({posts, onVote, onComment}: any) { return <div className="p-4"><h1 className="text-2xl font-bold flex items-center gap-2"><Flame/> herdd</h1><p className="opacity-60 text-sm mb-4">Most liked yaks in your herd</p>{posts.map((p: Post) => <PostCard key={p.id} post={p} onVote={onVote} onComment={onComment} />)}</div> }
-function PeekScreen({setLocation}: any) { const cities = [{name: "New York, NY", lat: 40.7128, lng: -74.0060}, {name: "Los Angeles, CA", lat: 34.0522, lng: -118.2437}, {name: "Hyderabad, India", lat: 17.3850, lng: 78.4867}]; return <div className="p-4"><h1 className="text-2xl font-bold flex items-center gap-2"><Search/> peek</h1>{cities.map(c => <button key={c.name} onClick={()=>setLocation(c)} className="w-full p-3 bg-gray-200 rounded my-1">{c.name}</button>)}</div> }
-function MapScreen({posts, userLocation, icon}: any) { return <div className="p-4"><h1 className="text-2xl font-bold mb-2">🗺️ Nearby Yaks</h1><MapContainer center={[userLocation.lat, userLocation.lng]} zoom={13} style={{ height: "70vh", width: "100%", borderRadius: "12px" }}><TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" /><Marker position={[userLocation.lat, userLocation.lng]} icon={icon}><Popup>You</Popup></Marker>{posts.map((p: Post) => p.location && <Marker key={p.id} position={[p.location.latitude, p.location.longitude]} icon={icon}><Popup><b>Yakarma #{p.yakarma}</b><br/>{p.text.substring(0, 50)}</Popup></Marker>)}</MapContainer></div> }
-function PostCard({post, onVote, onComment, onReport, onDelete, user, isAdmin}: any) { const [comment, setComment] = useState(""); return <div className="bg-white rounded-2xl p-4 mb-3 shadow"><p className="text-xs opacity-60">Anonymous • Yakarma #{post.yakarma}</p><p className="whitespace-pre-wrap my-2">{post.text}</p>{post.image && <img src={post.image} className="w-full rounded mt-2"/>}<div className="flex gap-4 mt-3 text-gray-600"><button onClick={() => onVote(post.id, post.owner)} className="flex items-center gap-1 text-[#FDCB00] font-bold"><ArrowBigUp/> {post.score || 0}</button><button onClick={()=>document.getElementById(`c-${post.id}`)?.classList.toggle('hidden')}><MessageCircle size={18}/> {post.comments?.length || 0}</button><button onClick={()=>onReport(post.id)}><Flag size={18}/></button>{(isAdmin || post.owner === user.uid) && <button onClick={()=>onDelete(post.id)}><Trash size={18}/></button>}</div><div id={`c-${post.id}`} className="hidden mt-2"><input value={comment} onChange={e=>setComment(e.target.value)} className="w-full p-2 border rounded"/><button onClick={()=>{onComment(post.id, comment, post.owner); setComment("")}} className="mt-1 bg-[#FDCB00] px-3 py-1 rounded">Post</button></div></div> }
-function CreatePostScreen({onPost, onBack}: any) { const [text, setText] = useState(""); const [file, setFile] = useState<any>(null); return <div className="p-4"><button onClick={onBack}>← Back</button><textarea value={text} onChange={e=>setText(e.target.value)} placeholder="What's happening?" className="w-full h-40 p-2 mt-2 border rounded"/><input type="file" onChange={e=>setFile(e.target.files?.[0])} className="mt-2"/><button onClick={()=>onPost(text, file)} className="w-full mt-4 bg-[#FDCB00] font-bold py-3 rounded-full">Yak</button></div> }
-function AdminScreen({posts, onDelete}: any) { return <div className="p-4"><h1 className="text-2xl font-bold flex items-center gap-2"><Shield/> Admin</h1>{posts.filter((p:Post)=>p.reports>0).map((p:Post)=><div key={p.id} className="bg-red-100 p-2 rounded my-1">{p.text} <button onClick={()=>onDelete(p.id)}>Delete</button></div>)}</div> }
-function BottomNav({screen, setScreen, isAdmin}: any) { const tabs = [{id: 3, icon: "🏠"}, {id: 7, icon: "🔥"}, {id: 4, icon: "➕"}, {id: 8, icon: "🔍"}, {id: 9, icon: "🗺️"}]; if(isAdmin) tabs.push({id: 10, icon: "👮"}); return <div className="fixed bottom-0 w-full flex justify-around bg-white p-3 border-t">{tabs.map(t => <button key={t.id} onClick={() => setScreen(t.id)} className={`text-2xl ${screen === t.id? "text-[#FDCB00]" : "opacity-40"}`}>{t.icon}</button>)}</div> }
+      <div className="p-4 pb-24">
+        {yaks.length === 0? <p className="text-center mt-10">Adoni lo yak's levu. nuvve first post chey!</p> :
+          yaks.map(y => (
+            <div key={y.id} className={`${cardBg} p-4 rounded-2xl mb-3`}>
+              <div className="flex items-center gap-2 mb-2">
+                <img src={y.photoURL} className="w-8 h-8 rounded-full"/>
+                <span className="font-bold">{y.displayName}</span>
+              </div>
+              <p className="text-lg mb-2">{y.text}</p>
+              <div className="flex justify-between text-sm opacity-70">
+                <button onClick={() => likeYak(y.id)}>↑ {y.likes}</button>
+                <span className="flex items-center gap-1"><MapPin size={14}/> 10km lopala</span>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2">
+        <button
+          onClick={() => setScreen(4)}
+          className="bg-yik text-black w-16 h-16 rounded-full flex items-center justify-center"
+        >
+          <Plus size={32}/>
+        </button>
+      </div>
+
+      {screen === 4 && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4">
+          <div className={`${cardBg} p-4 rounded-2xl w-full max-w-md`}>
+            <textarea
+              value={newYak}
+              onChange={(e) => setNewYak(e.target.value)}
+              placeholder="em jaruguthundhi Adoni lo?"
+              className={`w-full h-32 p-2 rounded ${dark? 'bg-[#2A2A2A]' : 'bg-gray-100'} ${text}`}
+              maxLength={200}
+            />
+            <div className="flex gap-2 mt-2">
+              <button onClick={postYak} className="bg-yik text-black px-4 py-2 rounded-full font-bold">Post chey</button>
+              <button onClick={() => setScreen(3)} className="px-4 py-2">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+                                          }

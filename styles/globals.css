@@ -1,12 +1,11 @@
-const [icon, setIcon] = useState<any>(null);
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-useEffect(() => {
-  // Client lo matrame run avthadi
-  const L = require('leaflet');
-  delete L.Icon.Default.prototype._getIconUrl;
-  setIcon(new L.Icon({
-    iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-    iconSize: [25, 41],
-    iconAnchor: [12, 41]
-  }));
-}, []);
+body {
+  background-color: #F9F9F9;
+  color: #000;
+}
+
+.text-yik { color: #FDCB00; }
+.bg-yik { background-color: #FDCB00; }

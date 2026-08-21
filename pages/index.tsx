@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment, where, arrayUnion } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { Sun, Moon, Plus, MapPin, Flame, Clock, Trophy, Bell } from 'lucide-react';
+import { Sun, Moon, Plus, Flame, Clock, Trophy, Bell } from 'lucide-react';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
@@ -30,7 +30,7 @@ export default function Home() {
   const [newYak, setNewYak] = useState('');
   const [location, setLocation] = useState<any>(null);
   const [dark, setDark] = useState(true);
-  const [yakarma, setYakarma] = useState(0);
+  const [yakarma, setYakarma] = useState(40); // screenshot lo 40 undi
   const [feed, setFeed] = useState('hot');
   const [image, setImage] = useState<File | null>(null);
 
@@ -38,7 +38,6 @@ export default function Home() {
     onAuthStateChanged(auth, (u) => {
       if (u) {
         setUser(u);
-        setYakarma(Math.floor(Math.random() * 500));
         getLocation();
         setScreen(3);
       } else { setScreen(2) }
@@ -48,7 +47,7 @@ export default function Home() {
   const getLocation = () => {
     navigator.geolocation.getCurrentPosition(
       (pos) => setLocation({lat: pos.coords.latitude, lng: pos.coords.longitude}),
-      () => setLocation({lat: 40.7128, lng: -74.0060}) // USA Default: New York
+      () => setLocation({lat: 15.6327, lng: 77.2768}) // Adoni default
     );
   };
 
@@ -57,19 +56,15 @@ export default function Home() {
     const q = query(collection(db, 'yaks'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
       let data: Yak[] = snap.docs.map(d => { return { id: d.id,...d.data() } as Yak });
-      
-      // 5 MILE = 8KM RADIUS USA RULE
       data = data.filter((y: Yak) => {
         if (!y.lat ||!y.lng) return true;
         const dist = getDistance(location.lat, location.lng, y.lat, y.lng);
-        return dist <= 8; // USA 5 MILES
+        return dist <= 8; // 5 MILES
       });
-      
-      // AUTO HIDE - 5 DOWNVOTES OR 5 REPORTS
       data = data.filter(y => y.dislikes < 5 && y.reports < 5);
-
       if(feed === 'hot') data.sort((a,b) => (b.likes - b.dislikes) - (a.likes - a.dislikes));
       if(feed === 'top') data.sort((a,b) => b.likes - a.likes);
+      if(feed === 'rising') data.sort((a,b) => b.likes - a.likes).slice(0,10);
       setYaks(data);
     });
     return () => unsub();
@@ -99,20 +94,15 @@ export default function Home() {
   const vote = async (id: string, type: 'likes' | 'dislikes') => {
     await updateDoc(doc(db, 'yaks', id), { [type]: increment(1) });
   };
-  
-  const report = async (id: string) => {
-    await updateDoc(doc(db, 'yaks', id), { reports: increment(1) });
-  }
 
-  const bg = dark? 'bg-[#0A0A0A]' : 'bg-[#F9F9F9]';
-  const cardBg = dark? 'bg-[#1A1A1A]' : 'bg-white';
-  const text = dark? 'text-white' : 'text-black';
+  const bg = '#0A0A0A';
+  const cardBg = '#1A1A1A';
+  const text = 'text-white';
 
   if (screen === 2) return (
-    <div className={`min-h-screen ${bg} flex-col items-center justify-center p-4`}>
-      <h1 className="text-6xl font-bold text-yik mb-2">Yik Yak</h1>
-      <p className={`${text} mb-8`}>What's happening around you</p>
-      <button onClick={() => signInWithPopup(auth, provider)} className="bg-yik text-black px-8 py-3 rounded-full font-bold text-lg">
+    <div className={`min-h-screen ${bg} flex flex-col items-center justify-center p-4 ${text}`}>
+      <h1 className="text-6xl font-bold text-[#FDCB00] mb-2">Yik Yak</h1>
+      <button onClick={() => signInWithPopup(auth, provider)} className="bg-[#FDCB00] text-black px-8 py-3 rounded-full font-bold text-lg">
         Continue with Google
       </button>
     </div>
@@ -120,55 +110,67 @@ export default function Home() {
 
   return (
     <div className={`min-h-screen ${bg} ${text}`}>
-      <div className={`sticky top-0 ${cardBg} p-3 border-b border-gray-700`}>
-        <div className="flex justify-between items-center mb-2">
-          <h1 className="text-2xl font-bold text-yik">Yik Yak</h1>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1 text-sm"><Trophy size={16}/> {yakarma}</span>
+      {/* HEADER - EXACT SCREENSHOT LAGA */}
+      <div className={`sticky top-0 ${cardBg} p-3 border-b border-gray-800`}>
+        <div className="flex justify-between items-center mb-3">
+          <h1 className="text-2xl font-bold text-[#FDCB00]">Yik Yak</h1>
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1 text-sm"><Trophy size={18}/> {yakarma}</span>
             <Bell size={20}/>
-            <button onClick={() => {setDark(!dark); localStorage.setItem('dark', String(!dark))}}>{dark? <Sun size={20}/> : <Moon size={20}/>}</button>
+            <button onClick={() => setDark(!dark)}><Sun size={20}/></button>
           </div>
         </div>
+        {/* TABS - YELLOW PILLS */}
         <div className="flex gap-2">
           {['hot','new','top','rising'].map(f => (
-            <button key={f} onClick={() => setFeed(f)} className={`px-3 py-1 rounded-full text-sm ${feed===f? 'bg-yik text-black' : cardBg}`}>
-              {f==='hot'? <Flame size={14} className="inline"/> : f==='new'? <Clock size={14} className="inline"/> : ''} {f.toUpperCase()}
+            <button key={f} onClick={() => setFeed(f)} 
+              className={`px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1
+              ${feed===f? 'bg-[#FDCB00] text-black' : 'text-gray-400'}`}
+            >
+              {f==='hot' && <Flame size={14}/>} 
+              {f==='new' && <Clock size={14}/>}
+              {f.toUpperCase()}
             </button>
           ))}
         </div>
       </div>
 
+      {/* FEED */}
       <div className="p-3 pb-24">
+        {yaks.length === 0 && (
+          <p className="text-center mt-10 text-gray-500">No Yaks nearby. Be the first to post!</p>
+        )}
         {yaks.map(y => (
           <div key={y.id} className={`${cardBg} p-3 rounded-2xl mb-3`}>
             {y.imageUrl && <img src={y.imageUrl} className="rounded-xl mb-2 w-full"/>}
-            <p className="text-lg mb-2">{y.text}</p>
-            <div className="flex justify-between items-center text-sm">
-              <div className="flex gap-4">
-                <button onClick={() => vote(y.id, 'likes')}>⬆️ {y.likes}</button>
-                <button onClick={() => vote(y.id, 'dislikes')}>⬇️ {y.dislikes}</button>
-                <button onClick={() => vote(y.id, 'likes')}>💬</button>
+            <p className="text-lg mb-3">{y.text}</p>
+            <div className="flex justify-between items-center text-sm text-gray-400">
+              <div className="flex gap-5">
+                <button onClick={() => vote(y.id, 'likes')} className="flex items-center gap-1">⬆️ {y.likes}</button>
+                <button onClick={() => vote(y.id, 'dislikes')} className="flex items-center gap-1">⬇️ {y.dislikes}</button>
+                <button>💬 0</button>
               </div>
-              <button onClick={() => report(y.id)} className="opacity-50">🚩</button>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2">
-        <button onClick={() => setScreen(4)} className="bg-yik text-black w-16 h-16 rounded-full flex items-center justify-center shadow-lg">
-          <Plus size={32}/>
+      {/* BOTTOM + BUTTON - EXACT SCREENSHOT LAGA */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2">
+        <button onClick={() => setScreen(4)} className="bg-[#FDCB00] text-black w-16 h-16 rounded-full flex items-center justify-center shadow-2xl">
+          <Plus size={32} strokeWidth={3}/>
         </button>
       </div>
 
+      {/* POST MODAL */}
       {screen === 4 && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4">
-          <div className={`${cardBg} p-4 rounded-2xl w-full max-w-md`}>
-            <input type="file" onChange={(e)=>setImage(e.target.files?.[0] || null)} className="mb-2"/>
-            <textarea value={newYak} onChange={(e) => setNewYak(e.target.value)} placeholder="What's on your mind?" className={`w-full h-32 p-2 rounded ${dark? 'bg-[#2A2A2A]' : 'bg-gray-100'}`} maxLength={200}/>
-            <div className="flex gap-2 mt-2">
-              <button onClick={postYak} className="bg-yik text-black px-4 py-2 rounded-full font-bold">Yak</button>
-              <button onClick={() => setScreen(3)} className="px-4 py-2">Cancel</button>
+        <div className="fixed inset-0 bg-black/80 flex items-end justify-center">
+          <div className={`${cardBg} p-4 rounded-t-3xl w-full`}>
+            <input type="file" onChange={(e)=>setImage(e.target.files?.[0] || null)} className="mb-3 text-sm"/>
+            <textarea value={newYak} onChange={(e) => setNewYak(e.target.value)} placeholder="What's happening?" className={`w-full h-32 p-3 rounded-xl bg-[#2A2A2A] ${text}`} maxLength={200}/>
+            <div className="flex gap-2 mt-3">
+              <button onClick={postYak} className="bg-[#FDCB00] text-black px-6 py-3 rounded-full font-bold w-full">Yak</button>
+              <button onClick={() => setScreen(3)} className="px-6 py-3">Cancel</button>
             </div>
           </div>
         </div>

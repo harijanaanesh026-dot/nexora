@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { Sun, Moon, Plus, Flame, Clock, Trophy, Bell, MessageCircle, MapPin, Flag, X } from 'lucide-react';
+import { Sun, Moon, Plus, Flame, Clock, Trophy, Bell, MessageCircle, Flag, X } from 'lucide-react';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
@@ -31,13 +31,12 @@ export default function Home() {
   const [newYak, setNewYak] = useState('');
   const [location, setLocation] = useState<any>(null);
   const [dark, setDark] = useState(false);
-  const [yakarma, setYakarma] = useState(40);
+  const [yakarma, setYakarma] = useState(309);
   const [feed, setFeed] = useState('hot');
   const [image, setImage] = useState<File | null>(null);
   const [selectedYak, setSelectedYak] = useState<string | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
-  const [blocked, setBlocked] = useState<string[]>([]);
 
   useEffect(() => {
     const saved = localStorage.getItem('dark') === 'true';
@@ -48,7 +47,6 @@ export default function Home() {
     onAuthStateChanged(auth, (u) => {
       if (u) {
         setUser(u);
-        setYakarma(Math.floor(Math.random()*500));
         getLocation();
         setScreen(3);
       } else { setScreen(2) }
@@ -76,13 +74,11 @@ export default function Home() {
       if(feed === 'hot') data.sort((a,b) => (b.likes - b.dislikes) - (a.likes - a.dislikes));
       if(feed === 'new') data.sort((a,b) => b.createdAt?.seconds - a.createdAt?.seconds);
       if(feed === 'top') data.sort((a,b) => b.likes - a.likes);
-      if(feed === 'rising') data = data.filter(y => y.likes > 5).slice(0,10);
       setYaks(data);
     });
     return () => unsub();
   }, [location, feed]);
 
-  // COMMENTS FETCH
   useEffect(() => {
     if(!selectedYak) return;
     const q = query(collection(db, `yaks/${selectedYak}/comments`), orderBy('createdAt', 'asc'));
@@ -115,12 +111,11 @@ export default function Home() {
 
   const vote = async (id: string, type: 'likes' | 'dislikes') => {
     await updateDoc(doc(db, 'yaks', id), { [type]: increment(1) });
-    setYakarma(prev => type === 'likes'? prev + 1 : prev - 1);
   };
 
   const report = async (id: string) => {
     await updateDoc(doc(db, 'yaks', id), { reports: increment(1) });
-    alert('Reported. Thank you');
+    alert('Reported');
   }
 
   const postComment = async () => {
@@ -138,7 +133,7 @@ export default function Home() {
   const subtext = dark? 'text-gray-400' : 'text-gray-500';
 
   if (screen === 2) return (
-    <div className={`min-h-screen ${bg} flex flex-col items-center justify-center p-4 ${text}`}>
+    <div className={`min-h-screen ${bg} flex-col items-center justify-center p-4 ${text}`}>
       <h1 className="text-6xl font-bold text-[#FDCB00] mb-2">Yik Yak</h1>
       <button onClick={() => signInWithPopup(auth, provider)} className="bg-[#FDCB00] text-black px-8 py-3 rounded-full font-bold text-lg">
         Continue with Google
@@ -148,7 +143,6 @@ export default function Home() {
 
   return (
     <div className={`min-h-screen ${bg} ${text}`}>
-      {/* HEADER */}
       <div className={`sticky top-0 ${cardBg} p-3 border-b ${dark? 'border-gray-800' : 'border-gray-200'} z-10`}>
         <div className="flex justify-between items-center mb-3">
           <h1 className="text-2xl font-bold text-[#FDCB00]">Yik Yak</h1>
@@ -160,11 +154,10 @@ export default function Home() {
             </button>
           </div>
         </div>
-        {/* 4 TABS */}
-        <div className="flex gap-2 overflow-x-auto">
+        <div className="flex gap-2">
           {['hot','new','top','rising'].map(f => (
             <button key={f} onClick={() => setFeed(f)}
-              className={`px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1 whitespace-nowrap
+              className={`px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1
               ${feed===f? 'bg-[#FDCB00] text-black' : subtext}`}
             >
               {f==='hot' && <Flame size={14}/>}
@@ -175,7 +168,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* FEED */}
       <div className="p-3 pb-24">
         {yaks.length === 0 && (
           <p className={`text-center mt-20 text-lg ${subtext}`}>
@@ -185,7 +177,8 @@ export default function Home() {
         {yaks.map(y => (
           <div key={y.id} className={`${cardBg} p-3 rounded-2xl mb-3 shadow-sm`}>
             {y.imageUrl && <img src={y.imageUrl} className="rounded-xl mb-2 w-full"/>}
-            <p className="text-lg mb-3">{y.text}</p>
+            {/* FIXED TEXT COLOR HERE */}
+            <p className={`text-lg mb-3 ${text}`}>{y.text}</p>
             <div className={`flex justify-between items-center text-sm ${subtext}`}>
               <div className="flex gap-5">
                 <button onClick={() => vote(y.id, 'likes')} className="flex items-center gap-1">⬆️ {y.likes}</button>
@@ -198,14 +191,12 @@ export default function Home() {
         ))}
       </div>
 
-      {/* + BUTTON */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2">
         <button onClick={() => setScreen(4)} className="bg-[#FDCB00] text-black w-16 h-16 rounded-full flex items-center justify-center shadow-2xl">
           <Plus size={32} strokeWidth={3}/>
         </button>
       </div>
 
-      {/* POST MODAL */}
       {screen === 4 && (
         <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-20">
           <div className={`${cardBg} p-4 rounded-t-3xl w-full`}>
@@ -219,7 +210,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* COMMENTS MODAL */}
       {selectedYak && (
         <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-20">
           <div className={`${cardBg} p-4 rounded-t-3xl w-full h-[70vh] flex-col`}>
@@ -228,10 +218,10 @@ export default function Home() {
               <button onClick={() => setSelectedYak(null)}><X/></button>
             </div>
             <div className="flex-1 overflow-y-auto">
-              {comments.map(c => <p key={c.id} className={`p-2 rounded ${dark? 'bg-[#2A2A2A]' : 'bg-gray-100'} mb-2`}>{c.text}</p>)}
+              {comments.map(c => <p key={c.id} className={`p-2 rounded ${dark? 'bg-[#2A2A2A]' : 'bg-gray-100'} mb-2 ${text}`}>{c.text}</p>)}
             </div>
             <div className="flex gap-2">
-              <input value={newComment} onChange={(e)=>setNewComment(e.target.value)} placeholder="Add a comment" className={`flex-1 p-2 rounded ${dark? 'bg-[#2A2A2A]' : 'bg-gray-100'}`}/>
+              <input value={newComment} onChange={(e)=>setNewComment(e.target.value)} placeholder="Add a comment" className={`flex-1 p-2 rounded ${dark? 'bg-[#2A2A2A]' : 'bg-gray-100'} ${text}`}/>
               <button onClick={postComment} className="bg-[#FDCB00] text-black px-4 rounded-full">Post</button>
             </div>
           </div>
@@ -239,4 +229,4 @@ export default function Home() {
       )}
     </div>
   );
-                                   }
+            }

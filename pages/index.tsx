@@ -74,7 +74,7 @@ export default function Home() {
       if(feed === 'hot') data.sort((a,b) => (b.likes - b.dislikes) - (a.likes - a.dislikes));
       if(feed === 'new') data.sort((a,b) => b.createdAt?.seconds - a.createdAt?.seconds);
       if(feed === 'top') data.sort((a,b) => b.likes - a.likes);
-      if(feed === 'rising') data = data.filter(y => (y.likes - y.dislikes) >= 2).slice(0,10);
+      if(feed === 'rising') data = data.filter(y => (y.likes - y.dislikes) >= 1).slice(0,10);
       setYaks(data);
     });
     return () => unsub();
@@ -116,7 +116,6 @@ export default function Home() {
 
   const report = async (id: string) => {
     await updateDoc(doc(db, 'yaks', id), { reports: increment(1) });
-    alert('Reported');
   }
 
   const postComment = async () => {
@@ -130,37 +129,42 @@ export default function Home() {
 
   const bg = dark? '#000000' : '#F5F5F5';
   const cardBg = dark? '#121212' : '#FFFFFF';
-  const textColor = dark? '#FFFFFF' : '#000';
-  const subtext = dark? 'text-gray-400' : 'text-gray-500';
+  const textColor = dark? '#FFFFFF' : '#000'; // FORCE BLACK IN LIGHT
+  const subtext = dark? '#B3B3B3' : '#6B7280';
 
   if (screen === 2) return (
-    <div className={`min-h-screen ${bg} flex flex-col items-center justify-center p-4`} style={{color: textColor}}>
-      <h1 className="text-6xl font-bold text-[#FDCB00] mb-2">Yik Yak</h1>
-      <p className={`${subtext} mb-8`}>What's happening around you</p>
-      <button onClick={() => signInWithPopup(auth, provider)} className="bg-[#FDCB00] text-black px-8 py-3 rounded-full font-bold text-lg">
+    <div style={{backgroundColor: bg, color: textColor}} className="min-h-screen flex flex-col items-center justify-center p-4">
+      <h1 style={{color: '#FDCB00'}} className="text-6xl font-extrabold mb-2">Yik Yak</h1>
+      <p style={{color: subtext}} className="mb-8">What's happening around you</p>
+      <button onClick={() => signInWithPopup(auth, provider)} style={{backgroundColor: '#FDCB00', color: '#000'}} className="px-8 py-3 rounded-full font-bold text-lg">
         Continue with Google
       </button>
     </div>
   );
 
   return (
-    <div className={`min-h-screen ${bg}`} style={{color: textColor}}>
-      <div className={`sticky top-0 ${cardBg} p-3 border-b ${dark? 'border-gray-800' : 'border-gray-200'} z-10`}>
+    <div style={{backgroundColor: bg, color: textColor}} className="min-h-screen">
+      {/* HEADER */}
+      <div style={{backgroundColor: cardBg, borderColor: dark? '#2A2A2A' : '#E5E7EB'}} className="sticky top-0 p-3 border-b z-10">
         <div className="flex justify-between items-center mb-3">
-          <h1 className="text-2xl font-bold text-[#FDCB00]">Yik Yak</h1>
+          <h1 style={{color: '#FDCB00'}} className="text-2xl font-extrabold">Yik Yak</h1>
           <div className="flex items-center gap-4">
-            <span className={`flex items-center gap-1 text-sm ${subtext}`}><Trophy size={18}/> {yakarma}</span>
-            <Bell size={20} className={subtext}/>
+            <span style={{color: subtext}} className="flex items-center gap-1 text-sm"><Trophy size={18}/> {yakarma}</span>
+            <Bell size={20} style={{color: subtext}}/>
             <button onClick={() => {setDark(!dark); localStorage.setItem('dark', String(!dark))}}>
-              {dark? <Sun size={20}/> : <Moon size={20} className={subtext}/>}
+              {dark? <Sun size={20} color={textColor}/> : <Moon size={20} color={subtext}/>}
             </button>
           </div>
         </div>
+        {/* TABS */}
         <div className="flex gap-2">
           {['hot','new','top','rising'].map(f => (
             <button key={f} onClick={() => setFeed(f)}
-              className={`px-4 py-1.5 rounded-full text-sm font-semibold flex items-center gap-1
-              ${feed===f? 'bg-[#FDCB00] text-black' : subtext}`}
+              style={{
+                backgroundColor: feed===f? '#FDCB00' : 'transparent',
+                color: feed===f? '#000' : subtext
+              }}
+              className="px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-1"
             >
               {f==='hot' && <Flame size={14}/>}
               {f==='new' && <Clock size={14}/>}
@@ -170,65 +174,69 @@ export default function Home() {
         </div>
       </div>
 
+      {/* FEED */}
       <div className="p-3 pb-24">
         {yaks.length === 0 && (
-          <p className={`text-center mt-20 text-lg ${subtext}`}>
+          <p style={{color: subtext}} className="text-center mt-20 text-lg">
             No Yaks nearby. Be the first to post!
           </p>
         )}
         {yaks.map(y => (
-          <div key={y.id} className={`${cardBg} p-4 rounded-2xl mb-3 shadow-lg`}>
+          <div key={y.id} style={{backgroundColor: cardBg}} className="p-4 rounded-2xl mb-3 shadow-lg">
             {y.imageUrl && <img src={y.imageUrl} className="rounded-xl mb-3 w-full"/>}
-            {/* FORCE COLOR WITH INLINE STYLE - THIS FIXES CACHE BUG */}
-            <p className="text-base mb-3 leading-6" style={{color: textColor}}>{y.text}</p>
-            <div className={`flex justify-between items-center text-sm ${subtext}`}>
+            {/* THIS IS THE FINAL FIX - FORCE COLOR */}
+            <p style={{color: textColor}} className="text-base mb-3 leading-6 font-medium">{y.text}</p>
+            <div style={{color: subtext}} className="flex justify-between items-center text-sm">
               <div className="flex gap-6">
-                <button onClick={() => vote(y.id, 'likes')} className="flex items-center gap-1 font-semibold">⬆️ {y.likes}</button>
-                <button onClick={() => vote(y.id, 'dislikes')} className="flex items-center gap-1 font-semibold">⬇️ {y.dislikes}</button>
+                <button onClick={() => vote(y.id, 'likes')} className="flex items-center gap-1 font-bold">⬆️ {y.likes}</button>
+                <button onClick={() => vote(y.id, 'dislikes')} className="flex items-center gap-1 font-bold">⬇️ {y.dislikes}</button>
                 <button onClick={() => setSelectedYak(y.id)} className="flex items-center gap-1"><MessageCircle size={16}/> {y.comments}</button>
               </div>
-              <button onClick={() => report(y.id)} className="opacity-50 hover:opacity-100"><Flag size={16}/></button>
+              <button onClick={() => report(y.id)} style={{opacity: 0.5}}><Flag size={16}/></button>
             </div>
           </div>
         ))}
       </div>
 
+      {/* + BUTTON */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2">
-        <button onClick={() => setScreen(4)} className="bg-[#FDCB00] text-black w-16 h-16 rounded-full flex items-center justify-center shadow-2xl">
-          <Plus size={32} strokeWidth={3}/>
+        <button onClick={() => setScreen(4)} style={{backgroundColor: '#FDCB00'}} className="text-black w-16 h-16 rounded-full flex items-center justify-center shadow-2xl">
+          <Plus size={32} strokeWidth={3} color="#000"/>
         </button>
       </div>
 
+      {/* POST MODAL */}
       {screen === 4 && (
         <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-20">
-          <div className={`${cardBg} p-4 rounded-t-3xl w-full`}>
-            <input type="file" accept="image/*" onChange={(e)=>setImage(e.target.files?.[0] || null)} className="mb-3 text-sm"/>
-            <textarea value={newYak} onChange={(e) => setNewYak(e.target.value)} placeholder="What's happening?" style={{color: textColor, backgroundColor: dark? '#2A2A2A' : '#F0F0F0'}} className="w-full h-32 p-3 rounded-xl" maxLength={200}/>
+          <div style={{backgroundColor: cardBg}} className="p-4 rounded-t-3xl w-full">
+            <input type="file" accept="image/*" onChange={(e)=>setImage(e.target.files?.[0] || null)} style={{color: subtext}} className="mb-3 text-sm"/>
+            <textarea value={newYak} onChange={(e) => setNewYak(e.target.value)} placeholder="What's happening?" style={{color: textColor, backgroundColor: dark? '#2A2A2A' : '#F3F4F6'}} className="w-full h-32 p-3 rounded-xl" maxLength={200}/>
             <div className="flex gap-2 mt-3">
-              <button onClick={postYak} className="bg-[#FDCB00] text-black px-6 py-3 rounded-full font-bold w-full">Yak</button>
-              <button onClick={() => setScreen(3)} className={`px-6 py-3 ${subtext}`}>Cancel</button>
+              <button onClick={postYak} style={{backgroundColor: '#FDCB00', color: '#000'}} className="px-6 py-3 rounded-full font-bold w-full">Yak</button>
+              <button onClick={() => setScreen(3)} style={{color: subtext}} className="px-6 py-3">Cancel</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* COMMENTS MODAL */}
       {selectedYak && (
         <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-20">
-          <div className={`${cardBg} p-4 rounded-t-3xl w-full h-[70vh] flex-col`}>
+          <div style={{backgroundColor: cardBg}} className="p-4 rounded-t-3xl w-full h-[70vh] flex-col">
             <div className="flex justify-between mb-2">
-              <h3 className="font-bold text-lg">Comments</h3>
-              <button onClick={() => setSelectedYak(null)}><X/></button>
+              <h3 style={{color: textColor}} className="font-bold text-lg">Comments</h3>
+              <button onClick={() => setSelectedYak(null)}><X color={textColor}/></button>
             </div>
             <div className="flex-1 overflow-y-auto">
-              {comments.map(c => <p key={c.id} className={`p-2 rounded mb-2`} style={{backgroundColor: dark? '#2A2A2A' : '#F0F0F0', color: textColor}}>{c.text}</p>)}
+              {comments.map(c => <p key={c.id} style={{backgroundColor: dark? '#2A2A2A' : '#F3F4F6', color: textColor}} className="p-2 rounded mb-2">{c.text}</p>)}
             </div>
             <div className="flex gap-2 pt-2">
-              <input value={newComment} onChange={(e)=>setNewComment(e.target.value)} placeholder="Add a comment" style={{color: textColor, backgroundColor: dark? '#2A2A2A' : '#F0F0F0'}} className="flex-1 p-2 rounded"/>
-              <button onClick={postComment} className="bg-[#FDCB00] text-black px-4 rounded-full font-bold">Post</button>
+              <input value={newComment} onChange={(e)=>setNewComment(e.target.value)} placeholder="Add a comment" style={{color: textColor, backgroundColor: dark? '#2A2A2A' : '#F3F4F6'}} className="flex-1 p-2 rounded"/>
+              <button onClick={postComment} style={{backgroundColor: '#FDCB00', color: '#000'}} className="px-4 rounded-full font-bold">Post</button>
             </div>
           </div>
         </div>
       )}
     </div>
   );
-        }
+      }

@@ -3,7 +3,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { Sun, Moon, Plus, Flame, Clock, Trophy, Bell, MessageCircle, Flag, X } from 'lucide-react';
+import { Sun, Moon, Plus, Flame, Clock, Trophy, Bell, MessageCircle, Flag, X, MapPin, ChevronDown } from 'lucide-react';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
@@ -11,7 +11,7 @@ const firebaseConfig = {
   projectId: "nexoraai-75ae2",
   storageBucket: "nexoraai-75ae2.firebasestorage.app",
   messagingSenderId: "173122711177",
-  appId: "1:173122711177:web:68e373598d110d80c1e058",
+  appId: "1:173122711177:web:68e373598d110c1e058",
   measurementId: "G-11Y8XF8MBC"
 };
 
@@ -24,12 +24,19 @@ const provider = new GoogleAuthProvider();
 type Comment = { id: string; text: string; createdAt: any; }
 type Yak = { id: string; text: string; likes: number; dislikes: number; lat: number; lng: number; createdAt: any; imageUrl?: string; reports: number; comments: number; }
 
+const HERDS = [
+  { name: 'My Herd', lat: 15.6327, lng: 77.2768 }, // Adoni
+  { name: 'Hyderabad', lat: 17.3850, lng: 78.4867 },
+  { name: 'Bangalore', lat: 12.9716, lng: 77.5946 },
+  { name: 'Delhi', lat: 28.7041, lng: 77.1025 },
+]
+
 export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [screen, setScreen] = useState(2);
   const [yaks, setYaks] = useState<Yak[]>([]);
   const [newYak, setNewYak] = useState('');
-  const [location, setLocation] = useState<any>(null);
+  const [location, setLocation] = useState<any>(HERDS[0]);
   const [dark, setDark] = useState(false);
   const [yakarma, setYakarma] = useState(309);
   const [feed, setFeed] = useState('hot');
@@ -37,6 +44,7 @@ export default function Home() {
   const [selectedYak, setSelectedYak] = useState<string | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
+  const [showPeek, setShowPeek] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('dark') === 'true';
@@ -47,26 +55,16 @@ export default function Home() {
     onAuthStateChanged(auth, (u) => {
       if (u) {
         setUser(u);
-        getLocation();
         setScreen(3);
       } else { setScreen(2) }
     });
   }, []);
 
-  const getLocation = () => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => setLocation({lat: pos.coords.latitude, lng: pos.coords.longitude}),
-      () => setLocation({lat: 15.6327, lng: 77.2768})
-    );
-  };
-
   useEffect(() => {
-    if (!location) return;
     const q = query(collection(db, 'yaks'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
       let data: Yak[] = snap.docs.map(d => { return { id: d.id,...d.data() } as Yak });
       data = data.filter((y: Yak) => {
-        if (!y.lat ||!y.lng) return true;
         const dist = getDistance(location.lat, location.lng, y.lat, y.lng);
         return dist <= 8;
       });
@@ -94,9 +92,19 @@ export default function Home() {
     const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   };
+  
+  const timeAgo = (timestamp: any) => {
+    if(!timestamp) return 'now';
+    const seconds = Math.floor((new Date().getTime() - timestamp.toDate().getTime()) / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h`;
+  }
 
   const postYak = async () => {
-    if (!newYak.trim() ||!location) return;
+    if (!newYak.trim()) return;
     let imageUrl = '';
     if(image) {
       const storageRef = ref(storage, `yaks/${Date.now()}`);
@@ -127,15 +135,15 @@ export default function Home() {
     setNewComment('');
   }
 
-  const bg = dark? '#000000' : '#F5F5F5';
+  const bg = dark? '#000' : '#F5F5F5';
   const cardBg = dark? '#121212' : '#FFFFFF';
-  const textColor = dark? '#FFFFFF' : '#000'; // FORCE BLACK IN LIGHT
+  const textColor = dark? '#FFFFFF' : '#000';
   const subtext = dark? '#B3B3B3' : '#6B7280';
 
   if (screen === 2) return (
     <div style={{backgroundColor: bg, color: textColor}} className="min-h-screen flex flex-col items-center justify-center p-4">
       <h1 style={{color: '#FDCB00'}} className="text-6xl font-extrabold mb-2">Yik Yak</h1>
-      <p style={{color: subtext}} className="mb-8">What's happening around you</p>
+      <p style={{color: subtext}} className="mb-8">Connect with your herd</p>
       <button onClick={() => signInWithPopup(auth, provider)} style={{backgroundColor: '#FDCB00', color: '#000'}} className="px-8 py-3 rounded-full font-bold text-lg">
         Continue with Google
       </button>
@@ -147,7 +155,9 @@ export default function Home() {
       {/* HEADER */}
       <div style={{backgroundColor: cardBg, borderColor: dark? '#2A2A2A' : '#E5E7EB'}} className="sticky top-0 p-3 border-b z-10">
         <div className="flex justify-between items-center mb-3">
-          <h1 style={{color: '#FDCB00'}} className="text-2xl font-extrabold">Yik Yak</h1>
+          <button onClick={() => setShowPeek(true)} style={{color: subtext}} className="flex items-center gap-1 text-sm font-semibold">
+            <MapPin size={14}/> {location.name} <ChevronDown size={14}/>
+          </button>
           <div className="flex items-center gap-4">
             <span style={{color: subtext}} className="flex items-center gap-1 text-sm"><Trophy size={18}/> {yakarma}</span>
             <Bell size={20} style={{color: subtext}}/>
@@ -178,14 +188,14 @@ export default function Home() {
       <div className="p-3 pb-24">
         {yaks.length === 0 && (
           <p style={{color: subtext}} className="text-center mt-20 text-lg">
-            No Yaks nearby. Be the first to post!
+            No Yaks in {location.name}. Be the first to post!
           </p>
         )}
         {yaks.map(y => (
           <div key={y.id} style={{backgroundColor: cardBg}} className="p-4 rounded-2xl mb-3 shadow-lg">
             {y.imageUrl && <img src={y.imageUrl} className="rounded-xl mb-3 w-full"/>}
-            {/* THIS IS THE FINAL FIX - FORCE COLOR */}
-            <p style={{color: textColor}} className="text-base mb-3 leading-6 font-medium">{y.text}</p>
+            <p style={{color: textColor}} className="text-base mb-2 leading-6 font-medium">{y.text}</p>
+            <p style={{color: subtext}} className="text-xs mb-3">{timeAgo(y.createdAt)}</p>
             <div style={{color: subtext}} className="flex justify-between items-center text-sm">
               <div className="flex gap-6">
                 <button onClick={() => vote(y.id, 'likes')} className="flex items-center gap-1 font-bold">⬆️ {y.likes}</button>
@@ -204,6 +214,22 @@ export default function Home() {
           <Plus size={32} strokeWidth={3} color="#000"/>
         </button>
       </div>
+
+      {/* PEEK MODAL - NEW USA FEATURE */}
+      {showPeek && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-30">
+          <div style={{backgroundColor: cardBg}} className="p-4 rounded-2xl w-80">
+            <h3 style={{color: textColor}} className="font-bold text-lg mb-3">Peek Other Herds</h3>
+            {HERDS.map(h => (
+              <button key={h.name} onClick={() => {setLocation(h); setShowPeek(false)}} 
+                style={{color: textColor}} className="w-full text-left p-2 hover:bg-gray-500/20 rounded">
+                {h.name}
+              </button>
+            ))}
+            <button onClick={() => setShowPeek(false)} style={{color: subtext}} className="w-full mt-2">Cancel</button>
+          </div>
+        </div>
+      )}
 
       {/* POST MODAL */}
       {screen === 4 && (
@@ -239,4 +265,4 @@ export default function Home() {
       )}
     </div>
   );
-      }
+    }

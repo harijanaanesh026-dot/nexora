@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { Sun, Moon, Plus, Flame, Clock, Trophy, Bell, MessageCircle, Flag, X, MapPin, ChevronDown } from 'lucide-react';
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment, deleteDoc } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"; // deleteObject add chesa
+import { Sun, Moon, Plus, Flame, Clock, Trophy, Bell, MessageCircle, Flag, X, MapPin, ChevronDown, Trash2, Edit3 } from 'lucide-react'; // 2 icons add
 
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
@@ -11,7 +11,7 @@ const firebaseConfig = {
   projectId: "nexoraai-75ae2",
   storageBucket: "nexoraai-75ae2.firebasestorage.app",
   messagingSenderId: "173122711177",
-  appId: "1:173122711177:web:68e373598d110c1e058",
+  appId: "1:173122711177:web:68e373598d110d80c1e058",
   measurementId: "G-11Y8XF8MBC"
 };
 
@@ -21,14 +21,13 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 const provider = new GoogleAuthProvider();
 
-type Comment = { id: string; text: string; createdAt: any; }
-type Yak = { id: string; text: string; likes: number; dislikes: number; lat: number; lng: number; createdAt: any; imageUrl?: string; reports: number; comments: number; }
+type Comment = { id: string; text: string; uid: string; createdAt: any; }
+type Yak = { id: string; text: string; uid: string; likes: number; dislikes: number; lat: number; lng: number; createdAt: any; imageUrl?: string; imagePath?: string; reports: number; comments: number; }
 
 const HERDS = [
-  { name: 'My Herd', lat: 15.6327, lng: 77.2768 }, // Adoni
-  { name: 'Hyderabad', lat: 17.3850, lng: 78.4867 },
+  { name: 'My Herd', lat: 15.6327, lng: 77.2768 },
   { name: 'Bangalore', lat: 12.9716, lng: 77.5946 },
-  { name: 'Delhi', lat: 28.7041, lng: 77.1025 },
+  { name: 'Hyderabad', lat: 17.3850, lng: 78.4867 },
 ]
 
 export default function Home() {
@@ -45,6 +44,7 @@ export default function Home() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [showPeek, setShowPeek] = useState(false);
+  const [editingYak, setEditingYak] = useState<Yak | null>(null); // NEW
 
   useEffect(() => {
     const saved = localStorage.getItem('dark') === 'true';
@@ -53,10 +53,7 @@ export default function Home() {
 
   useEffect(() => {
     onAuthStateChanged(auth, (u) => {
-      if (u) {
-        setUser(u);
-        setScreen(3);
-      } else { setScreen(2) }
+      if (u) { setUser(u); setScreen(3); } else { setScreen(2) }
     });
   }, []);
 
@@ -64,10 +61,7 @@ export default function Home() {
     const q = query(collection(db, 'yaks'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
       let data: Yak[] = snap.docs.map(d => { return { id: d.id,...d.data() } as Yak });
-      data = data.filter((y: Yak) => {
-        const dist = getDistance(location.lat, location.lng, y.lat, y.lng);
-        return dist <= 8;
-      });
+      data = data.filter((y: Yak) => getDistance(location.lat, location.lng, y.lat, y.lng) <= 8);
       data = data.filter(y => y.dislikes < 5 && y.reports < 5);
       if(feed === 'hot') data.sort((a,b) => (b.likes - b.dislikes) - (a.likes - a.dislikes));
       if(feed === 'new') data.sort((a,b) => b.createdAt?.seconds - a.createdAt?.seconds);
@@ -78,21 +72,12 @@ export default function Home() {
     return () => unsub();
   }, [location, feed]);
 
-  useEffect(() => {
-    if(!selectedYak) return;
-    const q = query(collection(db, `yaks/${selectedYak}/comments`), orderBy('createdAt', 'asc'));
-    const unsub = onSnapshot(q, (snap) => {
-      setComments(snap.docs.map(d => { return { id: d.id,...d.data() } as Comment }));
-    });
-    return () => unsub();
-  }, [selectedYak]);
-
   const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   };
-  
+
   const timeAgo = (timestamp: any) => {
     if(!timestamp) return 'now';
     const seconds = Math.floor((new Date().getTime() - timestamp.toDate().getTime()) / 1000);
@@ -104,19 +89,41 @@ export default function Home() {
   }
 
   const postYak = async () => {
-    if (!newYak.trim()) return;
-    let imageUrl = '';
+    if (!newYak.trim() &&!image) return;
+    let imageUrl = ''; let imagePath = '';
     if(image) {
-      const storageRef = ref(storage, `yaks/${Date.now()}`);
+      imagePath = `yaks/${Date.now()}`;
+      const storageRef = ref(storage, imagePath);
       const snap = await uploadBytes(storageRef, image);
       imageUrl = await getDownloadURL(snap.ref);
     }
-    await addDoc(collection(db, 'yaks'), {
-      text: newYak, createdAt: serverTimestamp(), likes: 0, dislikes: 0, reports: 0, comments: 0,
-      lat: location.lat, lng: location.lng, imageUrl
-    });
+
+    if(editingYak){ // EDIT MODE
+      await updateDoc(doc(db, 'yaks', editingYak.id), { text: newYak });
+      setEditingYak(null);
+    } else { // NEW POST
+      await addDoc(collection(db, 'yaks'), {
+        text: newYak, uid: user.uid, createdAt: serverTimestamp(), likes: 0, dislikes: 0, reports: 0, comments: 0,
+        lat: location.lat, lng: location.lng, imageUrl, imagePath
+      });
+    }
     setNewYak(''); setImage(null); setScreen(3);
   };
+
+  const deleteYak = async (y: Yak) => {
+    if(confirm('Delete this Yak?')){
+      if(y.imagePath){ // photo unte storage nunchi kuda delete
+        await deleteObject(ref(storage, y.imagePath));
+      }
+      await deleteDoc(doc(db, 'yaks', y.id)); // permanent delete
+    }
+  }
+
+  const startEdit = (y: Yak) => {
+    setEditingYak(y);
+    setNewYak(y.text);
+    setScreen(4);
+  }
 
   const vote = async (id: string, type: 'likes' | 'dislikes') => {
     await updateDoc(doc(db, 'yaks', id), { [type]: increment(1) });
@@ -126,22 +133,13 @@ export default function Home() {
     await updateDoc(doc(db, 'yaks', id), { reports: increment(1) });
   }
 
-  const postComment = async () => {
-    if(!newComment.trim() ||!selectedYak) return;
-    await addDoc(collection(db, `yaks/${selectedYak}/comments`), {
-      text: newComment, createdAt: serverTimestamp()
-    });
-    await updateDoc(doc(db, 'yaks', selectedYak), { comments: increment(1) });
-    setNewComment('');
-  }
-
   const bg = dark? '#000' : '#F5F5F5';
   const cardBg = dark? '#121212' : '#FFFFFF';
   const textColor = dark? '#FFFFFF' : '#000';
   const subtext = dark? '#B3B3B3' : '#6B7280';
 
   if (screen === 2) return (
-    <div style={{backgroundColor: bg, color: textColor}} className="min-h-screen flex flex-col items-center justify-center p-4">
+    <div style={{backgroundColor: bg, color: textColor}} className="min-h-screen flex-col items-center justify-center p-4">
       <h1 style={{color: '#FDCB00'}} className="text-6xl font-extrabold mb-2">Yik Yak</h1>
       <p style={{color: subtext}} className="mb-8">Connect with your herd</p>
       <button onClick={() => signInWithPopup(auth, provider)} style={{backgroundColor: '#FDCB00', color: '#000'}} className="px-8 py-3 rounded-full font-bold text-lg">
@@ -152,7 +150,6 @@ export default function Home() {
 
   return (
     <div style={{backgroundColor: bg, color: textColor}} className="min-h-screen">
-      {/* HEADER */}
       <div style={{backgroundColor: cardBg, borderColor: dark? '#2A2A2A' : '#E5E7EB'}} className="sticky top-0 p-3 border-b z-10">
         <div className="flex justify-between items-center mb-3">
           <button onClick={() => setShowPeek(true)} style={{color: subtext}} className="flex items-center gap-1 text-sm font-semibold">
@@ -166,14 +163,10 @@ export default function Home() {
             </button>
           </div>
         </div>
-        {/* TABS */}
         <div className="flex gap-2">
           {['hot','new','top','rising'].map(f => (
             <button key={f} onClick={() => setFeed(f)}
-              style={{
-                backgroundColor: feed===f? '#FDCB00' : 'transparent',
-                color: feed===f? '#000' : subtext
-              }}
+              style={{ backgroundColor: feed===f? '#FDCB00' : 'transparent', color: feed===f? '#000' : subtext }}
               className="px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-1"
             >
               {f==='hot' && <Flame size={14}/>}
@@ -184,13 +177,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* FEED */}
       <div className="p-3 pb-24">
-        {yaks.length === 0 && (
-          <p style={{color: subtext}} className="text-center mt-20 text-lg">
-            No Yaks in {location.name}. Be the first to post!
-          </p>
-        )}
         {yaks.map(y => (
           <div key={y.id} style={{backgroundColor: cardBg}} className="p-4 rounded-2xl mb-3 shadow-lg">
             {y.imageUrl && <img src={y.imageUrl} className="rounded-xl mb-3 w-full"/>}
@@ -202,67 +189,42 @@ export default function Home() {
                 <button onClick={() => vote(y.id, 'dislikes')} className="flex items-center gap-1 font-bold">⬇️ {y.dislikes}</button>
                 <button onClick={() => setSelectedYak(y.id)} className="flex items-center gap-1"><MessageCircle size={16}/> {y.comments}</button>
               </div>
-              <button onClick={() => report(y.id)} style={{opacity: 0.5}}><Flag size={16}/></button>
+
+              <div className="flex gap-3">
+                <button onClick={() => report(y.id)} style={{opacity: 0.5}}><Flag size={16}/></button>
+                {/* OWNER AYITHE MATRAM EDIT + DELETE */}
+                {user?.uid === y.uid && (
+                  <>
+                    <button onClick={() => startEdit(y)}><Edit3 size={16}/></button>
+                    <button onClick={() => deleteYak(y)}><Trash2 size={16} color="red"/></button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* + BUTTON */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2">
-        <button onClick={() => setScreen(4)} style={{backgroundColor: '#FDCB00'}} className="text-black w-16 h-16 rounded-full flex items-center justify-center shadow-2xl">
+        <button onClick={() => {setScreen(4); setEditingYak(null); setNewYak('')}} style={{backgroundColor: '#FDCB00'}} className="text-black w-16 h-16 rounded-full flex items-center justify-center shadow-2xl">
           <Plus size={32} strokeWidth={3} color="#000"/>
         </button>
       </div>
 
-      {/* PEEK MODAL - NEW USA FEATURE */}
-      {showPeek && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-30">
-          <div style={{backgroundColor: cardBg}} className="p-4 rounded-2xl w-80">
-            <h3 style={{color: textColor}} className="font-bold text-lg mb-3">Peek Other Herds</h3>
-            {HERDS.map(h => (
-              <button key={h.name} onClick={() => {setLocation(h); setShowPeek(false)}} 
-                style={{color: textColor}} className="w-full text-left p-2 hover:bg-gray-500/20 rounded">
-                {h.name}
-              </button>
-            ))}
-            <button onClick={() => setShowPeek(false)} style={{color: subtext}} className="w-full mt-2">Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {/* POST MODAL */}
+      {/* POST/EDIT MODAL */}
       {screen === 4 && (
         <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-20">
           <div style={{backgroundColor: cardBg}} className="p-4 rounded-t-3xl w-full">
-            <input type="file" accept="image/*" onChange={(e)=>setImage(e.target.files?.[0] || null)} style={{color: subtext}} className="mb-3 text-sm"/>
+            <h3 style={{color: textColor}} className="font-bold text-lg mb-2">{editingYak? 'Edit Yak' : 'New Yak'}</h3>
+            {!editingYak && <input type="file" accept="image/*" onChange={(e)=>setImage(e.target.files?.[0] || null)} style={{color: subtext}} className="mb-3 text-sm"/>}
             <textarea value={newYak} onChange={(e) => setNewYak(e.target.value)} placeholder="What's happening?" style={{color: textColor, backgroundColor: dark? '#2A2A2A' : '#F3F4F6'}} className="w-full h-32 p-3 rounded-xl" maxLength={200}/>
             <div className="flex gap-2 mt-3">
-              <button onClick={postYak} style={{backgroundColor: '#FDCB00', color: '#000'}} className="px-6 py-3 rounded-full font-bold w-full">Yak</button>
+              <button onClick={postYak} style={{backgroundColor: '#FDCB00', color: '#000'}} className="px-6 py-3 rounded-full font-bold w-full">{editingYak? 'Update' : 'Yak'}</button>
               <button onClick={() => setScreen(3)} style={{color: subtext}} className="px-6 py-3">Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* COMMENTS MODAL */}
-      {selectedYak && (
-        <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-20">
-          <div style={{backgroundColor: cardBg}} className="p-4 rounded-t-3xl w-full h-[70vh] flex-col">
-            <div className="flex justify-between mb-2">
-              <h3 style={{color: textColor}} className="font-bold text-lg">Comments</h3>
-              <button onClick={() => setSelectedYak(null)}><X color={textColor}/></button>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              {comments.map(c => <p key={c.id} style={{backgroundColor: dark? '#2A2A2A' : '#F3F4F6', color: textColor}} className="p-2 rounded mb-2">{c.text}</p>)}
-            </div>
-            <div className="flex gap-2 pt-2">
-              <input value={newComment} onChange={(e)=>setNewComment(e.target.value)} placeholder="Add a comment" style={{color: textColor, backgroundColor: dark? '#2A2A2A' : '#F3F4F6'}} className="flex-1 p-2 rounded"/>
-              <button onClick={postComment} style={{backgroundColor: '#FDCB00', color: '#000'}} className="px-4 rounded-full font-bold">Post</button>
             </div>
           </div>
         </div>
       )}
     </div>
   );
-    }
+                             }

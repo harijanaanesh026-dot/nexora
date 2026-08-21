@@ -74,6 +74,7 @@ export default function Home() {
       if(feed === 'hot') data.sort((a,b) => (b.likes - b.dislikes) - (a.likes - a.dislikes));
       if(feed === 'new') data.sort((a,b) => b.createdAt?.seconds - a.createdAt?.seconds);
       if(feed === 'top') data.sort((a,b) => b.likes - a.likes);
+      if(feed === 'rising') data = data.filter(y => y.likes >= 3).slice(0,10);
       setYaks(data);
     });
     return () => unsub();
@@ -127,7 +128,7 @@ export default function Home() {
     setNewComment('');
   }
 
-  const bg = dark? '#0A0A0A' : '#F9F9F9';
+  const bg = dark? '#0A0A0A' : '#F5F5F5';
   const cardBg = dark? '#1A1A1A' : '#FFFFFF';
   const text = dark? 'text-white' : 'text-black';
   const subtext = dark? 'text-gray-400' : 'text-gray-500';
@@ -135,6 +136,7 @@ export default function Home() {
   if (screen === 2) return (
     <div className={`min-h-screen ${bg} flex-col items-center justify-center p-4 ${text}`}>
       <h1 className="text-6xl font-bold text-[#FDCB00] mb-2">Yik Yak</h1>
+      <p className={`${subtext} mb-8`}>What's happening around you</p>
       <button onClick={() => signInWithPopup(auth, provider)} className="bg-[#FDCB00] text-black px-8 py-3 rounded-full font-bold text-lg">
         Continue with Google
       </button>
@@ -175,17 +177,17 @@ export default function Home() {
           </p>
         )}
         {yaks.map(y => (
-          <div key={y.id} className={`${cardBg} p-3 rounded-2xl mb-3 shadow-sm`}>
+          <div key={y.id} className={`${cardBg} p-4 rounded-2xl mb-3 shadow-md`}>
             {y.imageUrl && <img src={y.imageUrl} className="rounded-xl mb-2 w-full"/>}
-            {/* FIXED TEXT COLOR HERE */}
-            <p className={`text-lg mb-3 ${text}`}>{y.text}</p>
+            {/* FINAL TEXT COLOR FIX */}
+            <p className={`text-base mb-3 leading-6 ${text}`}>{y.text}</p>
             <div className={`flex justify-between items-center text-sm ${subtext}`}>
-              <div className="flex gap-5">
-                <button onClick={() => vote(y.id, 'likes')} className="flex items-center gap-1">⬆️ {y.likes}</button>
-                <button onClick={() => vote(y.id, 'dislikes')} className="flex items-center gap-1">⬇️ {y.dislikes}</button>
+              <div className="flex gap-6">
+                <button onClick={() => vote(y.id, 'likes')} className="flex items-center gap-1 font-semibold">⬆️ {y.likes}</button>
+                <button onClick={() => vote(y.id, 'dislikes')} className="flex items-center gap-1 font-semibold">⬇️ {y.dislikes}</button>
                 <button onClick={() => setSelectedYak(y.id)} className="flex items-center gap-1"><MessageCircle size={16}/> {y.comments}</button>
               </div>
-              <button onClick={() => report(y.id)}><Flag size={16}/></button>
+              <button onClick={() => report(y.id)} className="opacity-50 hover:opacity-100"><Flag size={16}/></button>
             </div>
           </div>
         ))}
@@ -212,21 +214,21 @@ export default function Home() {
 
       {selectedYak && (
         <div className="fixed inset-0 bg-black/80 flex items-end justify-center z-20">
-          <div className={`${cardBg} p-4 rounded-t-3xl w-full h-[70vh] flex-col`}>
+          <div className={`${cardBg} p-4 rounded-t-3xl w-full h-[70vh] flex flex-col`}>
             <div className="flex justify-between mb-2">
-              <h3 className="font-bold">Comments</h3>
+              <h3 className="font-bold text-lg">Comments</h3>
               <button onClick={() => setSelectedYak(null)}><X/></button>
             </div>
             <div className="flex-1 overflow-y-auto">
               {comments.map(c => <p key={c.id} className={`p-2 rounded ${dark? 'bg-[#2A2A2A]' : 'bg-gray-100'} mb-2 ${text}`}>{c.text}</p>)}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 pt-2">
               <input value={newComment} onChange={(e)=>setNewComment(e.target.value)} placeholder="Add a comment" className={`flex-1 p-2 rounded ${dark? 'bg-[#2A2A2A]' : 'bg-gray-100'} ${text}`}/>
-              <button onClick={postComment} className="bg-[#FDCB00] text-black px-4 rounded-full">Post</button>
+              <button onClick={postComment} className="bg-[#FDCB00] text-black px-4 rounded-full font-bold">Post</button>
             </div>
           </div>
         </div>
       )}
     </div>
   );
-            }
+        }

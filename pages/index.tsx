@@ -17,7 +17,7 @@ const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: 'select_account' });
 
-const COLLEGES = ["JNTU Anantapur","RGUKT","SVU","JNTUH","VTU","Other"];
+const COLLEGES = ["SRET","BITS","Arts&Science","SVCE","Other"];
 const TOPICS = [
   {name:"Academics",icon:"📚",color:"bg-blue-500"},
   {name:"Confessions",icon:"🤫",color:"bg-pink-500"},

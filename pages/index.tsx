@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment, where, getDocs, deleteDoc, arrayUnion } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment, where, getDocs, deleteDoc } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
@@ -41,8 +41,6 @@ export default function YakApp(){
   const [search,setSearch]=useState('');
   const [tab,setTab]=useState('feed');
   const [newYak,setNewYak]=useState('');
-  const [images,setImages]=useState<string[]>([]);
-  const [poll,setPoll]=useState({q1:'',q2:''});
   const [activePost,setActivePost]=useState<string|null>(null);
   const [comments,setComments]=useState<any[]>([]);
   const [commentText,setCommentText]=useState('');
@@ -51,11 +49,9 @@ export default function YakApp(){
   const [showProfile,setShowProfile]=useState(false);
   const [editYak,setEditYak]=useState<any>(null);
   const [loginError,setLoginError]=useState('');
+  const [selectedCollege,setSelectedCollege]=useState(COLLEGES[0]);
 
-  useEffect(()=>{
-    getRedirectResult(auth).catch(e=>setLoginError(e.message));
-  },[]);
-
+  useEffect(()=>{ getRedirectResult(auth).catch(e=>setLoginError(e.message)); },[]);
   useEffect(()=>{
     return onAuthStateChanged(auth, async(u)=>{
       if(u){
@@ -98,19 +94,12 @@ export default function YakApp(){
     } catch(e:any){ setLoginError(e.message); try{ await signInWithRedirect(auth, provider);}catch{} }
   };
 
-  const createUser=async()=>{
-    const college=(document.getElementById('college') as any).value;
-    const username=`Yak_${Math.floor(Math.random()*9000)+1000}`;
-    await addDoc(collection(db,'users'),{uid:user.uid,username,college,karma:50,totalPosts:0,streak:1,following:[],badges:['Newbie'],lastLogin:serverTimestamp(),createdAt:serverTimestamp()});
-    window.location.reload();
-  };
-
   const handlePost=async()=>{
-    if(!newYak.trim() &&!poll.q1) return alert('Emanna rayi bro!');
-    const payload:any={ text:newYak, uid:user.uid, username:userData.username, college:userData.college, topic:topic==='All'?'Memes':topic, likes:0, dislikes:0, commentsCount:0, imageUrls:images, poll: poll.q1?{q1:poll.q1,q2:poll.q2,v1:0,v2:0,voters:[]}:null, createdAt:serverTimestamp() };
-    if(editYak){ await updateDoc(doc(db,'yaks',editYak.id),{text:newYak,imageUrls:images}); setEditYak(null); }
+    if(!newYak.trim()) return alert('Emanna rayi bro!');
+    const payload:any={ text:newYak.trim(), uid:user.uid, username:userData.username, college:userData.college, topic:topic==='All'?'Confessions':topic, likes:0, dislikes:0, commentsCount:0, createdAt:serverTimestamp() };
+    if(editYak){ await updateDoc(doc(db,'yaks',editYak.id),{text:newYak.trim()}); setEditYak(null); }
     else { await addDoc(collection(db,'yaks'),payload); await updateDoc(doc(db,'users',userData.id),{totalPosts:increment(1),karma:increment(10)}); }
-    setNewYak(''); setImages([]); setPoll({q1:'',q2:''}); setScreen('feed');
+    setNewYak(''); setScreen('feed');
   };
 
   if(screen==='login'){
@@ -122,7 +111,7 @@ export default function YakApp(){
           <div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-[24px] mx-auto flex items-center justify-center text-3xl font-black text-black shadow-2xl">Y</div>
           <h1 className="text-6xl font-black mt-6 tracking-tighter">YAK<span className="text-yellow-400">.</span></h1>
           <p className="text-zinc-400 mt-2">India's anonymous campus confessions</p>
-          <p className="text-[11px] text-zinc-600 mt-1">100% Anonymous • College Only • No Judgement</p>
+          <p className="text-[11px] text-zinc-600 mt-1">100% Anonymous • College Only • Text Only</p>
           <button onClick={handleGoogleLogin} className="mt-10 bg-white text-black px-10 py-4 rounded-full font-bold flex items-center gap-3 mx-auto hover:scale-105 transition">
             <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5"/> Continue with Google
           </button>
@@ -131,17 +120,40 @@ export default function YakApp(){
       </div>
     );
   }
+
   if(screen==='verify'){
     return(
-      <div className="min-h-screen bg-[#0a0a0a] text-white p-6 flex flex-col justify-center max-w-md mx-auto">
-        <h1 className="text-3xl font-black">Almost there 👻</h1><p className="text-zinc-500 text-sm mt-2">Select your college to see anonymous yaks</p>
-        <select id="college" className="w-full mt-8 p-4 bg-[#1a1a1a] rounded-2xl border border-zinc-800 outline-none">{COLLEGES.map(c=><option key={c}>{c}</option>)}</select>
-        <button onClick={createUser} className="w-full mt-6 bg-yellow-400 text-black p-4 rounded-full font-black">Enter YAK 🔥</button>
+      <div className="min-h-screen bg-[#0a0a0a] text-white p-6 flex flex-col justify-center max-w-md mx-auto relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-72 h-72 bg-yellow-400/10 rounded-full blur-[100px]"></div>
+        <div className="z-10">
+          <div className="w-12 h-12 bg-yellow-400 rounded-2xl flex items-center justify-center font-black text-black text-xl">Y</div>
+          <h1 className="text-4xl font-black mt-6 tracking-tighter leading-none">Pick your<br/>campus 👻</h1>
+          <p className="text-zinc-500 text-sm mt-3">Login ayyaka college select cheskoni enter avvali. Me campus yaks matrame chustav.</p>
+          <div className="mt-8 space-y-2 max-h-[45vh] overflow-y-auto pr-1">
+            {COLLEGES.map(c=>{
+              const active = selectedCollege===c;
+              return(
+                <button key={c} onClick={()=>setSelectedCollege(c)} className={`w-full p-4 rounded-[18px] border flex justify-between items-center text-left transition ${active?'bg-white text-black border-white scale-[1.02]':'bg-[#141414] border-zinc-800 text-zinc-300'}`}>
+                  <div className="flex gap-3 items-center">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black ${active?'bg-black text-white':'bg-[#1f1f1f]'}`}>{c.slice(0,2).toUpperCase()}</div>
+                    <span className="font-bold text-sm">{c}</span>
+                  </div>
+                  {active && <span className="w-6 h-6 bg-black text-white rounded-full flex items-center justify-center text-xs">✓</span>}
+                </button>
+              )
+            })}
+          </div>
+          <button onClick={async()=>{
+            const username=`Yak_${Math.floor(Math.random()*9000)+1000}`;
+            await addDoc(collection(db,'users'),{uid:user.uid,username,college:selectedCollege,karma:50,totalPosts:0,streak:1,following:[],badges:['Newbie'],lastLogin:serverTimestamp(),createdAt:serverTimestamp()});
+            window.location.reload();
+          }} className="w-full mt-8 bg-yellow-400 text-black p-4 rounded-full font-black text-lg shadow-lg">Enter {selectedCollege} 🚀</button>
+        </div>
       </div>
     );
-  }
+    }
 
-    return(
+  return(
     <div className="min-h-screen bg-[#0a0a0a] text-white pb-24">
       {/* HEADER - ATTRACTIVE */}
       <div className="sticky top-0 z-20 bg-black/80 backdrop-blur-xl border-b border-zinc-900">
@@ -158,7 +170,7 @@ export default function YakApp(){
         </div>
         <div className="px-4 pb-3 max-w-xl mx-auto">
           <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-            {['college','trending','latest','following'].map(f=><button key={f} onClick={()=>setFeed(f)} className={`px-5 h-9 rounded-full text-xs font-bold capitalize whitespace-nowrap transition ${feed===f?'bg-white text-black':'bg-[#1a1a1a] text-zinc-400 border border-zinc-800'}`}>{f==='college'?'🏠 '+userData.college:f==='trending'?'🔥 Trending':f==='latest'?'✨ Latest':'👥 Following'}</button>)}
+            {['college','trending','latest'].map(f=><button key={f} onClick={()=>setFeed(f)} className={`px-5 h-9 rounded-full text-xs font-bold capitalize whitespace-nowrap transition ${feed===f?'bg-white text-black':'bg-[#1a1a1a] text-zinc-400 border border-zinc-800'}`}>{f==='college'?'🏠 '+userData.college:f==='trending'?'🔥 Trending':'✨ Latest'}</button>)}
           </div>
           <div className="relative mt-3"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500">🔍</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search confessions, topics, #hashtags" className="w-full bg-[#141414] border border-zinc-800 rounded-full pl-11 pr-4 py-3 text-sm outline-none focus:border-yellow-400/50 transition"/></div>
         </div>
@@ -203,7 +215,6 @@ export default function YakApp(){
 
       {tab==='feed' && (
         <div className="p-3 space-y-4 max-w-xl mx-auto">
-          {/* Daily Question */}
           <div className="bg-[#141414] border border-zinc-800 rounded-[20px] p-4 flex gap-3">
             <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center text-black font-black">?</div>
             <div><p className="text-xs text-yellow-400 font-bold">DAILY QUESTION</p><p className="text-sm font-medium mt-1">What's the most overrated thing in your college?</p></div>
@@ -218,25 +229,15 @@ export default function YakApp(){
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 bg-[#1f1f1f] rounded-full flex items-center justify-center text-sm">👻</div>
                   <div>
-                    <p className="text-xs font-bold flex items-center gap-1.5">{y.username||'Anonymous'} <span className={`text-[9px] px-2 py-0.5 rounded-full ${topicMeta?.color||'bg-zinc-800'} text-white`}>{y.topic||'General'}</span></p>
+                    <p className="text-xs font-bold flex items-center gap-1.5">{y.username||'Anonymous'} <span className={`text-[9px] px-2 py-0.5 rounded-full ${topicMeta?.color||'bg-zinc-800'} text-white`}>{y.topic||'General'}</span> {isOwner && <span className="text-[9px] bg-yellow-400 text-black px-2 py-0.5 rounded-full font-black">YOU</span>}</p>
                     <p className="text-[11px] text-zinc-500">{y.college} • {y.createdAt?.toDate? new Date(y.createdAt.toDate()).toLocaleTimeString(): 'now'}</p>
                   </div>
                 </div>
-                {isOwner && <div className="flex gap-2"><button onClick={()=>{setEditYak(y); setNewYak(y.text); setImages(y.imageUrls||[]); setScreen('create');}} className="text-[11px] bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-800">Edit</button><button onClick={async()=>{ if(confirm('Delete this yak?')) await deleteDoc(doc(db,'yaks',y.id)); }} className="text-[11px] bg-red-500/10 text-red-400 px-3 py-1.5 rounded-full border border-red-500/20">Delete</button></div>}
+                {isOwner && <div className="flex gap-2"><button onClick={()=>{setEditYak(y); setNewYak(y.text); setScreen('create');}} className="text-[11px] bg-zinc-900 px-3 py-1.5 rounded-full border border-zinc-800">Edit</button><button onClick={async()=>{ if(confirm('Delete this yak?')) await deleteDoc(doc(db,'yaks',y.id)); }} className="text-[11px] bg-red-500/10 text-red-400 px-3 py-1.5 rounded-full border border-red-500/20">Delete</button></div>}
               </div>
 
               <p className="mt-4 text-[15px] leading-relaxed whitespace-pre-wrap">{y.text}</p>
 
-              {y.imageUrls?.length>0 && <div className="grid grid-cols-2 gap-2 mt-4">{y.imageUrls.map((im:string,i:number)=><img key={i} src={im} className="rounded-2xl w-full max-h-72 object-cover border border-zinc-800"/>)}</div>}
-
-              {y.poll && (
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  <button onClick={async()=>{ if(y.poll.voters?.includes(user.uid)) return; await updateDoc(doc(db,'yaks',y.id),{'poll.v1':increment(1),'poll.voters':arrayUnion(user.uid)}); }} className="bg-[#1f1f1f] border border-zinc-800 p-3 rounded-2xl text-sm font-bold hover:bg-zinc-800 transition text-left"><p>{y.poll.q1}</p><p className="text-xs text-zinc-500 mt-1">{y.poll.v1||0} votes</p></button>
-                  <button onClick={async()=>{ if(y.poll.voters?.includes(user.uid)) return; await updateDoc(doc(db,'yaks',y.id),{'poll.v2':increment(1),'poll.voters':arrayUnion(user.uid)}); }} className="bg-[#1f1f1f] border border-zinc-800 p-3 rounded-2xl text-sm font-bold hover:bg-zinc-800 transition text-left"><p>{y.poll.q2}</p><p className="text-xs text-zinc-500 mt-1">{y.poll.v2||0} votes</p></button>
-                </div>
-              )}
-
-              {/* ATTRACTIVE ENGAGEMENT - ONLY UPVOTE/DOWNVOTE/COMMENT/SHARE */}
               <div className="flex items-center gap-2 mt-5">
                 <div className="flex items-center bg-[#1f1f1f] rounded-full border border-zinc-800 overflow-hidden">
                   <button onClick={async()=>{ await updateDoc(doc(db,'yaks',y.id),{likes:increment(1)}); if(y.uid!==user.uid) await addDoc(collection(db,'notifications'),{toUid:y.uid,text:`${userData.username} liked your yak`,yakId:y.id,read:false,createdAt:serverTimestamp()}); }} className="px-4 py-2.5 text-sm font-bold flex items-center gap-1.5 hover:bg-zinc-800 transition">⬆️ {y.likes||0}</button>
@@ -266,13 +267,11 @@ export default function YakApp(){
       {screen==='create' && (
         <div className="fixed inset-0 bg-[#0a0a0a] z-30 p-4 overflow-y-auto">
           <div className="max-w-xl mx-auto">
-            <div className="flex justify-between items-center"><h2 className="font-black text-xl">{editYak?'Edit Yak':'New Yak'} <span className="text-zinc-500 text-sm font-normal">• Anonymous</span></h2><button onClick={()=>{setScreen('feed'); setEditYak(null);}} className="w-9 h-9 bg-[#1a1a1a] border border-zinc-800 rounded-full">✕</button></div>
+            <div className="flex justify-between items-center"><h2 className="font-black text-xl">{editYak?'Edit Yak':'New Yak'} <span className="text-zinc-500 text-sm font-normal">• Text Only</span></h2><button onClick={()=>{setScreen('feed'); setEditYak(null); setNewYak('');}} className="w-9 h-9 bg-[#1a1a1a] border border-zinc-800 rounded-full">✕</button></div>
             <div className="flex gap-2 mt-6 overflow-x-auto">{TOPICS.map(t=><button key={t.name} onClick={()=>setTopic(t.name)} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap border transition ${topic===t.name?'bg-yellow-400 text-black border-yellow-400':'bg-[#1a1a1a] border-zinc-800 text-zinc-400'}`}>{t.icon} {t.name}</button>)}</div>
-            <textarea value={newYak} onChange={e=>setNewYak(e.target.value)} placeholder="What's happening on campus? Be anonymous..." className="w-full h-36 mt-6 p-5 bg-[#141414] border border-zinc-800 rounded-[20px] outline-none focus:border-yellow-400/50 text-[15px] resize-none"/>
-            <div className="grid grid-cols-2 gap-3 mt-4"><input value={poll.q1} onChange={e=>setPoll({...poll,q1:e.target.value})} placeholder="Poll Option A (optional)" className="p-4 bg-[#141414] border border-zinc-800 rounded-2xl text-sm outline-none"/><input value={poll.q2} onChange={e=>setPoll({...poll,q2:e.target.value})} placeholder="Poll Option B" className="p-4 bg-[#141414] border border-zinc-800 rounded-2xl text-sm outline-none"/></div>
-            <label className="w-full mt-4 border-2 border-dashed border-zinc-800 p-5 rounded-[20px] flex flex-col items-center justify-center text-sm text-zinc-500 hover:border-yellow-400/50 cursor-pointer bg-[#141414]"><span className="text-2xl mb-1">🖼️</span>Add Images (max 4)<input type="file" multiple hidden accept="image/*" onChange={e=>{ const files=Array.from(e.target.files||[]).slice(0,4) as File[]; files.forEach(f=>{ const r=new FileReader(); r.onloadend=()=>setImages(p=>[...p,r.result as string].slice(0,4)); r.readAsDataURL(f); }); }}/></label>
-            {images.length>0 && <div className="grid grid-cols-4 gap-2 mt-3">{images.map((im,i)=><div key={i} className="relative"><img src={im} className="h-20 rounded-xl object-cover w-full border border-zinc-800"/><button onClick={()=>setImages(images.filter((_,idx)=>idx!==i))} className="absolute -top-1 -right-1 bg-red-500 w-5 h-5 rounded-full text-xs">x</button></div>)}</div>}
-            <button onClick={handlePost} className="w-full mt-8 bg-white text-black p-4 rounded-full font-black text-lg hover:scale-[1.02] transition">{editYak?'Update Yak':'Post Anonymously 🚀'}</button>
+            <textarea value={newYak} onChange={e=>setNewYak(e.target.value)} placeholder="What's happening on campus? Be anonymous... (Only text)" className="w-full h-48 mt-6 p-5 bg-[#141414] border border-zinc-800 rounded-[20px] outline-none focus:border-yellow-400/50 text-[18px] resize-none" maxLength={500}/>
+            <p className="text-right text-xs text-zinc-600 mt-2">{newYak.length}/500 - Text only posts</p>
+            <button onClick={handlePost} disabled={!newYak.trim()} className="w-full mt-8 bg-white text-black p-4 rounded-full font-black text-lg hover:scale-[1.02] transition disabled:opacity-30">{editYak?'Update Yak':'Post Anonymously 🚀'}</button>
           </div>
         </div>
       )}
@@ -298,4 +297,4 @@ export default function YakApp(){
       )}
     </div>
   );
-}
+                    }

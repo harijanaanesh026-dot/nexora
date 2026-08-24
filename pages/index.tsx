@@ -16,16 +16,24 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-const COLLEGES = ["BITS","SRET","SVCE","ST.JOHNS","ARTS & SCIENCE","VEMU","OTHER"];
+const COLLEGES = [
+  {id:"BITS", name:"BITS", color:"from-violet-500 to-purple-600", emoji:"⚡"},
+  {id:"SRET", name:"SRET", color:"from-blue-500 to-cyan-500", emoji:"🎓"},
+  {id:"SVCE", name:"SVCE", color:"from-emerald-500 to-teal-500", emoji:"🚀"},
+  {id:"ST.JOHNS", name:"ST.JOHNS", color:"from-orange-500 to-red-500", emoji:"🔥"},
+  {id:"ARTS & SCIENCE", name:"ARTS", color:"from-pink-500 to-rose-500", emoji:"🎨"},
+  {id:"VEMU", name:"VEMU", color:"from-yellow-500 to-orange-500", emoji:"💎"},
+  {id:"OTHER", name:"OTHER", color:"from-zinc-600 to-zinc-800", emoji:"🌍"},
+];
 const TOPICS = [
+  {name:"All",icon:"🌍",active:true},
   {name:"Confessions",icon:"🤫",color:"bg-pink-500"},
   {name:"Crushes",icon:"💘",color:"bg-red-500"},
   {name:"Memes",icon:"😂",color:"bg-yellow-500"},
   {name:"Hostel",icon:"🏠",color:"bg-green-500"},
-  {name:"Placements",icon:"💼",color:"bg-purple-500"},
-  {name:"Academics",icon:"📚",color:"bg-blue-500"},
+  {name:"Placements",icon:"💼",color:"bg-violet-500"},
 ];
-const AVATARS = ["👻","🔥","😎","🤫","💀","👽","🦊","🐼","🦁","👾","🤖","😈"];
+const AVATARS = ["👻","🔥","😎","🤫","💀","👽","🦊","🐼","🦁","👾","🤖","🥷"];
 
 export default function YakApp(){
   const [user,setUser]=useState<any>(null);
@@ -33,10 +41,8 @@ export default function YakApp(){
   const [screen,setScreen]=useState('college');
   const [yaks,setYaks]=useState<any[]>([]);
   const [topic,setTopic]=useState('All');
-  const [search,setSearch]=useState('');
   const [newYak,setNewYak]=useState('');
   const [images,setImages]=useState<string[]>([]);
-  const [poll,setPoll]=useState({q1:'',q2:''});
   const [activePost,setActivePost]=useState<string|null>(null);
   const [comments,setComments]=useState<any[]>([]);
   const [commentText,setCommentText]=useState('');
@@ -46,20 +52,14 @@ export default function YakApp(){
   const [verifyMethod,setVerifyMethod]=useState('email');
   const [collegeEmail,setCollegeEmail]=useState('');
   const [rollNumber,setRollNumber]=useState('');
-  const [idCardImage,setIdCardImage]=useState('');
   const [otp,setOtp]=useState('');
   const [generatedOtp,setGeneratedOtp]=useState('');
   const [otpSent,setOtpSent]=useState(false);
   const [isVerified,setIsVerified]=useState(false);
-  const [loginError,setLoginError]=useState('');
   const [posting,setPosting]=useState(false);
+  const [tab,setTab]=useState('home');
 
-  useEffect(()=>{
-    const old=localStorage.getItem('selected_college');
-    if(old && COLLEGES.indexOf(old)===-1) localStorage.clear();
-    getRedirectResult(auth).catch((e:any)=>setLoginError(e.message));
-  },[]);
-
+  useEffect(()=>{ getRedirectResult(auth).catch(()=>{}); },[]);
   useEffect(()=>{
     return onAuthStateChanged(auth, async(u:any)=>{
       if(u){
@@ -68,24 +68,18 @@ export default function YakApp(){
         if(snap.empty){
           const col=localStorage.getItem('selected_college');
           if(!col ||!isVerified){ setScreen('college'); return; }
-          const username='Yak_'+Math.floor(Math.random()*9000+1000);
+          const username='yak_'+Math.floor(Math.random()*9000+1000);
           await addDoc(collection(db,'users'),{
             uid:u.uid, email:u.email, username,
             avatar:localStorage.getItem('selected_avatar')||'👻',
-            college:col,
-            collegeEmail:localStorage.getItem('college_email')||'',
-            rollNumber:localStorage.getItem('roll_number')||'',
-            idCardImage:localStorage.getItem('idcard_image')||'',
-            verifyMethod:localStorage.getItem('verify_method'),
-            verificationStatus: localStorage.getItem('verify_method')==='idcard'?'pending':'approved',
-            karma:100, totalPosts:0, likedPosts:[], dislikedPosts:[],
+            college:col, verifyMethod:localStorage.getItem('verify_method'),
+            verificationStatus:'approved', karma:120, totalPosts:0, likedPosts:[], dislikedPosts:[],
             createdAt:serverTimestamp()
           });
           window.location.reload();
         } else {
-          const data:any={id:snap.docs[0].id,...snap.docs[0].data()};
-          if(data.verificationStatus==='pending'){ setUserData(data); setScreen('pending'); }
-          else { setUserData(data); setScreen('feed'); }
+          setUserData({id:snap.docs[0].id,...snap.docs[0].data()});
+          setScreen('feed');
         }
       } else setScreen('college');
     });
@@ -96,172 +90,120 @@ export default function YakApp(){
     return onSnapshot(query(collection(db,'yaks'),orderBy('createdAt','desc')),s=>{
       let data:any[]=s.docs.map(d=>({id:d.id,...d.data()})).filter((y:any)=>y.college===userData.college);
       if(topic!=='All') data=data.filter((y:any)=>y.topic===topic);
-      if(search) data=data.filter((y:any)=> y.text?.toLowerCase().includes(search.toLowerCase()));
       setYaks(data);
     });
-  },[userData,topic,search]);
+  },[userData,topic]);
 
   useEffect(()=>{ if(!activePost) return; return onSnapshot(query(collection(db,'yaks/'+activePost+'/comments'),orderBy('createdAt','asc')),s=>setComments(s.docs.map(d=>({id:d.id,...d.data()})))); },[activePost]);
 
   const handleCollegeNext=()=>{
-    if(!selectedCollege){ alert('College select chey bro!'); return; }
+    if(!selectedCollege){ alert('Campus select chey!'); return; }
     localStorage.setItem('selected_college', selectedCollege);
     localStorage.setItem('selected_avatar', selectedAvatar);
     setScreen('verify');
   };
-
   const handleEmailVerify=()=>{
-    if(collegeEmail.indexOf('@')===-1){ alert('Valid email pettu!'); return; }
+    if(collegeEmail.indexOf('@')===-1){ alert('Valid email'); return; }
     const code=Math.floor(100000+Math.random()*900000).toString();
     setGeneratedOtp(code); setOtpSent(true);
-    alert('DEMO OTP for '+collegeEmail+': '+code);
+    alert('OTP: '+code+' (demo)');
   };
   const handleOtpSubmit=()=>{
     if(otp===generatedOtp){
       localStorage.setItem('college_email', collegeEmail);
       localStorage.setItem('verify_method','email');
       setIsVerified(true); setScreen('login');
-    } else alert('Wrong OTP! Demo: '+generatedOtp);
+    } else alert('Wrong OTP: '+generatedOtp);
   };
   const handleRollVerify=()=>{
-    if(rollNumber.length<4){ alert('Valid Roll Number pettu!'); return; }
     localStorage.setItem('roll_number', rollNumber);
     localStorage.setItem('verify_method','roll');
     setIsVerified(true); setScreen('login');
   };
-  const handleIdCardVerify=()=>{
-    if(!idCardImage){ alert('ID Card upload chey!'); return; }
-    localStorage.setItem('idcard_image', idCardImage);
-    localStorage.setItem('verify_method','idcard');
-    setIsVerified(true); setScreen('login');
-  };
   const handleGoogleLogin=async()=>{
     try{ await signInWithPopup(auth, provider); }
-    catch(e:any){ try{ await signInWithRedirect(auth, provider); }catch(err:any){ setLoginError(err.message); } }
+    catch{ await signInWithRedirect(auth, provider); }
   };
-
   const handleLike=async(y:any, type:string)=>{
-    if(!userData?.id) return;
+    if(navigator.vibrate) navigator.vibrate(10);
     const liked=userData.likedPosts?.includes(y.id);
     const disliked=userData.dislikedPosts?.includes(y.id);
-    try{
-      if(type==='like'){
-        if(liked){
-          await updateDoc(doc(db,'yaks',y.id),{likes:increment(-1)});
-          await updateDoc(doc(db,'users',userData.id),{likedPosts:arrayRemove(y.id)});
-          setUserData({...userData, likedPosts:userData.likedPosts.filter((i:string)=>i!==y.id)});
-        } else if(disliked){
-          await updateDoc(doc(db,'yaks',y.id),{dislikes:increment(-1), likes:increment(1)});
-          await updateDoc(doc(db,'users',userData.id),{dislikedPosts:arrayRemove(y.id), likedPosts:arrayUnion(y.id)});
-          setUserData({...userData, dislikedPosts:userData.dislikedPosts.filter((i:string)=>i!==y.id), likedPosts:[...userData.likedPosts, y.id]});
-        } else {
-          await updateDoc(doc(db,'yaks',y.id),{likes:increment(1)});
-          await updateDoc(doc(db,'users',userData.id),{likedPosts:arrayUnion(y.id)});
-          setUserData({...userData, likedPosts:[...(userData.likedPosts||[]), y.id]});
-        }
+    if(type==='like'){
+      if(liked){
+        await updateDoc(doc(db,'yaks',y.id),{likes:increment(-1)});
+        await updateDoc(doc(db,'users',userData.id),{likedPosts:arrayRemove(y.id)});
+        setUserData({...userData, likedPosts:userData.likedPosts.filter((i:string)=>i!==y.id)});
+      } else if(disliked){
+        await updateDoc(doc(db,'yaks',y.id),{dislikes:increment(-1), likes:increment(1)});
+        await updateDoc(doc(db,'users',userData.id),{dislikedPosts:arrayRemove(y.id), likedPosts:arrayUnion(y.id)});
+        setUserData({...userData, dislikedPosts:userData.dislikedPosts.filter((i:string)=>i!==y.id), likedPosts:[...userData.likedPosts, y.id]});
       } else {
-        if(disliked){
-          await updateDoc(doc(db,'yaks',y.id),{dislikes:increment(-1)});
-          await updateDoc(doc(db,'users',userData.id),{dislikedPosts:arrayRemove(y.id)});
-          setUserData({...userData, dislikedPosts:userData.dislikedPosts.filter((i:string)=>i!==y.id)});
-        } else if(liked){
-          await updateDoc(doc(db,'yaks',y.id),{likes:increment(-1), dislikes:increment(1)});
-          await updateDoc(doc(db,'users',userData.id),{likedPosts:arrayRemove(y.id), dislikedPosts:arrayUnion(y.id)});
-          setUserData({...userData, likedPosts:userData.likedPosts.filter((i:string)=>i!==y.id), dislikedPosts:[...userData.dislikedPosts, y.id]});
-        } else {
-          await updateDoc(doc(db,'yaks',y.id),{dislikes:increment(1)});
-          await updateDoc(doc(db,'users',userData.id),{dislikedPosts:arrayUnion(y.id)});
-          setUserData({...userData, dislikedPosts:[...(userData.dislikedPosts||[]), y.id]});
-        }
+        await updateDoc(doc(db,'yaks',y.id),{likes:increment(1)});
+        await updateDoc(doc(db,'users',userData.id),{likedPosts:arrayUnion(y.id)});
+        setUserData({...userData, likedPosts:[...(userData.likedPosts||[]), y.id]});
       }
-    }catch(e:any){ alert(e.message); }
+    } else {
+      if(disliked){
+        await updateDoc(doc(db,'yaks',y.id),{dislikes:increment(-1)});
+        await updateDoc(doc(db,'users',userData.id),{dislikedPosts:arrayRemove(y.id)});
+        setUserData({...userData, dislikedPosts:userData.dislikedPosts.filter((i:string)=>i!==y.id)});
+      } else if(liked){
+        await updateDoc(doc(db,'yaks',y.id),{likes:increment(-1), dislikes:increment(1)});
+        await updateDoc(doc(db,'users',userData.id),{likedPosts:arrayRemove(y.id), dislikedPosts:arrayUnion(y.id)});
+        setUserData({...userData, likedPosts:userData.likedPosts.filter((i:string)=>i!==y.id), dislikedPosts:[...userData.dislikedPosts, y.id]});
+      } else {
+        await updateDoc(doc(db,'yaks',y.id),{dislikes:increment(1)});
+        await updateDoc(doc(db,'users',userData.id),{dislikedPosts:arrayUnion(y.id)});
+        setUserData({...userData, dislikedPosts:[...(userData.dislikedPosts||[]), y.id]});
+      }
+    }
   };
-
   const handlePost=async()=>{
-    if(!user ||!userData?.id){ alert('Login ayyaledu - refresh chey!'); return; }
-    if(!newYak.trim() && images.length===0 &&!poll.q1.trim()){ alert('Emanna rayi bro!'); return; }
+    if(!newYak.trim() && images.length===0){ alert('Emanna rayi'); return; }
     setPosting(true);
     try{
-      const payload:any={
-        text:newYak.trim(),
-        uid:user.uid,
-        username:userData.username,
-        avatar:userData.avatar||'👻',
-        college:userData.college,
-        topic:topic==='All'?'Memes':topic,
-        likes:0, dislikes:0, commentsCount:0,
-        imageUrls: images.slice(0,2),
-        poll: poll.q1.trim()?{q1:poll.q1.trim(),q2:poll.q2.trim()||'No',v1:0,v2:0,voters:[]}:null,
+      await addDoc(collection(db,'yaks'),{
+        text:newYak.trim(), uid:user.uid, username:userData.username, avatar:userData.avatar,
+        college:userData.college, topic:topic==='All'?'Confessions':topic,
+        likes:0, dislikes:0, commentsCount:0, imageUrls:images.slice(0,1),
         createdAt:serverTimestamp()
-      };
-      await addDoc(collection(db,'yaks'),payload);
-      await updateDoc(doc(db,'users',userData.id),{totalPosts:increment(1), karma:increment(5)});
-      setNewYak(''); setImages([]); setPoll({q1:'',q2:''}); setScreen('feed');
-    }catch(e:any){ alert('Post failed: '+e.message); }
-    finally{ setPosting(false); }
+      });
+      await updateDoc(doc(db,'users',userData.id),{totalPosts:increment(1)});
+      setNewYak(''); setImages([]); setScreen('feed'); setTab('home');
+    }catch(e:any){ alert(e.message); } finally{ setPosting(false); }
   };
 
   if(screen==='college'){
     return(
-      <div className="min-h-screen bg-[#0a0a0a] text-white p-6 flex flex-col items-center justify-center">
-        <div className="w-full max-w-md">
-          <div className="text-center"><div className="w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-[24px] mx-auto flex items-center justify-center font-black text-black text-3xl">Y</div><h1 className="text-5xl font-black mt-6">YAK<span className="text-yellow-400">.</span></h1><p className="text-zinc-400 text-xs mt-2">BITS • SRET • SVCE • ST.JOHNS • VEMU • Verified</p></div>
-          <h2 className="font-bold mt-8">Pick avatar 👇</h2>
-          <div className="grid grid-cols-6 gap-2 mt-3">{AVATARS.map(av=><button key={av} onClick={()=>setSelectedAvatar(av)} className={`h-12 rounded-2xl border text-xl flex items-center justify-center ${selectedAvatar===av?'bg-white border-white scale-110':'bg-[#141414] border-zinc-800'}`}>{av}</button>)}</div>
-          <h2 className="font-bold mt-6">Select campus 🎓</h2>
-          <div className="grid gap-2.5 mt-3">{COLLEGES.map(c=>{const a=selectedCollege===c; return <button key={c} onClick={()=>setSelectedCollege(c)} className={`w-full p-4 rounded-2xl border text-left font-bold flex justify-between ${a?'bg-white text-black':'bg-[#141414] border-zinc-800 text-zinc-300'}`}><span className="flex gap-3"><span className={`w-9 h-9 rounded-xl flex items-center justify-center ${a?'bg-black text-white':'bg-zinc-800'}`}>{c[0]}</span>{c}</span>{a?'✓':''}</button>})}</div>
-          <button onClick={handleCollegeNext} className={`w-full mt-6 py-4 rounded-full font-black ${selectedCollege?'bg-yellow-400 text-black':'bg-zinc-800 text-zinc-500'}`}>Verify {selectedCollege||'Campus'} →</button>
+      <div className="min-h-screen bg-black text-white flex flex-col">
+        <div className="flex-1 p-6 max-w-md mx-auto w-full">
+          <div className="mt-8">
+            <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center font-black text-black text-2xl">Y</div>
+            <h1 className="text-[40px] font-black mt-6 leading-none tracking-tighter">Find your<br/>tribe on<br/><span className="text-zinc-500">campus.</span></h1>
+            <p className="text-zinc-400 text-sm mt-4">Anonymous yak for {COLLEGES.length} colleges • 100% real</p>
+          </div>
+          <p className="font-bold mt-10 text-sm tracking-widest text-zinc-500">CHOOSE AVATAR</p>
+          <div className="grid grid-cols-6 gap-2.5 mt-3">{AVATARS.map(av=><button key={av} onClick={()=>setSelectedAvatar(av)} className={`h-[56px] rounded-2xl border-2 text-2xl transition-all ${selectedAvatar===av?'bg-white border-white scale-105 shadow-[0_0_20px_rgba(255,255,255,0.3)]':'bg-zinc-900 border-zinc-800'}`}>{av}</button>)}</div>
+          <p className="font-bold mt-8 text-sm tracking-widest text-zinc-500">SELECT CAMPUS</p>
+          <div className="grid grid-cols-3 gap-3 mt-3">{COLLEGES.map(c=>{const active=selectedCollege===c.id; return <button key={c.id} onClick={()=>setSelectedCollege(c.id)} className={`p-4 rounded-[20px] border-2 text-left transition-all ${active?'bg-white text-black border-white scale-[1.02] shadow-xl':'bg-zinc-900 border-zinc-800'}`}><div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${c.color} flex items-center justify-center text-white mb-3`}>{c.emoji}</div><p className="font-black text-xs">{c.name}</p><p className="text-[10px] opacity-60 mt-1">{active?'Selected ✓':'Tap to select'}</p></button>})}</div>
         </div>
+        <div className="p-6 max-w-md mx-auto w-full sticky bottom-0 bg-black/80 backdrop-blur-2xl border-t border-zinc-900"><button onClick={handleCollegeNext} disabled={!selectedCollege} className={`w-full py-5 rounded-full font-black text-base transition-all ${selectedCollege?'bg-white text-black shadow-[0_0_30px_rgba(255,255,255,0.3)] active:scale-95':'bg-zinc-900 text-zinc-600'}`}>Continue as {selectedAvatar} →</button><p className="text-[11px] text-zinc-600 text-center mt-3">🔒 Campus isolated • No outsiders • Verified only</p></div>
       </div>
     );
   }
 
   if(screen==='verify'){
     return(
-      <div className="min-h-screen bg-[#0a0a0a] text-white p-6 flex flex-col items-center justify-center">
-        <div className="w-full max-w-md">
-          <button onClick={()=>setScreen('college')} className="text-zinc-500 text-sm mb-4">← Back</button>
-          <h1 className="text-3xl font-black">Verify you are from<br/><span className="text-yellow-400">{selectedCollege}</span> 🎓</h1>
-          <div className="flex gap-2 mt-6 p-1.5 bg-[#141414] border border-zinc-800 rounded-full w-fit">
-            <button onClick={()=>setVerifyMethod('email')} className={`px-4 py-2 rounded-full text-xs font-bold ${verifyMethod==='email'?'bg-white text-black':'text-zinc-500'}`}>📧 Email</button>
-            <button onClick={()=>setVerifyMethod('roll')} className={`px-4 py-2 rounded-full text-xs font-bold ${verifyMethod==='roll'?'bg-white text-black':'text-zinc-500'}`}>🎫 Roll</button>
-            <button onClick={()=>setVerifyMethod('idcard')} className={`px-4 py-2 rounded-full text-xs font-bold ${verifyMethod==='idcard'?'bg-white text-black':'text-zinc-500'}`}>🪪 ID Card</button>
+      <div className="min-h-screen bg-black text-white p-6">
+        <div className="max-w-md mx-auto">
+          <button onClick={()=>setScreen('college')} className="w-10 h-10 bg-zinc-900 rounded-full flex items-center justify-center">←</button>
+          <h1 className="text-3xl font-black mt-8 leading-tight">Verify<br/><span className="text-zinc-500">{selectedCollege}</span> student</h1>
+          <div className="flex gap-2 mt-8 p-1 bg-zinc-900 rounded-full w-fit">
+            <button onClick={()=>setVerifyMethod('email')} className={`px-5 py-2.5 rounded-full text-sm font-bold transition ${verifyMethod==='email'?'bg-white text-black':'text-zinc-500'}`}>Email</button>
+            <button onClick={()=>setVerifyMethod('roll')} className={`px-5 py-2.5 rounded-full text-sm font-bold transition ${verifyMethod==='roll'?'bg-white text-black':'text-zinc-500'}`}>Roll No</button>
           </div>
-
-          {verifyMethod==='email' && (
-            <div className="mt-6 bg-[#141414] border border-zinc-800 rounded-[24px] p-5">
-              <p className="font-bold text-sm">College Email Verify <span className="ml-2 text-[10px] bg-green-500/20 text-green-400 px-2 py-1 rounded-full">Instant</span></p>
-              <input value={collegeEmail} onChange={e=>setCollegeEmail(e.target.value)} placeholder="yourname@college.edu.in" className="w-full mt-4 p-4 bg-[#0a0a0a] border border-zinc-800 rounded-2xl text-sm outline-none"/>
-              {!otpSent? (
-                <button onClick={handleEmailVerify} className="w-full mt-4 bg-white text-black py-4 rounded-full font-bold">Send OTP →</button>
-              ) : (
-                <div className="mt-4">
-                  <input value={otp} onChange={e=>setOtp(e.target.value)} placeholder="Enter 6-digit OTP" className="w-full p-4 bg-[#0a0a0a] border border-zinc-800 rounded-2xl text-center tracking-widest"/>
-                  <button onClick={handleOtpSubmit} className="w-full mt-3 bg-yellow-400 text-black py-4 rounded-full font-bold">Verify OTP ✓</button>
-                  <p className="text-[10px] text-zinc-500 text-center mt-2">Demo OTP: {generatedOtp}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {verifyMethod==='roll' && (
-            <div className="mt-6 bg-[#141414] border border-zinc-800 rounded-[24px] p-5">
-              <p className="font-bold text-sm">Roll Number Verify</p>
-              <input value={rollNumber} onChange={e=>setRollNumber(e.target.value)} placeholder="Ex: BITS2021001" className="w-full mt-4 p-4 bg-[#0a0a0a] border border-zinc-800 rounded-2xl text-sm uppercase"/>
-              <button onClick={handleRollVerify} className="w-full mt-4 bg-white text-black py-4 rounded-full font-bold">Verify Roll No →</button>
-            </div>
-          )}
-
-          {verifyMethod==='idcard' && (
-            <div className="mt-6 bg-[#141414] border border-zinc-800 rounded-[24px] p-5">
-              <p className="font-bold text-sm">ID Card Upload</p>
-              <label className="w-full mt-4 border-2 border-dashed border-zinc-800 p-6 rounded-2xl flex flex-col items-center cursor-pointer">
-                {idCardImage? <img src={idCardImage} alt="id" className="h-32 rounded-xl"/> : <><span className="text-3xl">📸</span><p className="text-sm text-zinc-400 mt-2">Upload ID Card</p></>}
-                <input type="file" hidden accept="image/*" onChange={e=>{ const f=e.target.files?.[0]; if(f){ const r=new FileReader(); r.onloadend=()=>setIdCardImage(r.result as string); r.readAsDataURL(f); } }}/>
-              </label>
-              <button onClick={handleIdCardVerify} disabled={!idCardImage} className={`w-full mt-4 py-4 rounded-full font-bold ${idCardImage?'bg-white text-black':'bg-zinc-800 text-zinc-500'}`}>Submit →</button>
-            </div>
-          )}
+          {verifyMethod==='email' && <div className="mt-8"><p className="text-sm text-zinc-400">Enter college email - we send OTP</p><input value={collegeEmail} onChange={e=>setCollegeEmail(e.target.value)} placeholder="name@college.edu.in" className="w-full mt-4 p-5 bg-zinc-900 border border-zinc-800 rounded-2xl text-base outline-none focus:border-white/30"/><button onClick={handleEmailVerify} className="w-full mt-4 bg-zinc-900 border border-zinc-800 py-5 rounded-full font-bold">Send OTP</button>{otpSent && <div className="mt-4 p-5 bg-white text-black rounded-[20px]"><p className="font-bold">Enter OTP sent to {collegeEmail}</p><p className="text-xs opacity-60 mt-1">Demo OTP: {generatedOtp}</p><input value={otp} onChange={e=>setOtp(e.target.value)} placeholder="000000" className="w-full mt-4 p-4 bg-zinc-100 rounded-2xl text-center text-xl tracking-[0.5em] font-black outline-none"/><button onClick={handleOtpSubmit} className="w-full mt-3 bg-black text-white py-4 rounded-full font-bold">Verify & Continue</button></div>}</div>}
+          {verifyMethod==='roll' && <div className="mt-8"><input value={rollNumber} onChange={e=>setRollNumber(e.target.value)} placeholder="Ex: BITS2021001" className="w-full p-5 bg-zinc-900 border border-zinc-800 rounded-2xl text-base outline-none uppercase"/><button onClick={handleRollVerify} className="w-full mt-6 bg-white text-black py-5 rounded-full font-bold">Verify Roll No →</button></div>}
         </div>
       </div>
     );
@@ -269,85 +211,84 @@ export default function YakApp(){
 
   if(screen==='login'){
     return(
-      <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-md text-center"><div className="w-20 h-20 bg-green-500 rounded-full mx-auto flex items-center justify-center text-3xl">✓</div><h1 className="text-3xl font-black mt-6">Verified! {selectedCollege}</h1><p className="text-zinc-500 text-sm mt-2">Method: {localStorage.getItem('verify_method')} • Now Google login</p>
-          <div className="mt-8 bg-[#141414] border border-zinc-800 rounded-[24px] p-6"><button onClick={handleGoogleLogin} className="w-full bg-white text-black py-4 rounded-full font-bold flex items-center justify-center gap-3"><img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="g" className="w-5 h-5"/> Continue with Google</button>{loginError && <p className="text-xs text-red-400 mt-3">{loginError}</p>}</div>
-        </div>
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-sm text-center"><div className="w-24 h-24 bg-white rounded-[30px] mx-auto flex items-center justify-center text-4xl shadow-[0_0_40px_rgba(255,255,255,0.2)]">✓</div><h1 className="text-4xl font-black mt-8">You are<br/>verified.</h1><p className="text-zinc-500 mt-3">{selectedCollege} • {localStorage.getItem('verify_method')}</p><button onClick={handleGoogleLogin} className="w-full mt-12 bg-white text-black py-5 rounded-full font-black flex items-center justify-center gap-3 active:scale-95 transition"><img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="" className="w-5 h-5"/>Continue with Google</button></div>
       </div>
     );
-  }
-
-  if(screen==='pending'){
-    return <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center justify-center p-6 text-center"><div className="w-20 h-20 bg-orange-500/20 rounded-full flex items-center justify-center text-3xl">⏳</div><h1 className="text-3xl font-black mt-6">Pending Approval</h1><button onClick={()=>{auth.signOut(); localStorage.clear(); window.location.reload();}} className="mt-6 bg-zinc-800 px-6 py-3 rounded-full text-sm">Logout</button></div>;
-                                }
+    }
 
   return(
-    <div className="min-h-screen bg-[#0a0a0a] text-white pb-24">
-      <div className="sticky top-0 z-20 bg-black/80 backdrop-blur-xl border-b border-zinc-900">
-        <div className="p-4 flex justify-between items-center max-w-xl mx-auto">
-          <div className="flex items-center gap-3"><div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center font-black text-black">Y</div><div><h1 className="font-black text-[14px]">YAK. {userData.college}</h1><p className="text-[10px] text-green-400">✓ {userData.verifyMethod} verified • {yaks.length} yaks • 🔒</p></div></div>
-          <button onClick={()=>setShowProfile(true)} className="bg-[#141414] border border-zinc-800 px-3 h-10 rounded-full text-xs font-bold flex items-center gap-2"><div className="w-7 h-7 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">{userData.avatar}</div>{userData.username}</button>
+    <div className="min-h-screen bg-black text-white">
+      {/* Top Bar */}
+      <div className="sticky top-0 z-30 bg-black/70 backdrop-blur-2xl border-b border-zinc-900/50">
+        <div className="max-w-[600px] mx-auto px-4 h-[64px] flex items-center justify-between">
+          <div className="flex items-center gap-3"><div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center font-black text-black">Y</div><div><p className="font-black text-[13px] tracking-tight">YAK • {userData.college}</p><p className="text-[11px] text-zinc-500 -mt-1">{yaks.length} live • isolated 🔒</p></div></div>
+          <div className="flex items-center gap-2"><div className="w-8 h-8 bg-zinc-900 rounded-full flex items-center justify-center text-xs">🔔</div><button onClick={()=>setShowProfile(true)} className="w-8 h-8 bg-zinc-900 border border-zinc-800 rounded-full flex items-center justify-center">{userData.avatar}</button></div>
         </div>
-        <div className="px-4 pb-3 max-w-xl mx-auto"><div className="flex gap-2 overflow-x-auto"><button onClick={()=>setTopic('All')} className={`px-5 py-2.5 rounded-full text-xs font-bold border ${topic==='All'?'bg-white text-black':'bg-[#141414] border-zinc-800 text-zinc-400'}`}>All ({yaks.length})</button>{TOPICS.map(t=><button key={t.name} onClick={()=>setTopic(t.name)} className={`px-4 py-2.5 rounded-full text-xs font-bold border whitespace-nowrap ${topic===t.name?'bg-yellow-400 text-black':'bg-[#141414] border-zinc-800 text-zinc-500'}`}>{t.icon} {t.name}</button>)}</div><div className="relative mt-3"><span className="absolute left-4 top-1/2 -translate-y-1/2">🔍</span><input value={search} onChange={e=>setSearch(e.target.value)} placeholder={`Search in ${userData.college}...`} className="w-full bg-[#141414] border border-zinc-800 rounded-full pl-11 pr-4 py-3 text-sm outline-none"/></div></div>
+        <div className="max-w-[600px] mx-auto px-4 pb-3 flex gap-2 overflow-x-auto scrollbar-hide">{TOPICS.map(t=><button key={t.name} onClick={()=>setTopic(t.name)} className={`px-4 h-9 rounded-full text-[13px] font-bold whitespace-nowrap border transition-all ${topic===t.name?'bg-white text-black border-white':'bg-zinc-900 border-zinc-800 text-zinc-400'}`}>{t.icon} {t.name}</button>)}</div>
       </div>
 
-      <div className="max-w-xl mx-auto p-3 space-y-4 mt-2">
-        {yaks.map(y=>{
-          const liked=userData.likedPosts?.includes(y.id);
-          const disliked=userData.dislikedPosts?.includes(y.id);
-          const score=(y.likes||0)-(y.dislikes||0);
-          const total=(y.poll?.v1||0)+(y.poll?.v2||0);
-          const isOwner=user?.uid===y.uid;
-          return(
-            <div key={y.id} className="bg-[#141414] border border-zinc-800 rounded-[28px] p-5">
-              <div className="flex justify-between items-start">
-                <div className="flex gap-3 items-center"><div className="w-10 h-10 bg-[#1f1f1f] border border-zinc-800 rounded-full flex items-center justify-center text-lg">{y.avatar||'👻'}</div><div><p className="text-[13px] font-black flex items-center gap-2">{y.username} {isOwner && <span className="bg-yellow-400 text-black px-2 py-0.5 rounded-full text-[9px]">YOU</span>} <span className={`text-[9px] px-2.5 py-1 rounded-full ${TOPICS.find(t=>t.name===y.topic)?.color||'bg-zinc-700'} text-white font-bold`}>{y.topic}</span></p><p className="text-[11px] text-zinc-500">{y.college} • {score>0?'+'+score:score} karma</p></div></div>
-                {isOwner && <button onClick={async()=>{ if(confirm('Delete?')) await deleteDoc(doc(db,'yaks',y.id)); }} className="w-8 h-8 bg-red-500/10 border border-red-500/20 rounded-full text-xs">🗑️</button>}
-              </div>
-              {y.text && <p className="mt-4 text-[16px] leading-[1.6] whitespace-pre-wrap">{y.text}</p>}
-              {y.imageUrls?.length>0 && <div className="grid grid-cols-2 gap-2 mt-4">{y.imageUrls.map((im:string,i:number)=><img key={i} src={im} alt="yak" className="rounded-[20px] w-full max-h-80 object-cover border border-zinc-800"/>)}</div>}
-              {y.poll && <div className="mt-4 space-y-2">{[{q:y.poll.q1,v:y.poll.v1},{q:y.poll.q2,v:y.poll.v2}].map((opt,idx)=><button key={idx} onClick={async()=>{ if(y.poll.voters?.includes(user.uid)) return; await updateDoc(doc(db,'yaks',y.id),{[idx===0?'poll.v1':'poll.v2']:increment(1),'poll.voters':arrayUnion(user.uid)}); }} className="w-full bg-[#1f1f1f] border border-zinc-800 p-4 rounded-2xl text-left relative overflow-hidden"><div className="absolute inset-0 bg-yellow-400/10" style={{width: total? (opt.v/total)*100+'%' : '0%'}}></div><div className="relative flex justify-between"><p className="font-bold text-sm">{opt.q}</p><span className="bg-zinc-800 px-3 py-1 rounded-full text-xs font-black">{opt.v||0}</span></div></button>)}<p className="text-[11px] text-zinc-500">{total} votes</p></div>}
-
-              <div className="flex items-center gap-2 mt-5">
-                <div className="flex bg-[#1f1f1f] rounded-full border border-zinc-800 overflow-hidden">
-                  <button onClick={()=>handleLike(y,'like')} className={`px-5 py-2.5 text-sm font-black flex items-center gap-1.5 ${liked?'bg-white text-black':'hover:bg-zinc-800 text-zinc-300'}`}>❤️ {y.likes||0}</button>
-                  <div className="w-px bg-zinc-800"></div>
-                  <button onClick={()=>handleLike(y,'dislike')} className={`px-5 py-2.5 text-sm font-black flex items-center gap-1.5 ${disliked?'bg-red-500 text-white':'hover:bg-zinc-800 text-zinc-400'}`}>💔 {y.dislikes||0}</button>
+      <div className="max-w-[600px] mx-auto">
+        {/* Real post cards */}
+        <div className="p-3 space-y-3">
+          {yaks.map(y=>{
+            const liked=userData.likedPosts?.includes(y.id);
+            const disliked=userData.dislikedPosts?.includes(y.id);
+            const score=(y.likes||0)-(y.dislikes||0);
+            return(
+              <div key={y.id} className="bg-[#111111] border border-zinc-800/80 rounded-[24px] p-5 active:scale-[0.99] transition-all">
+                <div className="flex items-start justify-between">
+                  <div className="flex gap-3"><div className="w-10 h-10 bg-zinc-900 border border-zinc-800 rounded-full flex items-center justify-center text-lg">{y.avatar}</div><div><div className="flex items-center gap-2"><p className="font-bold text-[14px]">{y.username}</p><span className="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full font-bold">{y.college}</span>{(y.likes||0)>5 && <span className="text-[10px] bg-yellow-400 text-black px-2 py-0.5 rounded-full font-black">🔥 HOT</span>}</div><p className="text-[12px] text-zinc-500">{new Date(y.createdAt?.seconds? y.createdAt.seconds*1000 : Date.now()).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} • {y.topic}</p></div></div>
+                    <button onClick={async()=>{ if(user.uid===y.uid && confirm('Delete?')) await deleteDoc(doc(db,'yaks',y.id)); }} className="text-zinc-600">•••</button>
+                  </div>
+                  <p className="mt-4 text-[16px] leading-[1.5] tracking-tight">{y.text}</p>
+                  {y.imageUrls?.length>0 && <img src={y.imageUrls[0]} alt="" className="mt-4 rounded-2xl w-full max-h-[400px] object-cover border border-zinc-800"/>}
+                  <div className="mt-5 flex items-center gap-3">
+                    <div className="flex items-center bg-zinc-900 rounded-full border border-zinc-800 p-1">
+                      <button onClick={()=>handleLike(y,'like')} className={`px-3.5 py-1.5 rounded-full text-[13px] font-black flex items-center gap-1 transition ${liked?'bg-white text-black':'text-zinc-400 hover:text-white'}`}>▲ {y.likes||0}</button>
+                      <button onClick={()=>handleLike(y,'dislike')} className={`px-3.5 py-1.5 rounded-full text-[13px] font-black flex items-center gap-1 transition ${disliked?'bg-red-500 text-white':'text-zinc-500 hover:text-white'}`}>▼</button>
+                    </div>
+                    <button onClick={()=>setActivePost(activePost===y.id?null:y.id)} className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 px-4 h-9 rounded-full text-[13px] font-bold text-zinc-400"><span>💬</span> {y.commentsCount||0}</button>
+                    <div className="ml-auto text-[11px] text-zinc-600 font-bold">{score!==0 && (score>0?'+'+score:score)}</div>
+                  </div>
+                  {activePost===y.id && <div className="mt-4 border-t border-zinc-800 pt-4"><div className="space-y-3">{comments.map(c=><div key={c.id} className="flex gap-2"><div className="w-7 h-7 bg-zinc-900 rounded-full flex items-center justify-center text-xs">{c.avatar}</div><div className="flex-1 bg-zinc-900 rounded-2xl rounded-tl-md px-3.5 py-2.5"><p className="text-[13px]">{c.text}</p></div></div>)}</div><div className="flex gap-2 mt-4"><input value={commentText} onChange={e=>setCommentText(e.target.value)} placeholder="Reply anonymously..." className="flex-1 bg-zinc-900 border border-zinc-800 rounded-full px-4 h-11 text-sm outline-none focus:border-zinc-700"/><button onClick={async()=>{ if(!commentText.trim()) return; await addDoc(collection(db,'yaks/'+y.id+'/comments'),{text:commentText, uid:user.uid, username:userData.username, avatar:userData.avatar, createdAt:serverTimestamp()}); await updateDoc(doc(db,'yaks',y.id),{commentsCount:increment(1)}); setCommentText(''); }} className="w-11 h-11 bg-white text-black rounded-full font-black">↑</button></div></div>}
                 </div>
-                <button onClick={()=>setActivePost(activePost===y.id?null:y.id)} className="bg-[#1f1f1f] border border-zinc-800 px-4 py-2.5 rounded-full text-sm font-bold">💬 {y.commentsCount||0}</button>
-              </div>
-              {activePost===y.id && <div className="mt-4 pt-4 border-t border-zinc-800"><div className="space-y-3 max-h-64 overflow-y-auto">{comments.map(c=><div key={c.id} className="flex gap-2.5"><div className="w-8 h-8 bg-[#1f1f1f] border border-zinc-800 rounded-full flex items-center justify-center text-sm">{c.avatar||'👻'}</div><div className="bg-[#1f1f1f] border border-zinc-800 rounded-2xl px-4 py-2.5 flex-1"><p className="text-[13px]">{c.text}</p></div><button onClick={async()=>{ await deleteDoc(doc(db,'yaks/'+y.id+'/comments/'+c.id)); await updateDoc(doc(db,'yaks',y.id),{commentsCount:increment(-1)}); }} className="text-[11px]">✕</button></div>)}</div><div className="flex gap-2 mt-4"><input value={commentText} onChange={e=>setCommentText(e.target.value)} placeholder="Comment..." className="flex-1 bg-[#1f1f1f] border border-zinc-800 rounded-full px-4 py-3 text-sm outline-none"/><button onClick={async()=>{ if(!commentText.trim()) return; await addDoc(collection(db,'yaks/'+y.id+'/comments'),{text:commentText,uid:user.uid,username:userData.username,avatar:userData.avatar,createdAt:serverTimestamp()}); await updateDoc(doc(db,'yaks',y.id),{commentsCount:increment(1)}); setCommentText(''); }} className="bg-yellow-400 text-black w-11 h-11 rounded-full font-black">↑</button></div></div>}
-            </div>
-          )
-        })}
-        {yaks.length===0 && <div className="text-center py-20 bg-[#141414] border border-dashed border-zinc-800 rounded-[28px]"><p className="text-5xl">{userData.avatar}</p><p className="font-black mt-4">No yaks yet in {userData.college}</p><button onClick={()=>setScreen('create')} className="mt-6 bg-white text-black px-6 py-3 rounded-full font-bold text-sm">+ Create First Yak</button></div>}
+            )
+          })}
+          {yaks.length===0 && <div className="py-24 text-center"><div className="w-20 h-20 bg-zinc-900 rounded-full mx-auto flex items-center justify-center text-3xl">{userData.avatar}</div><p className="font-black mt-4 text-lg">Your campus is quiet</p><p className="text-sm text-zinc-500 mt-1">Be the first to yak in {userData.college}</p><button onClick={()=>setScreen('create')} className="mt-6 bg-white text-black px-6 h-11 rounded-full font-bold text-sm">Create first yak</button></div>}
+        </div>
       </div>
 
-      <button onClick={()=>setScreen('create')} className="fixed bottom-6 right-6 bg-gradient-to-br from-yellow-400 to-orange-500 text-black w-14 h-14 rounded-full text-2xl font-black shadow-2xl">+</button>
+      {/* Bottom Tab - Real App */}
+      <div className="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-2xl border-t border-zinc-900">
+        <div className="max-w-[600px] mx-auto px-8 h-[84px] flex items-center justify-between">
+          <button onClick={()=>{setTab('home'); setScreen('feed');}} className={`flex flex-col items-center gap-1 ${tab==='home'?'text-white':'text-zinc-600'}`}><span className="text-xl">⌂</span><span className="text-[10px] font-bold tracking-widest">HOME</span></button>
+          <button onClick={()=>setTab('trending')} className={`flex flex-col items-center gap-1 ${tab==='trending'?'text-white':'text-zinc-600'}`}><span className="text-xl">🔥</span><span className="text-[10px] font-bold tracking-widest">HOT</span></button>
+          <button onClick={()=>setScreen('create')} className="w-14 h-14 bg-white text-black rounded-full flex items-center justify-center text-2xl shadow-[0_0_30px_rgba(255,255,255,0.3)] active:scale-90 transition">+</button>
+          <button className="flex flex-col items-center gap-1 text-zinc-600"><span className="text-xl">◐</span><span className="text-[10px] font-bold tracking-widest">NEARBY</span></button>
+          <button onClick={()=>setShowProfile(true)} className="flex flex-col items-center gap-1 text-zinc-600"><span className="text-xl">{userData.avatar}</span><span className="text-[10px] font-bold tracking-widest">YOU</span></button>
+        </div>
+      </div>
 
       {screen==='create' && (
-        <div className="fixed inset-0 bg-[#0a0a0a] z-30 p-4 overflow-y-auto">
-          <div className="max-w-xl mx-auto">
-            <div className="flex justify-between items-center"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-[#1f1f1f] border border-zinc-800 rounded-full flex items-center justify-center">{userData.avatar}</div><div><h2 className="font-black">New Yak</h2><p className="text-xs text-zinc-500">{userData.college} • Verified {userData.verifyMethod} 🔒</p></div></div><button onClick={()=>{setScreen('feed'); setNewYak(''); setImages([]);}} className="w-10 h-10 bg-[#1a1a1a] border border-zinc-800 rounded-full">✕</button></div>
-            <div className="flex gap-2 mt-6 overflow-x-auto">{TOPICS.map(t=><button key={t.name} onClick={()=>setTopic(t.name)} className={`px-4 py-2.5 rounded-full text-xs font-bold border whitespace-nowrap ${topic===t.name?'bg-yellow-400 text-black':'bg-[#1a1a1a] border-zinc-800 text-zinc-500'}`}>{t.icon} {t.name}</button>)}</div>
-            <textarea value={newYak} onChange={e=>setNewYak(e.target.value)} placeholder={`What's happening in ${userData.college}?`} className="w-full h-36 mt-6 p-5 bg-[#141414] border border-zinc-800 rounded-[24px] outline-none text-[16px] resize-none" maxLength={500}/>
-            <div className="grid grid-cols-2 gap-3 mt-4"><input value={poll.q1} onChange={e=>setPoll({...poll,q1:e.target.value})} placeholder="Poll A" className="p-4 bg-[#141414] border border-zinc-800 rounded-2xl text-sm"/><input value={poll.q2} onChange={e=>setPoll({...poll,q2:e.target.value})} placeholder="Poll B" className="p-4 bg-[#141414] border border-zinc-800 rounded-2xl text-sm"/></div>
-            <label className="w-full mt-4 border-2 border-dashed border-zinc-800 p-5 rounded-[24px] flex flex-col items-center text-sm text-zinc-500 bg-[#141414] cursor-pointer">🖼️ Add Photos (max 2)<input type="file" multiple hidden accept="image/*" onChange={e=>{ const files=Array.from(e.target.files||[]).slice(0,2); files.forEach((f:any)=>{ const r=new FileReader(); r.onloadend=()=>setImages(p=>[...p,r.result as string].slice(0,2)); r.readAsDataURL(f); }); }}/></label>
-            {images.length>0 && <div className="grid grid-cols-2 gap-2 mt-3">{images.map((im,i)=><div key={i} className="relative"><img src={im} alt="up" className="h-32 rounded-xl object-cover w-full border border-zinc-800"/><button onClick={()=>setImages(images.filter((_,idx)=>idx!==i))} className="absolute -top-2 -right-2 bg-red-500 w-7 h-7 rounded-full text-xs font-bold">x</button></div>)}</div>}
-            <button onClick={handlePost} disabled={posting} className={`w-full mt-8 p-4 rounded-full font-black text-lg ${posting?'bg-zinc-800 text-zinc-500':'bg-white text-black'}`}>{posting?'Posting...':'Post to '+userData.college+' 🚀'}</button>
+        <div className="fixed inset-0 bg-black z-40">
+          <div className="max-w-[600px] mx-auto h-full flex flex-col">
+            <div className="p-4 flex items-center justify-between border-b border-zinc-900"><button onClick={()=>setScreen('feed')} className="w-9 h-9 bg-zinc-900 rounded-full flex items-center justify-center">✕</button><p className="font-bold text-sm">New Yak to {userData.college}</p><button onClick={handlePost} disabled={posting ||!newYak.trim()} className={`px-5 h-9 rounded-full font-black text-sm ${!newYak.trim()?'bg-zinc-900 text-zinc-600':'bg-white text-black active:scale-95'}`}>{posting?'Posting...':'Post'}</button></div>
+            <div className="p-4 flex-1"><div className="flex gap-3"><div className="w-10 h-10 bg-zinc-900 rounded-full flex items-center justify-center">{userData.avatar}</div><div><p className="font-bold text-sm">{userData.username}</p><p className="text-xs text-zinc-500">Posting to {userData.college} • Anonymous • Verified {userData.verifyMethod}</p></div></div><textarea value={newYak} onChange={e=>setNewYak(e.target.value)} placeholder={`What's happening in ${userData.college} tonight? ${userData.avatar}`} autoFocus className="w-full mt-6 bg-transparent text-[22px] leading-tight outline-none placeholder:text-zinc-700 resize-none min-h-[200px]"/><label className="mt-6 border border-dashed border-zinc-800 rounded-2xl p-6 flex flex-col items-center cursor-pointer"><span className="text-2xl">🖼️</span><span className="text-xs text-zinc-500 mt-2">Add photo (optional, max 1)</span><input type="file" hidden accept="image/*" onChange={e=>{ const f=e.target.files?.[0]; if(f){ const r=new FileReader(); r.onloadend=()=>setImages([r.result as string]); r.readAsDataURL(f); } }}/></label>{images[0] && <div className="mt-4 relative"><img src={images[0]} alt="" className="rounded-2xl w-full"/><button onClick={()=>setImages([])} className="absolute top-3 right-3 w-8 h-8 bg-black/70 backdrop-blur rounded-full">✕</button></div>}</div>
           </div>
         </div>
       )}
 
       {showProfile && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-30 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-[#141414] border border-zinc-800 w-full sm:max-w-sm rounded-t-[32px] sm:rounded-[32px] p-6">
-            <div className="flex items-center gap-4"><div className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-[20px] flex items-center justify-center text-3xl">{userData.avatar}</div><div><h2 className="font-black text-lg">{userData.username}</h2><p className="text-xs text-zinc-500">{userData.college} • {userData.verifyMethod} ✓</p></div></div>
-            <div className="grid grid-cols-3 gap-2 mt-6"><div className="bg-[#1f1f1f] border border-zinc-800 p-3 rounded-2xl text-center"><p className="text-xl font-black">{userData.likedPosts?.length||0}</p><p className="text-[9px] text-zinc-500 font-bold">LIKED</p></div><div className="bg-[#1f1f1f] border border-zinc-800 p-3 rounded-2xl text-center"><p className="text-xl font-black">{userData.totalPosts||0}</p><p className="text-[9px] text-zinc-500 font-bold">YAKS</p></div><div className="bg-[#1f1f1f] border border-zinc-800 p-3 rounded-2xl text-center"><p className="text-xl font-black text-red-400">{userData.dislikedPosts?.length||0}</p><p className="text-[9px] text-zinc-500 font-bold">DISLIKED</p></div></div>
-            <button onClick={()=>{auth.signOut(); localStorage.clear(); window.location.reload();}} className="w-full mt-6 bg-[#1f1f1f] border border-zinc-800 p-3.5 rounded-full text-sm font-bold">Logout & Switch Campus</button>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-xl z-50 flex items-end justify-center">
+          <div className="bg-zinc-950 border border-zinc-800 w-full max-w-[600px] rounded-t-[32px] p-6 pb-10">
+            <div className="w-10 h-1 bg-zinc-800 rounded-full mx-auto mb-6"></div>
+            <div className="flex items-center gap-4"><div className="w-20 h-20 bg-white rounded-[24px] flex items-center justify-center text-4xl">{userData.avatar}</div><div><h2 className="font-black text-xl">{userData.username}</h2><p className="text-sm text-zinc-500">{userData.college} • {userData.karma} karma • Verified {userData.verifyMethod}</p><div className="flex gap-2 mt-2"><span className="text-xs bg-zinc-900 border border-zinc-800 px-3 py-1 rounded-full">❤️ {userData.likedPosts?.length||0} liked</span><span className="text-xs bg-zinc-900 border border-zinc-800 px-3 py-1 rounded-full">{userData.totalPosts||0} yaks</span></div></div></div>
+            <button onClick={()=>{auth.signOut(); localStorage.clear(); window.location.reload();}} className="w-full mt-8 bg-zinc-900 border border-zinc-800 h-12 rounded-full font-bold">Log out & switch campus</button>
+            <button onClick={()=>setShowProfile(false)} className="w-full mt-3 bg-white text-black h-12 rounded-full font-black">Done</button>
           </div>
         </div>
       )}
     </div>
   );
-                                                                                                                                                                        }
+      }

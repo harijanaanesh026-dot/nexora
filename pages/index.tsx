@@ -25,9 +25,9 @@ const COLLEGES = [
 ];
 const AVATARS = ["👻","🤫","💀","👽","🦊","🐼","🔥","😎"];
 const ANONYMOUS_NAMES = ["Anonymous Owl","Secret Tiger","Hidden Fox","Silent Panda","Ghost User","Shadow Yak","Mystery Student","Unknown"];
-const Footer = () => <div className="w-full py-8 flex flex-col items-center gap-1 border-t border-white/[0.06] mt-8"><p className="text-[10px] tracking-[0.3em] font-bold text-white/40">A PRODUCTION BY ANESH</p><p className="text-[9px] text-white/20">Nested Reply • Anonymous • College Only • Dark White</p></div>;
+const Footer = () => <div className="w-full py-8 flex flex-col items-center gap-1 border-t border-white/[0.06] mt-8"><p className="text-[10px] tracking-[0.3em] font-bold text-white/40">A PRODUCTION BY ANESH</p><p className="text-[9px] text-white/20">100% Anonymous • Nested Reply • Dark • White Letters • College Only</p></div>;
 
-export default function YakNestedReply(){
+export default function YakFinalNested(){
   const [user,setUser]=useState<any>(null);
   const [userData,setUserData]=useState<any>(null);
   const [screen,setScreen]=useState('college');
@@ -42,12 +42,11 @@ export default function YakNestedReply(){
   const [yakType,setYakType]=useState<'yak'|'poll'|'confession'|'meme'>('yak');
   const [pollOptions,setPollOptions]=useState(['','']);
   const [yakImage,setYakImage]=useState<string>('');
+  const [isAnonymous,setIsAnonymous]=useState(true);
   const [activePost,setActivePost]=useState<string|null>(null);
   const [comments,setComments]=useState<any[]>([]);
   const [commentText,setCommentText]=useState('');
-  // NESTED REPLY STATE
-  const [replyToComment,setReplyToComment]=useState<any>(null);
-  const [expandedReplies,setExpandedReplies]=useState<Record<string,boolean>>({});
+  const [replyTo,setReplyTo]=useState<any>(null); // NESTED REPLY STATE
   const [showProfile,setShowProfile]=useState(false);
   const [selectedCollege,setSelectedCollege]=useState('');
   const [selectedAvatar,setSelectedAvatar]=useState("👻");
@@ -84,7 +83,6 @@ export default function YakNestedReply(){
       }else setScreen('college');
     });
   },[isVerified]);
-
   useEffect(()=>{
     if(!userData?.college) return;
     return onSnapshot(collection(db,'yaks'), s=>{
@@ -131,90 +129,28 @@ export default function YakNestedReply(){
     }catch(e:any){ showToast(e.message); }
   };
   const handlePollVote=async(y:any, idx:number)=>{
-    if(!userData) return; if(userData.pollVoted?.includes(y.id)){ showToast("Already voted"); return; }
-    try{ const n=[...y.pollOptions]; n[idx].votes=(n[idx].votes||0)+1; await updateDoc(doc(db,'yaks',y.id),{pollOptions:n, totalVotes:increment(1)}); await updateDoc(doc(db,'users',userData.id),{pollVoted:arrayUnion(y.id)}); setUserData({...userData, pollVoted:[...(userData.pollVoted||[]), y.id]}); showToast("Voted Anon"); }catch(e:any){ showToast(e.message); }
+    if(!userData) return; if(userData.pollVoted?.includes(y.id)){ showToast("Already voted • Anon"); return; }
+    try{ const n=[...y.pollOptions]; n[idx].votes=(n[idx].votes||0)+1; await updateDoc(doc(db,'yaks',y.id),{pollOptions:n, totalVotes:increment(1)}); await updateDoc(doc(db,'users',userData.id),{pollVoted:arrayUnion(y.id)}); setUserData({...userData, pollVoted:[...(userData.pollVoted||[]), y.id]}); showToast("Voted Anonymously • "+y.pollOptions[idx].text); }catch(e:any){ showToast(e.message); }
   };
+
+  // ANONYMOUS POST + NESTED REPLY POST
   const handlePost=async()=>{
-    const txt=newYak.trim(); if(!txt &&!yakImage){ showToast("Type anonymously"); return; } if(yakType==='poll' && pollOptions.filter(o=>o.trim()).length<2){ showToast("Need 2 options"); return; } if(!userData||!user) return; if(posting) return; setPosting(true);
+    const txt=newYak.trim(); if(!txt &&!yakImage){ showToast("Type about college anonymously"); return; } if(yakType==='poll' && pollOptions.filter(o=>o.trim()).length<2){ showToast("Need 2 options"); return; } if(!userData||!user) return; if(posting) return; setPosting(true);
     try{
       const anonAvatar = AVATARS[Math.floor(Math.random()*AVATARS.length)];
-      const payload:any={ text:txt, uid:user.uid, username: "Anonymous • "+userData.college, realUsername: userData.username, avatar: anonAvatar, college:userData.college, type:yakType, isAnonymous: true, likes:0, dislikes:0, commentsCount:0, reports:0, createdAt:serverTimestamp() };
+      const payload:any={ text:txt, uid:user.uid, username:"Anonymous • "+userData.college, realUsername:userData.username, avatar:anonAvatar, college:userData.college, type:yakType, isAnonymous:true, isCollegeTalk:true, likes:0, dislikes:0, commentsCount:0, reports:0, createdAt:serverTimestamp() };
       if(yakImage) payload.image=yakImage;
       if(yakType==='poll'){ payload.pollOptions=pollOptions.filter(o=>o.trim()).map(t=>({text:t.trim(), votes:0})); payload.totalVotes=0; }
       if(yakType==='meme') payload.isMemeBattle=true;
-      await addDoc(collection(db,'yaks'),payload); await updateDoc(doc(db,'users',userData.id),{totalPosts:increment(1), yakarma:increment(10)}); setNewYak(''); setYakImage(''); setPollOptions(['','']); setYakType('yak'); setScreen('feed'); showToast("Posted Anon in "+userData.college+" 🤫");
+      if(yakType==='confession') payload.isConfession=true;
+      await addDoc(collection(db,'yaks'),payload); await updateDoc(doc(db,'users',userData.id),{totalPosts:increment(1), yakarma:increment(yakType==='meme'?10:5)}); setNewYak(''); setYakImage(''); setPollOptions(['','']); setYakType('yak'); setScreen('feed'); showToast("Posted Anonymously in "+userData.college+" • Evariki teliyadu 🤫 • Nested enabled");
     }catch(e:any){ showToast(e.message); }finally{ setPosting(false); }
   };
-  const handleDelete=async(y:any)=>{ if(user?.uid!==y.uid) return; if(!confirm('Delete anon post?')) return; try{ await deleteDoc(doc(db,'yaks',y.id)); await updateDoc(doc(db,'users',userData.id),{totalPosts:increment(-1)}); showToast("Deleted Anon"); }catch(e:any){ showToast(e.message); } setShowMenu(null); };
-  const handleEdit=async()=>{ if(!editingPost) return; if(!editText.trim()) return; try{ await updateDoc(doc(db,'yaks',editingPost.id),{text:editText.trim(), edited:true}); showToast("Edited Anon"); }catch(e:any){ showToast(e.message); } setEditingPost(null); setEditText(''); setShowMenu(null); };
+  const handleDelete=async(y:any)=>{ if(user?.uid!==y.uid) return; if(!confirm('Delete your anonymous post? Owner only')) return; try{ await deleteDoc(doc(db,'yaks',y.id)); await updateDoc(doc(db,'users',userData.id),{totalPosts:increment(-1)}); showToast("Deleted • Anon owner"); }catch(e:any){ showToast(e.message); } setShowMenu(null); };
+  const handleEdit=async()=>{ if(!editingPost) return; if(!editText.trim()) return; try{ await updateDoc(doc(db,'yaks',editingPost.id),{text:editText.trim(), edited:true}); showToast("Edited • Anon"); }catch(e:any){ showToast(e.message); } setEditingPost(null); setEditText(''); setShowMenu(null); };
   const handleReport=async(y:any)=>{ if(userData.reportedPosts?.includes(y.id)) return; try{ await updateDoc(doc(db,'yaks',y.id),{reports:increment(1)}); await updateDoc(doc(db,'users',userData.id),{reportedPosts:arrayUnion(y.id)}); if((y.reports||0)+1>=5) await deleteDoc(doc(db,'yaks',y.id)); showToast("Reported "+((y.reports||0)+1)+"/5"); }catch(e:any){ showToast(e.message); } setShowMenu(null); };
 
-  // NESTED REPLY POST - COMMENT KI REPLY
-  const handleCommentPost=async(y:any)=>{
-    if(!commentText.trim()) return;
-    const t=commentText.trim();
-    const isReply =!!replyToComment;
-    setCommentText(''); setReplyToComment(null);
-    try{
-      const payload:any={
-        text: isReply? `@${replyToComment.username} ${t}` : t,
-        uid:user.uid,
-        username: "Anonymous",
-        avatar: AVATARS[Math.floor(Math.random()*AVATARS.length)],
-        college:userData.college,
-        parentId: isReply? replyToComment.id : null,
-        replyToId: isReply? replyToComment.uid : null,
-        replyToUsername: isReply? replyToComment.username : null,
-        depth: isReply? (replyToComment.depth||0)+1 : 0,
-        createdAt:serverTimestamp()
-      };
-      await addDoc(collection(db,'yaks/'+y.id+'/comments'),payload);
-      await updateDoc(doc(db,'yaks',y.id),{commentsCount:increment(1)});
-      showToast(isReply? "Replied Anonymously 🤫" : "Commented Anonymously 🤫");
-    }catch(e:any){ showToast(e.message); setCommentText(t); }
-  };
-
-  // BUILD NESTED TREE - COMMENTS TO NESTED STRUCTURE
-  const buildCommentTree=(comments:any[])=>{
-    const map:Record<string,any>={};
-    comments.forEach(c=>{ map[c.id]={...c, replies:[]} });
-    const roots:any[]=[];
-    comments.forEach(c=>{
-      if(c.parentId && map[c.parentId]){
-        map[c.parentId].replies.push(map[c.id]);
-      }else{
-        roots.push(map[c.id]);
-      }
-    });
-    return roots;
-  };
-
-  if(screen==='college'){
-    return(
-      <div className="min-h-screen bg-[#0a0a0b] text-white"><style>{`body{background:#0a0a0b} ::-webkit-scrollbar{display:none} *{-webkit-tap-highlight-color:transparent}`}</style>
-        {toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white text-black px-5 py-2 rounded-full text-xs font-bold z-[100]">{toast}</div>}
-        <div className="max-w-md mx-auto p-6 bg-[#0a0a0b] min-h-screen"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-white text-black rounded-xl flex items-center justify-center font-black">👻</div><div><p className="font-black text-sm">ANONYMOUS • NESTED REPLY • DARK</p><p className="text-[10px] text-white/40">{totalUsers} anon • Nested reply • White letters</p></div></div>
-          <h1 className="text-[38px] font-black mt-8 leading-[0.9]">Anonymous.<br/>Nested.<br/><span className="text-white/30">Reply.</span></h1><p className="text-[13px] text-white/50 mt-3">Comment ki reply • Reply ki reply • Thread la • Evaru teliyadu 🤫</p>
-          <p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mt-8">AVATAR</p><div className="grid grid-cols-4 gap-2.5 mt-3">{AVATARS.map(a=><button key={a} onClick={()=>setSelectedAvatar(a)} className={`h-16 rounded-[18px] text-xl border-2 ${selectedAvatar===a?'bg-white text-black border-white':'bg-white/[0.05] border-white/10 text-white'}`}>{a}</button>)}</div>
-          <p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mt-8">COLLEGE</p><div className="space-y-2.5 mt-3">{COLLEGES.map(c=>{ const act=selectedCollege===c.id; return <button key={c.id} onClick={()=>setSelectedCollege(c.id)} className={`w-full p-4 rounded-[18px] border-2 text-left flex justify-between ${act?'bg-white text-black border-white':'bg-white/[0.05] border-white/10 text-white'}`}><div><p className="font-bold text-[13px]">{c.label} • Nested Reply 🤫</p><p className={`text-[11px] ${act?'text-black/60':'text-white/40'}`}>{collegeCounts[c.id]||0} anon • Thread reply</p></div><div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center ${act?'bg-black text-white border-black':'border-white/10'}`}>{act?'✓':''}</div></button>})}</div>
-          <button onClick={handleCollegeNext} disabled={!selectedCollege} className={`w-full mt-8 py-4 rounded-full font-black text-[14px] ${selectedCollege?'bg-white text-black':'bg-white/[0.06] text-white/30 border-2 border-white/10'}`}>Enter {selectedCollege||'College'} Nested 🤫 →</button><Footer/></div></div>
-    );
-  }
-  if(screen==='verify'){
-    const config=getCollegeConfig();
-    return(<div className="min-h-screen bg-[#0a0a0b] text-white"><div className="max-w-md mx-auto p-6 bg-[#0a0a0b] min-h-screen"><button onClick={()=>setScreen('college')} className="w-9 h-9 bg-white/5 border border-white/10 rounded-full text-white">←</button><div className="mt-6 bg-white/[0.05] border border-white/10 rounded-[20px] p-5"><p className="text-[10px] font-bold tracking-widest text-white/30">{collegeCounts[selectedCollege]||0} ANON IN {selectedCollege} • NESTED REPLY</p><h2 className="font-black text-[18px] mt-1 text-white">Verify {selectedCollege} • Nested Reply 🤫</h2></div>
-      <div className="flex p-1 bg-white/5 border border-white/10 rounded-full mt-5"><button onClick={()=>setVerifyMethod('email')} className={`flex-1 py-3 rounded-full text-xs font-bold ${verifyMethod==='email'?'bg-white text-black':'text-white/40'}`}>Mail</button><button onClick={()=>setVerifyMethod('roll')} className={`flex-1 py-3 rounded-full text-xs font-bold ${verifyMethod==='roll'?'bg-white text-black':'text-white/40'}`}>Roll</button><button onClick={()=>setVerifyMethod('id')} className={`flex-1 py-3 rounded-full text-xs font-bold ${verifyMethod==='id'?'bg-white text-black':'text-white/40'}`}>ID</button></div>
-      {verifyError && <p className="text-xs text-red-400 mt-4 bg-red-500/10 p-3.5 rounded-xl border border-red-500/20">{verifyError}</p>}
-      {verifyMethod==='email' && <div className="mt-5 bg-white/[0.05] border-2 border-white/10 rounded-[20px] p-4"><input value={collegeEmail} onChange={e=>setCollegeEmail(e.target.value)} placeholder={`you@${config?.domains[0]}`} className="w-full p-4 bg-black/30 border-2 border-white/10 rounded-xl text-sm outline-none text-white placeholder:text-white/30 focus:border-white"/><button onClick={handleEmailVerify} className="w-full mt-3 bg-white text-black py-3.5 rounded-full font-bold text-sm">Send OTP</button>{otpSent&&<div className="mt-4 bg-black/30 border-2 border-white/10 rounded-xl p-4"><p className="text-xs text-emerald-400 font-bold">OTP: {generatedOtp}</p><input value={otp} onChange={e=>setOtp(e.target.value)} placeholder="OTP" className="w-full mt-3 p-3.5 bg-white/5 border-2 border-white/10 rounded-xl text-center tracking-[0.3em] text-white"/><button onClick={handleOtpSubmit} className="w-full mt-3 bg-white text-black py-3.5 rounded-full font-bold text-sm">Verify ✓</button></div>}</div>}
-      {verifyMethod==='roll' && <div className="mt-5 bg-white/[0.05] border-2 border-white/10 rounded-[20px] p-4"><input value={rollNumber} onChange={e=>setRollNumber(e.target.value.toUpperCase())} placeholder={config?.ex} className="w-full p-4 bg-black/30 border-2 border-white/10 rounded-xl uppercase font-bold tracking-widest text-white"/><button onClick={handleRollVerify} className="w-full mt-4 bg-white text-black py-3.5 rounded-full font-bold text-sm">Verify Roll</button></div>}
-      {verifyMethod==='id' && <div className="mt-5 bg-white/[0.05] border-2 border-white/10 rounded-[20px] p-4"><input value={idName} onChange={e=>setIdName(e.target.value.toUpperCase())} placeholder="NAME" className="w-full p-4 bg-black/30 border-2 border-white/10 rounded-xl uppercase font-bold text-white"/><label className="mt-4 border-2 border-dashed border-white/10 rounded-xl p-6 flex justify-center cursor-pointer text-xs text-white/40">Upload ID<input type="file" hidden accept="image/*" onChange={e=>{ const f=e.target.files?.[0]; if(f){ const r=new FileReader(); r.onloadend=()=>setIdImage(r.result as string); r.readAsDataURL(f); } }}/></label>{idImage && <img src={idImage} className="mt-4 rounded-xl"/>}<button onClick={handleIdVerify} className="w-full mt-4 bg-white text-black py-3.5 rounded-full font-bold text-sm">Submit</button></div>}
-      <Footer/></div></div>);
-  }
-  if(screen==='login'){ return <div className="min-h-screen bg-[#0a0a0b] text-white flex flex-col items-center justify-center p-6"><div className="max-w-md w-full bg-white/[0.05] border-2 border-white/10 p-8 rounded-[24px] flex flex-col items-center"><div className="w-24 h-24 bg-white/5 border-2 border-white/10 rounded-[24px] flex items-center justify-center text-4xl">{selectedAvatar}</div><h1 className="font-black mt-6 text-center text-xl text-white">Verified ✓<br/><span className="text-white/40">{selectedCollege} Nested Reply 🤫</span></h1><button onClick={handleGoogleLogin} className="w-full mt-8 bg-white text-black py-4 rounded-full font-bold text-sm">Enter Nested Reply →</button></div><Footer/></div>; }
-
-  // NESTED REPLY STATES - COLLEGE TALK ANONYMOUS
-  const [replyTo, setReplyTo] = useState<any>(null);
-
+  // NESTED REPLY LOGIC - CORE
   const buildTree = (flat:any[]) => {
     const map:Record<string, any> = {};
     const roots:any[] = [];
@@ -228,7 +164,6 @@ export default function YakNestedReply(){
     });
     return roots;
   };
-
   const handleCommentPost = async (yId:string) => {
     if(!commentText.trim() ||!user ||!userData) return;
     const text = commentText.trim();
@@ -255,27 +190,50 @@ export default function YakNestedReply(){
     }
   };
 
+  if(screen==='college'){
+    return(
+      <div className="min-h-screen bg-[#0a0a0b] text-white"><style>{`body{background:#0a0a0b} ::-webkit-scrollbar{display:none} *{-webkit-tap-highlight-color:transparent}`}</style>
+        {toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white text-black px-5 py-2 rounded-full text-xs font-bold z-[100]">{toast}</div>}
+        <div className="max-w-md mx-auto p-6 bg-[#0a0a0b] min-h-screen"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-white text-black rounded-xl flex items-center justify-center font-black">👻</div><div><p className="font-black text-sm tracking-wide">ANONYMOUS • NESTED • DARK • WHITE</p><p className="text-[10px] text-white/40">{totalUsers} anonymous • Nested reply • White letters</p></div></div>
+          <h1 className="text-[38px] font-black mt-8 leading-[0.9] tracking-tight">Anonymous.<br/>Nested.<br/><span className="text-white/30">College Talk.</span></h1><p className="text-[13px] text-white/50 mt-3 leading-[1.4]">Valla college gurinchi anonymous ga • Reply ki reply • Thread • Evaru teliyadu 🤫</p>
+          <div className="mt-6 bg-white/[0.04] border border-white/10 rounded-[16px] p-4"><p className="text-[11px] font-bold text-white">🤫 NESTED REPLY EXAMPLE:</p><p className="text-[11px] text-white/40 mt-2 leading-[1.6]">Anon: "SRET placements ela?"<br/>↳ Anon: "Worst bro"<br/>↳ ↳ Anon: "Nijamga? Package entha?"<br/>Reply ki reply thread la 🤫</p></div>
+          <p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mt-8">AVATAR • ANONYMOUS</p><div className="grid grid-cols-4 gap-2.5 mt-3">{AVATARS.map(a=><button key={a} onClick={()=>setSelectedAvatar(a)} className={`h-16 rounded-[18px] text-xl border-2 ${selectedAvatar===a?'bg-white text-black border-white':'bg-white/[0.05] border-white/10 text-white'}`}>{a}</button>)}</div>
+          <p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mt-8">COLLEGE • ANONYMOUS + NESTED</p><div className="space-y-2.5 mt-3">{COLLEGES.map(c=>{ const act=selectedCollege===c.id; return <button key={c.id} onClick={()=>setSelectedCollege(c.id)} className={`w-full p-4 rounded-[18px] border-2 text-left flex justify-between ${act?'bg-white text-black border-white':'bg-white/[0.05] border-white/10 text-white'}`}><div><p className="font-bold text-[13px]">{c.label} • {c.city} • Anon + Nested 🤫</p><p className={`text-[11px] ${act?'text-black/60':'text-white/40'}`}>{collegeCounts[c.id]||0} anon • Only {c.id} can see • Nested reply</p></div><div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center ${act?'bg-black text-white border-black':'border-white/10'}`}>{act?'✓':''}</div></button>})}</div>
+          <button onClick={handleCollegeNext} disabled={!selectedCollege} className={`w-full mt-8 py-4 rounded-full font-black text-[14px] ${selectedCollege?'bg-white text-black':'bg-white/[0.06] text-white/30 border-2 border-white/10'}`}>Enter {selectedCollege||'College'} Anonymously + Nested 🤫 →</button><Footer/></div></div>
+    );
+  }
+  if(screen==='verify'){
+    const config=getCollegeConfig();
+    return(<div className="min-h-screen bg-[#0a0a0b] text-white"><div className="max-w-md mx-auto p-6 bg-[#0a0a0b] min-h-screen"><button onClick={()=>setScreen('college')} className="w-9 h-9 bg-white/5 border border-white/10 rounded-full text-white">←</button><div className="mt-6 bg-white/[0.05] border border-white/10 rounded-[20px] p-5"><p className="text-[10px] font-bold tracking-widest text-white/30">{collegeCounts[selectedCollege]||0} ANONYMOUS • NESTED IN {selectedCollege} 🤫</p><h2 className="font-black text-[18px] mt-1 text-white">Verify {selectedCollege} • Anon + Nested</h2><p className="text-[11px] text-white/40 mt-2">Verify ayyaka kuda 100% anonymous • Reply ki reply thread • Evariki teliyadu</p></div>
+      <div className="flex p-1 bg-white/5 border border-white/10 rounded-full mt-5"><button onClick={()=>setVerifyMethod('email')} className={`flex-1 py-3 rounded-full text-xs font-bold ${verifyMethod==='email'?'bg-white text-black':'text-white/40'}`}>Mail</button><button onClick={()=>setVerifyMethod('roll')} className={`flex-1 py-3 rounded-full text-xs font-bold ${verifyMethod==='roll'?'bg-white text-black':'text-white/40'}`}>Roll</button><button onClick={()=>setVerifyMethod('id')} className={`flex-1 py-3 rounded-full text-xs font-bold ${verifyMethod==='id'?'bg-white text-black':'text-white/40'}`}>ID</button></div>
+      {verifyError && <p className="text-xs text-red-400 mt-4 bg-red-500/10 p-3.5 rounded-xl border border-red-500/20">{verifyError}</p>}
+      {verifyMethod==='email' && <div className="mt-5 bg-white/[0.05] border-2 border-white/10 rounded-[20px] p-4"><input value={collegeEmail} onChange={e=>setCollegeEmail(e.target.value)} placeholder={`you@${config?.domains[0]}`} className="w-full p-4 bg-black/30 border-2 border-white/10 rounded-xl text-sm outline-none text-white placeholder:text-white/30 focus:border-white"/><button onClick={handleEmailVerify} className="w-full mt-3 bg-white text-black py-3.5 rounded-full font-bold text-sm">Send OTP • Anon + Nested</button>{otpSent&&<div className="mt-4 bg-black/30 border-2 border-white/10 rounded-xl p-4"><p className="text-xs text-emerald-400 font-bold">OTP: {generatedOtp}</p><input value={otp} onChange={e=>setOtp(e.target.value)} placeholder="OTP" className="w-full mt-3 p-3.5 bg-white/5 border-2 border-white/10 rounded-xl text-center tracking-[0.3em] text-white"/><button onClick={handleOtpSubmit} className="w-full mt-3 bg-white text-black py-3.5 rounded-full font-bold text-sm">Verify Anon ✓</button></div>}</div>}
+      {verifyMethod==='roll' && <div className="mt-5 bg-white/[0.05] border-2 border-white/10 rounded-[20px] p-4"><input value={rollNumber} onChange={e=>setRollNumber(e.target.value.toUpperCase())} placeholder={config?.ex} className="w-full p-4 bg-black/30 border-2 border-white/10 rounded-xl uppercase font-bold tracking-widest text-white"/><button onClick={handleRollVerify} className="w-full mt-4 bg-white text-black py-3.5 rounded-full font-bold text-sm">Verify Anon Nested • {selectedCollege}</button></div>}
+      {verifyMethod==='id' && <div className="mt-5 bg-white/[0.05] border-2 border-white/10 rounded-[20px] p-4"><input value={idName} onChange={e=>setIdName(e.target.value.toUpperCase())} placeholder="NAME ON ID" className="w-full p-4 bg-black/30 border-2 border-white/10 rounded-xl uppercase font-bold text-white"/><label className="mt-4 border-2 border-dashed border-white/10 rounded-xl p-6 flex justify-center cursor-pointer text-xs text-white/40">Upload ID • Anon<input type="file" hidden accept="image/*" onChange={e=>{ const f=e.target.files?.[0]; if(f){ const r=new FileReader(); r.onloadend=()=>setIdImage(r.result as string); r.readAsDataURL(f); } }}/></label>{idImage && <img src={idImage} className="mt-4 rounded-xl"/>}<button onClick={handleIdVerify} className="w-full mt-4 bg-white text-black py-3.5 rounded-full font-bold text-sm">Submit Anon</button></div>}
+      <Footer/></div></div>);
+  }
+  if(screen==='login'){ return <div className="min-h-screen bg-[#0a0a0b] text-white flex flex-col items-center justify-center p-6"><div className="max-w-md w-full bg-white/[0.05] border-2 border-white/10 p-8 rounded-[24px] flex flex-col items-center"><div className="w-24 h-24 bg-white/5 border-2 border-white/10 rounded-[24px] flex items-center justify-center text-4xl">{selectedAvatar}</div><h1 className="font-black mt-6 text-center text-xl text-white">Anon Verified ✓<br/><span className="text-white/40">{selectedCollege} Anon + Nested 🤫</span><br/><span className="text-[11px] text-white/30">Reply ki reply • Thread • Evariki teliyadu</span></h1><button onClick={handleGoogleLogin} className="w-full mt-8 bg-white text-black py-4 rounded-full font-bold text-sm">Enter Anonymously + Nested 🤫 →</button></div><Footer/></div>; }
+
   const renderComment = (c:any, depth=0) => {
     const isReply = depth > 0;
     return (
-      <div key={c.id} className={`${isReply? 'ml-8 border-l-2 border-white/10 pl-3' : ''} mt-3`}>
+      <div key={c.id} className={`${isReply? 'ml-6 border-l-2 border-white/15 pl-3' : ''} mt-3`}>
         <div className="flex gap-2.5">
-          <div className={`w-7 h-7 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-xs text-white shrink-0 ${isReply?'w-6 h-6':''}`}>👻</div>
+          <div className={`bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-white shrink-0 ${isReply?'w-6 h-6 text-[10px]':'w-7 h-7 text-xs'}`}>👻</div>
           <div className="flex-1">
-            <div className="bg-white/[0.05] border border-white/10 rounded-[16px] px-4 py-3">
-              <div className="flex gap-2 items-center flex-wrap">
-                <p className="text-[10px] font-bold text-white/30">Anonymous • {userData.college} 🤫 {isReply && <span className="text-white/20">• replying to {c.replyToUsername||'Anonymous'}</span>}</p>
-                {isReply && <span className="px-2 py-0.5 bg-white/10 rounded-full text-[8px] text-white/40">REPLY</span>}
+            <div className={`bg-white/[0.05] border rounded-[14px] px-4 py-2.5 ${isReply?'border-white/10 bg-white/[0.03]':'border-white/10'}`}>
+              <div className="flex gap-2 items-center">
+                <p className="text-[10px] font-bold text-white/40">Anonymous • {userData.college} 🤫</p>
+                {isReply && <span className="px-2 py-0.5 bg-white/10 rounded-full text-[7px] text-white/50 font-bold">REPLY ↳ {c.replyToUsername?.slice(0,15)||'Anon'}</span>}
               </div>
-              {isReply && c.replyToUsername && <p className="text-[11px] text-white/30 mt-1">↳ Reply to <span className="text-white/50 font-bold">{c.replyToUsername}</span></p>}
-              <p className="text-[13px] text-white mt-1 leading-[1.4] whitespace-pre-wrap">{c.text}</p>
+              {isReply && <p className="text-[10px] text-white/30 mt-1">↳ <span className="font-bold text-white/50">{c.replyToUsername}</span></p>}
+              <p className="text-[13px] text-white mt-1 leading-[1.4] whitespace-pre-wrap break-words">{c.text}</p>
             </div>
-            <div className="flex gap-3 mt-2 ml-2">
-              <button onClick={()=>setReplyTo(c)} className="text-[11px] font-bold text-white/40 hover:text-white">↳ Reply • Anonymous</button>
-              <span className="text-[10px] text-white/20">{c.createdAt?.toDate? new Date(c.createdAt.toDate()).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : 'now'}</span>
+            <div className="flex gap-3 mt-1.5 ml-1 items-center">
+              <button onClick={()=>setReplyTo(c)} className="text-[11px] font-bold text-white/30 hover:text-white px-2 py-1 rounded-full hover:bg-white/5">↳ Reply</button>
+              <span className="text-[9px] text-white/15">{c.createdAt?.toDate? new Date(c.createdAt.toDate()).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : 'now'} • Anon</span>
             </div>
-            {/* NESTED REPLIES - RECURSIVE */}
-            {c.replies && c.replies.length > 0 && (
+            {c.replies && c.replies.length>0 && (
               <div className="mt-1">
                 {c.replies.map((rep:any)=>renderComment(rep, depth+1))}
               </div>
@@ -291,25 +249,25 @@ export default function YakNestedReply(){
       <style>{`body{background:#0a0a0b} ::-webkit-scrollbar{display:none} *{-webkit-tap-highlight-color:transparent}`}</style>
       {toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white text-black px-5 py-2.5 rounded-full text-xs font-bold z-[100] shadow-2xl">{toast}</div>}
       <div className="sticky top-0 z-20 bg-[#0a0a0b]/80 backdrop-blur-2xl border-b border-white/10">
-        <div className="max-w-[600px] mx-auto px-4 h-14 flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-8 h-8 bg-white text-black rounded-xl flex items-center justify-center font-black text-sm">👻</div><div><p className="font-bold text-[13px] leading-none text-white">{userData.college} ANONYMOUS • NESTED REPLY 🤫</p><p className="text-[10px] text-white/40">White letters • Nested comments • College only</p></div></div><button onClick={()=>setShowProfile(true)} className="w-9 h-9 bg-white/10 border border-white/10 rounded-full flex items-center justify-center text-white">👻</button></div>
+        <div className="max-w-[600px] mx-auto px-4 h-14 flex items-center justify-between"><div className="flex items-center gap-3"><div className="w-8 h-8 bg-white text-black rounded-xl flex items-center justify-center font-black text-sm">👻</div><div><p className="font-bold text-[13px] leading-none text-white">{userData.college} ANON • NESTED 🤫 • {yaks.length}</p><p className="text-[10px] text-white/40">Reply ki reply • Dark • White letters • College only</p></div></div><button onClick={()=>setShowProfile(true)} className="w-9 h-9 bg-white/10 border border-white/10 rounded-full flex items-center justify-center text-white">👻</button></div>
         <div className="max-w-[600px] mx-auto px-3 pb-3 flex gap-2 overflow-x-auto">
-          <button onClick={()=>setFeedTab('new')} className={`h-9 px-4 rounded-full text-xs font-bold border-2 whitespace-nowrap ${feedTab==='new'?'bg-white text-black border-white':'bg-white/5 border-white/10 text-white/40'}`}>NEW • {yaks.length}</button>
-          <button onClick={()=>setFeedTab('meme')} className={`h-9 px-4 rounded-full text-xs font-bold border-2 whitespace-nowrap ${feedTab==='meme'?'bg-white text-black border-white':'bg-white/5 border-white/10 text-white/40'}`}>🔥 MEME</button>
-          <button onClick={()=>setFeedTab('hot')} className={`h-9 px-4 rounded-full text-xs font-bold border-2 whitespace-nowrap ${feedTab==='hot'?'bg-white text-black border-white':'bg-white/5 border-white/10 text-white/40'}`}>HOT</button>
-          <button onClick={()=>setFeedTab('top')} className={`h-9 px-4 rounded-full text-xs font-bold border-2 whitespace-nowrap ${feedTab==='top'?'bg-white text-black border-white':'bg-white/5 border-white/10 text-white/40'}`}>TOP</button>
+          <button onClick={()=>setFeedTab('new')} className={`h-9 px-4 rounded-full text-xs font-bold border-2 whitespace-nowrap ${feedTab==='new'?'bg-white text-black border-white':'bg-white/5 border-white/10 text-white/40'}`}>NEW • {yaks.length} • NESTED</button>
+          <button onClick={()=>setFeedTab('meme')} className={`h-9 px-4 rounded-full text-xs font-bold border-2 whitespace-nowrap ${feedTab==='meme'?'bg-white text-black border-white':'bg-white/5 border-white/10 text-white/40'}`}>🔥 MEME • NESTED</button>
+          <button onClick={()=>setFeedTab('hot')} className={`h-9 px-4 rounded-full text-xs font-bold border-2 whitespace-nowrap ${feedTab==='hot'?'bg-white text-black border-white':'bg-white/5 border-white/10 text-white/40'}`}>HOT • NESTED</button>
+          <button onClick={()=>setFeedTab('top')} className={`h-9 px-4 rounded-full text-xs font-bold border-2 whitespace-nowrap ${feedTab==='top'?'bg-white text-black border-white':'bg-white/5 border-white/10 text-white/40'}`}>TOP • NESTED</button>
         </div>
       </div>
 
       <div className="max-w-[600px] mx-auto w-full flex-1 p-3 pb-[84px] space-y-3">
         {feedTab==='top'? (
-          <div className="space-y-3"><div className="bg-white/[0.05] border-2 border-white/10 rounded-[20px] p-5"><p className="text-[10px] font-bold tracking-[0.2em] text-white/30">{userData.college} TOP • NESTED • ANON</p><p className="font-black mt-1 text-white">Top Anonymous • Nested Reply • White</p></div>
-            {leaderboard.map((u:any,i:number)=><div key={u.id} className="bg-white/[0.05] border-2 border-white/10 rounded-[18px] p-4 flex justify-between items-center"><div className="flex gap-3 items-center"><span className="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center text-xs font-bold text-white">{i+1}</span><span className="w-9 h-9 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-white">👻</span><div><p className="font-bold text-[13px] text-white">Anonymous Student {i+1} • {u.college}</p><p className="text-[10px] text-white/40">{u.totalPosts||0} posts • Anon</p></div></div><p className="font-black text-sm text-white">{u.yakarma}</p></div>)}<Footer/></div>
+          <div className="space-y-3"><div className="bg-white/[0.05] border-2 border-white/10 rounded-[20px] p-5"><p className="text-[10px] font-bold tracking-[0.2em] text-white/30">{userData.college} TOP ANON • NESTED • WHITE</p><p className="font-black mt-1 text-white">Top Anonymous • Nested Reply • White</p></div>
+            {leaderboard.map((u:any,i:number)=><div key={u.id} className="bg-white/[0.05] border-2 border-white/10 rounded-[18px] p-4 flex justify-between items-center"><div className="flex gap-3 items-center"><span className="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center text-xs font-bold text-white">{i+1}</span><span className="w-9 h-9 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-white">👻</span><div><p className="font-bold text-[13px] text-white">Anonymous Student {i+1} • {u.college} 🤫</p><p className="text-[10px] text-white/40">{u.totalPosts||0} posts • Nested • Anon</p></div></div><p className="font-black text-sm text-white">{u.yakarma}</p></div>)}<Footer/></div>
         ) : (
           <>
-            <div className="bg-white/[0.05] border-2 border-white/10 rounded-[18px] p-4 flex justify-between items-center"><div className="flex gap-3 items-center"><div className="w-10 h-10 bg-white/10 border border-white/10 rounded-full flex items-center justify-center text-white">👻</div><div><p className="font-bold text-[13px] text-white">100% Anonymous • Nested Reply • {userData.college} ONLY 🤫</p><p className="text-[11px] text-white/40">Reply ki reply cheyochu • Thread la • Evaru teliyadu • White letters</p></div></div><span className="px-3 py-1.5 rounded-full bg-white text-black text-[10px] font-bold">NESTED • {collegeCounts[userData.college]||0}</span></div>
+            <div className="bg-white/[0.05] border-2 border-white/10 rounded-[18px] p-4 flex justify-between items-center"><div className="flex gap-3 items-center"><div className="w-10 h-10 bg-white/10 border border-white/10 rounded-full flex items-center justify-center text-white">👻</div><div><p className="font-bold text-[13px] text-white">100% Anonymous + Nested Reply • {userData.college} ONLY 🤫</p><p className="text-[11px] text-white/40">Comment ki reply • Reply ki reply • Thread • White letters • Evaru teliyadu</p></div></div><span className="px-3 py-1.5 rounded-full bg-white text-black text-[10px] font-bold">NESTED • {collegeCounts[userData.college]||0}</span></div>
 
             {(feedTab==='new'? yaks : feedTab==='meme'? memeYaks : hotYaks).map(y=>{
-              const liked=userData.likedPosts?.includes(y.id); const disliked=userData.dislikedPosts?.includes(y.id); const score=(y.likes||0)-(y.dislikes||0); const isOwn=user?.uid===y.uid; const isPoll=y.type==='poll'; const isConfess=y.type==='confession' || y.isAnonymous; const isMeme=y.type==='meme' || y.isMemeBattle; const hasVoted=userData.pollVoted?.includes(y.id); const nestedTree = activePost===y.id? buildTree(comments) : [];
+              const liked=userData.likedPosts?.includes(y.id); const disliked=userData.dislikedPosts?.includes(y.id); const score=(y.likes||0)-(y.dislikes||0); const isOwn=user?.uid===y.uid; const isPoll=y.type==='poll'; const isMeme=y.type==='meme' || y.isMemeBattle; const hasVoted=userData.pollVoted?.includes(y.id); const nestedTree = activePost===y.id? buildTree(comments) : [];
               return(
                 <div key={y.id} className={`bg-white/[0.04] border-2 rounded-[20px] p-5 ${isOwn?'border-white/20 bg-white/[0.06]':'border-white/10'}`}>
                   <div className="flex justify-between items-start"><div className="flex gap-3"><div className="w-9 h-9 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-sm relative text-white">👻{isOwn && <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-white rounded-full border-2 border-[#0a0a0b]"></div>}</div>
@@ -320,35 +278,25 @@ export default function YakNestedReply(){
                   </div>
                   <p className="text-[15px] mt-4 leading-[1.5] text-white whitespace-pre-wrap break-words">{y.text}</p>
                   {y.image && <img src={y.image} className="mt-4 rounded-[16px] border-2 border-white/10 w-full max-h-[380px] object-cover" />}
-                  {isPoll && y.pollOptions && (<div className="mt-4 space-y-2">{y.pollOptions.map((opt:any,idx:number)=>{ const total=y.totalVotes||1; const percent=Math.round((opt.votes/total)*100); const voted=hasVoted; return <button key={idx} onClick={()=>handlePollVote(y,idx)} disabled={!!hasVoted} className={`w-full p-3 rounded-xl border-2 text-left flex justify-between items-center ${voted?'bg-white/5 border-white/10':'bg-white/[0.02] border-white/10 hover:border-white/20'} text-white`}><span className="text-[13px] font-bold">{opt.text}</span><span className="flex items-center gap-2"><span className="text-[11px] text-white/40">{voted? `${percent}% (${opt.votes})` : `${opt.votes||0}`}</span>{voted && <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden"><div className="h-full bg-white" style={{width:`${percent}%`}}></div></div>}</span></button>})}<p className="text-[10px] text-white/30">{y.totalVotes||0} votes • Nested • Anon</p></div>)}
-                  <div className="flex gap-2.5 mt-5 items-center"><div className="flex bg-white/5 border border-white/10 rounded-full p-1"><button onClick={()=>handleVote(y,'up')} className={`px-4 py-2 rounded-full text-xs font-bold ${liked?'bg-white text-black':'text-white/40 hover:text-white'}`}>▲ {y.likes||0}</button><span className={`px-3 py-2 text-[11px] font-black min-w-[36px] text-center ${score>0?'text-emerald-400':score<0?'text-red-400':'text-white/20'}`}>{score>0?`+${score}`:score}</span><button onClick={()=>handleVote(y,'down')} className={`px-4 py-2 rounded-full text-xs font-bold ${disliked?'bg-red-500 text-white':'text-white/30'}`}>▼ {y.dislikes||0}</button></div><button onClick={()=>{ setActivePost(activePost===y.id?null:y.id); setReplyTo(null); }} className="px-4 h-9 rounded-full text-xs bg-white/5 border border-white/10 text-white/40">💬 {y.commentsCount||0} • Nested</button><div className="ml-auto">{isOwn&&<span className="text-[9px] bg-white/5 border border-white/10 px-2.5 py-1 rounded-full font-bold text-white/30">YOUR ANON • NESTED</span>}</div></div>
+                  {isPoll && y.pollOptions && (<div className="mt-4 space-y-2"><p className="text-[9px] font-bold text-white/30 tracking-widest">ANON POLL • NESTED • {y.college}</p>{y.pollOptions.map((opt:any,idx:number)=>{ const total=y.totalVotes||1; const percent=Math.round((opt.votes/total)*100); const voted=hasVoted; return <button key={idx} onClick={()=>handlePollVote(y,idx)} disabled={!!hasVoted} className={`w-full p-3 rounded-xl border-2 text-left flex justify-between items-center ${voted?'bg-white/5 border-white/10':'bg-white/[0.02] border-white/10 hover:border-white/20'} text-white`}><span className="text-[13px] font-bold">{opt.text}</span><span className="flex items-center gap-2"><span className="text-[11px] text-white/40">{voted? `${percent}% (${opt.votes})` : `${opt.votes||0}`}</span>{voted && <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden"><div className="h-full bg-white" style={{width:`${percent}%`}}></div></div>}</span></button>})}<p className="text-[10px] text-white/30">{y.totalVotes||0} anon votes • Nested</p></div>)}
+                  {isMeme && <div className="mt-3"><span className="px-2.5 py-1 bg-white text-black rounded-full text-[9px] font-bold">🔥 ANON MEME + NESTED • {y.college}</span></div>}
+                  <div className="flex gap-2.5 mt-5 items-center"><div className="flex bg-white/5 border border-white/10 rounded-full p-1"><button onClick={()=>handleVote(y,'up')} className={`px-4 py-2 rounded-full text-xs font-bold ${liked?'bg-white text-black':'text-white/40 hover:text-white'}`}>▲ {y.likes||0}</button><span className={`px-3 py-2 text-[11px] font-black min-w-[36px] text-center ${score>0?'text-emerald-400':score<0?'text-red-400':'text-white/20'}`}>{score>0?`+${score}`:score}</span><button onClick={()=>handleVote(y,'down')} className={`px-4 py-2 rounded-full text-xs font-bold ${disliked?'bg-red-500 text-white':'text-white/30'}`}>▼ {y.dislikes||0}</button></div><button onClick={()=>{ setActivePost(activePost===y.id?null:y.id); setReplyTo(null); }} className="px-4 h-9 rounded-full text-xs bg-white/5 border border-white/10 text-white/40">💬 {y.commentsCount||0} • Nested Thread</button><div className="ml-auto">{isOwn&&<span className="text-[9px] bg-white/5 border border-white/10 px-2.5 py-1 rounded-full font-bold text-white/30">YOUR ANON</span>}</div></div>
 
-                  {/* NESTED REPLY COMMENTS SECTION */}
                   {activePost===y.id && (
                     <div className="mt-5 border-t-2 border-white/10 pt-4 space-y-1">
-                      <p className="text-[10px] font-bold tracking-widest text-white/30 mb-3">NESTED REPLIES • {comments.length} • REPLY TO REPLY • ANON • WHITE</p>
-
-                      {/* Replying banner */}
+                      <p className="text-[10px] font-bold tracking-widest text-white/30 mb-3">NESTED REPLIES • {comments.length} COMMENTS • REPLY TO REPLY • ANON • WHITE • {y.college}</p>
                       {replyTo && (
-                        <div className="bg-white/10 border border-white/20 rounded-xl px-4 py-2 flex justify-between items-center mb-3">
+                        <div className="bg-white/10 border-2 border-white/20 rounded-xl px-4 py-2.5 flex justify-between items-center mb-3">
                           <p className="text-[11px] text-white">↳ Replying to <span className="font-bold">{replyTo.username}</span>: "{replyTo.text.slice(0,40)}..."</p>
                           <button onClick={()=>setReplyTo(null)} className="w-6 h-6 bg-white/10 rounded-full flex items-center justify-center text-white text-xs">✕</button>
                         </div>
                       )}
-
                       <div className="max-h-[420px] overflow-y-auto pr-1">
-                        {nestedTree.length===0 && <p className="text-xs text-white/20 text-center py-8">No comments yet • Be first • Nested reply chey • Anon 🤫</p>}
+                        {nestedTree.length===0 && <p className="text-xs text-white/20 text-center py-8">No comments yet • First nested thread start chey • Anon 🤫</p>}
                         {nestedTree.map((c:any)=>renderComment(c,0))}
                       </div>
-
                       <div className="flex gap-2.5 mt-4 sticky bottom-0 bg-[#0a0a0b] pt-2">
-                        <input
-                          value={commentText}
-                          onChange={e=>setCommentText(e.target.value)}
-                          placeholder={replyTo? `Reply to ${replyTo.username} anonymously...` : "Anonymous comment... Nested reply..."}
-                          className="flex-1 bg-white/5 border-2 border-white/10 rounded-full px-5 h-11 text-[13px] outline-none text-white placeholder:text-white/30 focus:border-white"
-                          onKeyDown={e=>{ if(e.key==='Enter' &&!e.shiftKey){ e.preventDefault(); handleCommentPost(y.id); } }}
-                        />
+                        <input value={commentText} onChange={e=>setCommentText(e.target.value)} placeholder={replyTo? `Reply to ${replyTo.username} anonymously • Nested...` : "Anonymous comment • Nested reply chey..."} className="flex-1 bg-white/5 border-2 border-white/10 rounded-full px-5 h-11 text-[13px] outline-none text-white placeholder:text-white/30 focus:border-white" onKeyDown={e=>{ if(e.key==='Enter' &&!e.shiftKey){ e.preventDefault(); handleCommentPost(y.id); } }}/>
                         <button onClick={()=>handleCommentPost(y.id)} disabled={!commentText.trim()} className={`w-11 h-11 rounded-full font-bold flex items-center justify-center ${!commentText.trim()?'bg-white/5 text-white/20 border border-white/5':'bg-white text-black'}`}>↑</button>
                       </div>
                     </div>
@@ -356,18 +304,18 @@ export default function YakNestedReply(){
                 </div>
               );
             })}
-            {(feedTab==='new'? yaks : feedTab==='meme'? memeYaks : hotYaks).length===0 && <div className="py-24 text-center bg-white/[0.03] border-2 border-white/10 rounded-[24px]"><div className="w-24 h-24 bg-white/5 border-2 border-white/10 rounded-[24px] mx-auto flex items-center justify-center text-4xl">👻</div><p className="font-black mt-6 text-[18px] text-white">No anon talk in {userData.college} yet • Nested Reply</p><button onClick={()=>setScreen('create')} className="mt-6 bg-white text-black px-8 h-11 rounded-full text-[13px] font-bold">+ First Anon + Nested {userData.college} 🤫</button></div>}
+            {(feedTab==='new'? yaks : feedTab==='meme'? memeYaks : hotYaks).length===0 && <div className="py-24 text-center bg-white/[0.03] border-2 border-white/10 rounded-[24px]"><div className="w-24 h-24 bg-white/5 border-2 border-white/10 rounded-[24px] mx-auto flex items-center justify-center text-4xl">👻</div><p className="font-black mt-6 text-[18px] text-white">No anon talk yet • {userData.college} • Nested</p><button onClick={()=>setScreen('create')} className="mt-6 bg-white text-black px-8 h-11 rounded-full text-[13px] font-bold">+ First Anon Nested {userData.college} 🤫</button></div>}
             <Footer/>
           </>
         )}
       </div>
       <div className="fixed bottom-0 left-0 right-0 bg-[#0a0a0b]/90 backdrop-blur-2xl border-t-2 border-white/10"><div className="max-w-[600px] mx-auto px-6 h-[72px] flex items-center justify-between"><button onClick={()=>setFeedTab('new')} className="flex flex-col items-center gap-1.5"><div className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold ${feedTab==='new'?'bg-white text-black':'bg-white/5 text-white/30 border border-white/10'}`}>👻</div><span className="text-[8px] font-bold tracking-widest text-white/30">NESTED • {yaks.length}</span></button><button onClick={()=>setScreen('create')} className="w-[56px] h-[56px] bg-white text-black rounded-full flex items-center justify-center text-[24px] font-black shadow-[0_0_20px_rgba(255,255,255,0.2)]">+</button><button onClick={()=>setShowProfile(true)} className="flex flex-col items-center gap-1.5"><div className="w-7 h-7 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-xs text-white">👻</div><span className="text-[8px] font-bold tracking-widest text-white/30">ANON • {userData.yakarma}</span></button></div></div>
 
-            {screen==='create' && (
+           {screen==='create' && (
         <div className="fixed inset-0 bg-[#0a0a0b] z-40 flex flex-col overflow-hidden">
           {toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white text-black px-5 py-2.5 rounded-full text-xs font-bold z-[100]">{toast}</div>}
           <div className="max-w-[600px] mx-auto w-full flex flex-col h-full bg-[#0a0a0b]">
-            <div className="p-5 flex items-center justify-between border-b-2 border-white/10"><button onClick={()=>{ if(!posting) { setScreen('feed'); setYakImage(''); } }} className="w-10 h-10 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-white">✕</button><div className="text-center"><p className="text-[11px] font-bold tracking-widest text-white">ANONYMOUS + NESTED REPLY • {userData.college} 🤫</p><p className="text-[10px] text-white/30">Dark bg • White letters • Nested</p></div><button onClick={handlePost} disabled={posting||(!newYak.trim()&&!yakImage)} className={`px-6 h-10 rounded-full font-bold text-[13px] ${posting||(!newYak.trim()&&!yakImage)?'bg-white/5 text-white/20 border-2 border-white/5':'bg-white text-black'}`}>{posting?'Posting...':'Post Anon 🤫'}</button></div>
+            <div className="p-5 flex items-center justify-between border-b-2 border-white/10"><button onClick={()=>{ if(!posting) { setScreen('feed'); setYakImage(''); } }} className="w-10 h-10 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-white">✕</button><div className="text-center"><p className="text-[11px] font-bold tracking-widest text-white">ANON + NESTED • {userData.college} ONLY 🤫 • WHITE</p><p className="text-[10px] text-white/30">Dark bg • White • Nested thread</p></div><button onClick={handlePost} disabled={posting||(!newYak.trim()&&!yakImage)} className={`px-6 h-10 rounded-full font-bold text-[13px] ${posting||(!newYak.trim()&&!yakImage)?'bg-white/5 text-white/20 border-2 border-white/5':'bg-white text-black'}`}>{posting?'Posting...':'Post Anon 🤫'}</button></div>
             <div className="p-3 flex gap-2 border-b-2 border-white/5 overflow-x-auto bg-white/[0.02]">
               <button onClick={()=>setYakType('yak')} className={`px-5 h-9 rounded-full text-xs font-bold border-2 whitespace-nowrap ${yakType==='yak'?'bg-white text-black border-white':'bg-white/5 border-white/10 text-white/40'}`}>💬 Anon Talk</button>
               <button onClick={()=>setYakType('poll')} className={`px-5 h-9 rounded-full text-xs font-bold border-2 whitespace-nowrap ${yakType==='poll'?'bg-white text-black border-white':'bg-white/5 border-white/10 text-white/40'}`}>📊 Poll</button>
@@ -375,21 +323,23 @@ export default function YakNestedReply(){
               <button onClick={()=>setYakType('meme')} className={`px-5 h-9 rounded-full text-xs font-bold border-2 whitespace-nowrap ${yakType==='meme'?'bg-white text-black border-white':'bg-white/5 border-white/10 text-white/40'}`}>🔥 Meme</button>
             </div>
             <div className="p-6 flex-1 overflow-y-auto bg-[#0a0a0b]">
-              <div className="flex gap-3 mb-6"><div className="w-11 h-11 bg-white/5 border-2 border-white/10 rounded-full flex items-center justify-center text-white">👻</div><div><p className="font-bold text-[14px] text-white">Anonymous • {userData.college} • Nested Reply Enabled 🤫</p><p className="text-[11px] text-white/40">Comments ki reply • Reply ki reply • Thread • Dark • White</p></div></div>
-              <textarea value={newYak} onChange={e=>setNewYak(e.target.value)} placeholder={`Talk about ${userData.college} anonymously... Nested replies vasthayi... Ex: ${userData.college} lo placements ela? 🤫 White letters`} autoFocus className="w-full bg-transparent text-[19px] leading-[1.45] outline-none placeholder:text-white/20 resize-none min-h-[120px] text-white" maxLength={300}/>
-              {yakType==='poll' && (<div className="mt-6 space-y-3">{pollOptions.map((opt,idx)=><div key={idx} className="flex gap-2"><input value={opt} onChange={e=>{ const n=[...pollOptions]; n[idx]=e.target.value; setPollOptions(n); }} placeholder={`Option ${idx+1}`} className="flex-1 p-4 bg-white/[0.03] border-2 border-white/10 rounded-xl text-sm outline-none focus:border-white text-white placeholder:text-white/30"/>{pollOptions.length>2 && <button onClick={()=>setPollOptions(pollOptions.filter((_,i)=>i!==idx))} className="w-12 h-12 bg-white/5 border-2 border-white/10 rounded-xl flex items-center justify-center text-white/40">✕</button>}</div>)}{pollOptions.length<4 && <button onClick={()=>setPollOptions([...pollOptions,''])} className="w-full p-3 bg-white/[0.03] border-2 border-dashed border-white/10 rounded-xl text-xs font-bold text-white/40">+ Add Option</button>}</div>)}
-              <div className="mt-6">{!yakImage? (<label className="w-full border-2 border-dashed border-white/10 rounded-[16px] p-8 flex flex-col items-center justify-center cursor-pointer hover:border-white/20 bg-white/[0.02]"><span className="text-2xl mb-2">📸</span><span className="text-xs font-bold text-white/60">Upload Anon Image • Nested Reply • White 🤫</span><span className="text-[10px] text-white/30 mt-1">Max 800KB • Dark bg</span><input type="file" hidden accept="image/*" onChange={e=>handleImageUpload(e,setYakImage)} /></label>) : (<div className="relative"><img src={yakImage} className="w-full rounded-[16px] border-2 border-white/10 max-h-[300px] object-cover"/><button onClick={()=>setYakImage('')} className="absolute top-3 right-3 w-8 h-8 bg-black/80 rounded-full flex items-center justify-center text-white">✕</button></div>)}</div>
+              <div className="flex gap-3 mb-6"><div className="w-11 h-11 bg-white/5 border-2 border-white/10 rounded-full flex items-center justify-center text-white">👻</div><div><p className="font-bold text-[14px] text-white">Anonymous • {userData.college} • Nested Reply Enabled 🤫</p><p className="text-[11px] text-white/40">Post chesaka comments lo reply ki reply cheyochu • Thread • White letters</p></div></div>
+              <div className="bg-white/[0.04] border border-white/10 rounded-[16px] p-4 mb-6"><p className="text-[11px] font-bold text-white">💬 {userData.college} ANON IDEAS + NESTED:</p><div className="grid grid-cols-2 gap-2 mt-3"><button onClick={()=>setNewYak(`${userData.college} lo placements ela? Anon + nested thread lo discuss cheddam 🤫`)} className="p-3 bg-white/5 border border-white/10 rounded-xl text-left"><p className="text-[11px] text-white font-bold">Placements?</p><p className="text-[9px] text-white/40 mt-1">Nested thread</p></button><button onClick={()=>setNewYak(`${userData.college} hostel food ela? Nested reply lo cheppandi 🤫`)} className="p-3 bg-white/5 border border-white/10 rounded-xl text-left"><p className="text-[11px] text-white font-bold">Hostel?</p><p className="text-[9px] text-white/40 mt-1">Reply to reply</p></button></div></div>
+              <textarea value={newYak} onChange={e=>setNewYak(e.target.value)} placeholder={`Talk about ${userData.college} anonymously... Nested thread vasthundi... Ex: Placements ela? Reply ki reply cheyochu 🤫 White letters`} autoFocus className="w-full bg-transparent text-[19px] leading-[1.45] outline-none placeholder:text-white/20 resize-none min-h-[120px] text-white" maxLength={300}/>
+              {yakType==='poll' && (<div className="mt-6 space-y-3"><p className="text-[10px] text-white/30 font-bold">ANON POLL • NESTED • {userData.college} • WHITE</p>{pollOptions.map((opt,idx)=><div key={idx} className="flex gap-2"><input value={opt} onChange={e=>{ const n=[...pollOptions]; n[idx]=e.target.value; setPollOptions(n); }} placeholder={`Option ${idx+1}`} className="flex-1 p-4 bg-white/[0.03] border-2 border-white/10 rounded-xl text-sm outline-none focus:border-white text-white placeholder:text-white/30"/>{pollOptions.length>2 && <button onClick={()=>setPollOptions(pollOptions.filter((_,i)=>i!==idx))} className="w-12 h-12 bg-white/5 border-2 border-white/10 rounded-xl flex items-center justify-center text-white/40">✕</button>}</div>)}{pollOptions.length<4 && <button onClick={()=>setPollOptions([...pollOptions,''])} className="w-full p-3 bg-white/[0.03] border-2 border-dashed border-white/10 rounded-xl text-xs font-bold text-white/40">+ Add Option</button>}</div>)}
+              <div className="mt-6">{!yakImage? (<label className="w-full border-2 border-dashed border-white/10 rounded-[16px] p-8 flex flex-col items-center justify-center cursor-pointer hover:border-white/20 bg-white/[0.02]"><span className="text-2xl mb-2">📸</span><span className="text-xs font-bold text-white/60">Upload Anon • Nested • White 🤫</span><span className="text-[10px] text-white/30 mt-1">Max 800KB • Dark bg • White letters</span><input type="file" hidden accept="image/*" onChange={e=>handleImageUpload(e,setYakImage)} /></label>) : (<div className="relative"><img src={yakImage} className="w-full rounded-[16px] border-2 border-white/10 max-h-[300px] object-cover"/><button onClick={()=>setYakImage('')} className="absolute top-3 right-3 w-8 h-8 bg-black/80 rounded-full flex items-center justify-center text-white">✕</button></div>)}</div>
             </div>
-            <div className="p-5 border-t-2 border-white/5 bg-white/[0.02]"><div className="bg-white/[0.05] border-2 border-white/10 rounded-xl p-4 flex gap-3 items-center"><div className="w-2 h-2 bg-white rounded-full animate-pulse"></div><p className="text-[11px] text-white/50"><span className="font-bold text-white">NESTED REPLY 🤫:</span> Comment ki reply • Reply ki inko reply • Thread • Anonymous • {userData.college} only • Dark bg • White letters • Owner delete • 1 vote</p></div><Footer/></div>
+            <div className="p-5 border-t-2 border-white/5 bg-white/[0.02]"><div className="bg-white/[0.05] border-2 border-white/10 rounded-xl p-4 flex gap-3 items-center"><div className="w-2 h-2 bg-white rounded-full animate-pulse"></div><p className="text-[11px] text-white/50"><span className="font-bold text-white">NESTED REPLY 🤫 + DARK WHITE:</span> Comment -> Reply -> Reply ki reply • Thread indent ml-6 + border-l-2 white/15 • Anonymous • {userData.college} only • Dark #0a0a0b • White letters • Owner delete • 1 vote</p></div><Footer/></div>
           </div>
         </div>
       )}
 
-      {editingPost && <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-50 flex items-end justify-center p-4"><div className="bg-[#141416] border-2 border-white/10 w-full max-w-[600px] rounded-t-[28px] p-6 pb-8 shadow-2xl"><div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6"></div><h3 className="font-black text-[16px] text-white">Edit Anon + Nested • White Letters 🤫</h3><textarea value={editText} onChange={e=>setEditText(e.target.value)} className="w-full mt-5 bg-white/[0.05] border-2 border-white/10 rounded-xl p-4 text-[15px] outline-none min-h-[120px] resize-none text-white focus:border-white"/><div className="flex gap-3 mt-6"><button onClick={()=>{ setEditingPost(null); setEditText(''); }} className="flex-1 h-12 bg-white/5 border-2 border-white/10 rounded-full font-bold text-xs text-white">Cancel</button><button onClick={handleEdit} disabled={!editText.trim()} className={`flex-1 h-12 rounded-full font-bold text-xs ${!editText.trim()?'bg-white/5 text-white/20 border-2 border-white/5':'bg-white text-black'}`}>Save Anon • Nested</button></div></div></div>}
+      {editingPost && <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-50 flex items-end justify-center p-4"><div className="bg-[#141416] border-2 border-white/10 w-full max-w-[600px] rounded-t-[28px] p-6 pb-8 shadow-2xl"><div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6"></div><h3 className="font-black text-[16px] text-white">Edit Anon Nested • White 🤫</h3><textarea value={editText} onChange={e=>setEditText(e.target.value)} className="w-full mt-5 bg-white/[0.05] border-2 border-white/10 rounded-xl p-4 text-[15px] outline-none min-h-[120px] resize-none text-white focus:border-white"/><div className="flex gap-3 mt-6"><button onClick={()=>{ setEditingPost(null); setEditText(''); }} className="flex-1 h-12 bg-white/5 border-2 border-white/10 rounded-full font-bold text-xs text-white">Cancel</button><button onClick={handleEdit} disabled={!editText.trim()} className={`flex-1 h-12 rounded-full font-bold text-xs ${!editText.trim()?'bg-white/5 text-white/20 border-2 border-white/5':'bg-white text-black'}`}>Save Anon Nested</button></div></div></div>}
 
-      {showProfile && (<div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-50 flex items-end justify-center"><div className="bg-[#141416] border-2 border-white/10 w-full max-w-[600px] rounded-t-[28px] p-6 max-h-[85vh] overflow-y-auto shadow-2xl"><div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6"></div><div className="flex gap-4"><div className="w-[72px] h-[72px] bg-white/5 border-2 border-white/10 rounded-[20px] flex items-center justify-center text-3xl text-white">👻</div><div className="flex-1"><h2 className="font-black text-[16px] leading-none text-white">Anonymous • {userData.college} • NESTED 🤫 • WHITE</h2><p className="text-[11px] text-white/40 mt-2 leading-[1.4]">Nested Reply: Reply ki reply cheyochu • Thread system • Anonymous • Dark bg • White letters • {userData.college} only</p><div className="flex gap-2 mt-4 flex-wrap"><span className="px-3 py-1.5 bg-white text-black rounded-full text-[10px] font-bold">{userData.yakarma} karma • NESTED</span><span className="px-3 py-1.5 bg-white/10 border border-white/10 text-white rounded-full text-[9px] font-bold">{userData.college} ONLY • NESTED • WHITE</span></div></div></div>
-      <div className="mt-6 bg-white/[0.03] border border-white/10 rounded-[16px] p-4"><p className="text-[11px] font-bold text-white">🤫 Nested Reply Ela Work Avuthundi:</p><p className="text-[11px] text-white/40 mt-2 leading-[1.6]">• Comment chesaka "Reply" click chey<br/>• Reply ki malli reply cheyochu<br/>• Thread la kanipisthundi • ml-8 indent<br/>• Parent comment ki left border • White/10<br/>• 100% Anonymous • Evaru teliyadu<br/>• College only • Dark bg • White letters</p></div>
-      <button onClick={()=>{auth.signOut(); localStorage.clear(); window.location.reload();}} className="w-full mt-6 bg-white/5 border-2 border-white/10 h-12 rounded-full text-xs font-bold text-white/60">Logout Anonymous</button><button onClick={()=>setShowProfile(false)} className="w-full mt-3 bg-white text-black h-12 rounded-full font-bold text-xs">Close ✓ • Nested • Dark • White 🤫</button><div className="mt-4"><Footer/></div></div></div>)}
+      {showProfile && (<div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-50 flex items-end justify-center"><div className="bg-[#141416] border-2 border-white/10 w-full max-w-[600px] rounded-t-[28px] p-6 max-h-[85vh] overflow-y-auto shadow-2xl"><div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6"></div><div className="flex gap-4"><div className="w-[72px] h-[72px] bg-white/5 border-2 border-white/10 rounded-[20px] flex items-center justify-center text-3xl text-white">👻</div><div className="flex-1"><h2 className="font-black text-[16px] leading-none text-white">Anonymous • {userData.college} • NESTED 🤫 • WHITE</h2><p className="text-[11px] text-white/40 mt-2 leading-[1.4]">Nested Reply: Comment ki reply • Reply ki reply • Thread • White letters • Dark bg • {userData.college} only • Evariki teliyadu</p><div className="flex gap-2 mt-4 flex-wrap"><span className="px-3 py-1.5 bg-white text-black rounded-full text-[10px] font-bold">{userData.yakarma} karma • NESTED</span><span className="px-3 py-1.5 bg-white/10 border border-white/10 text-white rounded-full text-[9px] font-bold">{userData.college} ONLY • NESTED • WHITE</span></div></div></div>
+      <div className="grid grid-cols-3 gap-3 mt-6"><div className="bg-white/[0.05] border-2 border-white/10 rounded-[18px] p-4 text-center"><p className="font-black text-xl text-white">{userData.totalPosts||0}</p><p className="text-[9px] font-bold tracking-widest text-white/30 mt-1">ANON POSTS</p></div><div className="bg-white/[0.05] border-2 border-white/10 rounded-[18px] p-4 text-center"><p className="font-black text-xl text-white">{collegeCounts[userData.college]||0}</p><p className="text-[9px] font-bold tracking-widest text-white/30 mt-1">ANON REAL</p></div><div className="bg-white text-black rounded-[18px] p-4 text-center"><p className="font-black text-xl">{userData.yakarma}</p><p className="text-[9px] font-bold tracking-widest mt-1">KARMA NESTED</p></div></div>
+      <div className="mt-6 bg-white/[0.03] border border-white/10 rounded-[16px] p-4"><p className="text-[11px] font-bold text-white">🤫 Nested Reply Ela Work:</p><p className="text-[11px] text-white/40 mt-2 leading-[1.6]">• Comment -> "Reply" -> Input lo "Replying to..." banner<br/>• Post cheste parentId tho save avuthundi<br/>• buildTree() tho root + replies tree<br/>• renderComment recursive - depth>0 ki ml-6 + border-l-2 white/15 + "REPLY ↳ Anon" badge<br/>• Reply ki malli reply infinite thread • Anon • Dark bg • White letters</p></div>
+      <button onClick={()=>{auth.signOut(); localStorage.clear(); window.location.reload();}} className="w-full mt-6 bg-white/5 border-2 border-white/10 h-12 rounded-full text-xs font-bold text-white/60">Logout Anon Nested</button><button onClick={()=>setShowProfile(false)} className="w-full mt-3 bg-white text-black h-12 rounded-full font-bold text-xs">Close ✓ • Nested • Dark • White 🤫</button><div className="mt-4"><Footer/></div></div></div>)}
     </div>
   );
-        }
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         } 

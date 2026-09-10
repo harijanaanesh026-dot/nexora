@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment, where, getDocs, deleteDoc, arrayUnion, arrayRemove, setDoc } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, increment, where, getDocs, deleteDoc, arrayUnion, arrayRemove, setDoc, Timestamp } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAT91pRDQrvCzxJHzhuzZe21K06xDy0sQ4",
@@ -16,6 +16,32 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
+// TYPES - IDHI ADD CHESAKA BUILD ERROR POVUDHI
+type YakType = {
+  id: string;
+  text: string;
+  uid: string;
+  avatar?: string;
+  college?: string;
+  likes?: number;
+  commentsCount?: number;
+  createdAt?: Timestamp;
+  image?: string;
+  hashtags?: string[];
+  type?: string;
+}
+
+type UserType = {
+  id: string;
+  uid: string;
+  avatar?: string;
+  college?: string;
+  yakarma?: number;
+  likedPosts?: string[];
+  totalPosts?: number;
+  createdAt?: Timestamp;
+}
+
 const COLLEGES = [{id:"SRET", label:"SRET", city:"Tirupati", domains:["sret.edu.in","sret.ac.in"], pattern:/^(20|21|22|23|24|25)[A-Z]{2,4}[0-9]{3,5}$/i, ex:"21CS101"}];
 const AVATARS = ["👻","🤫","💀","👽","🦊","🐼","🔥","😎"];
 
@@ -27,12 +53,12 @@ const Footer = () => (
 
 export default function YakFixed(){
   const [user,setUser]=useState<any>(null);
-  const [userData,setUserData]=useState<any>(null);
+  const [userData,setUserData]=useState<UserType|null>(null);
   const [screen,setScreen]=useState('college');
   const [feedTab,setFeedTab]=useState<'new'|'hot'|'dm'>('new');
-  const [yaks,setYaks]=useState<any[]>([]);
-  const [hotYaks,setHotYaks]=useState<any[]>([]);
-  const [leaderboard,setLeaderboard]=useState<any[]>([]);
+  const [yaks,setYaks]=useState<YakType[]>([]);
+  const [hotYaks,setHotYaks]=useState<YakType[]>([]);
+  const [leaderboard,setLeaderboard]=useState<UserType[]>([]);
   const [collegeCounts,setCollegeCounts]=useState<Record<string,number>>({});
   const [totalUsers,setTotalUsers]=useState(0);
   const [newYak,setNewYak]=useState('');
@@ -63,7 +89,7 @@ export default function YakFixed(){
   const [dmText,setDmText]=useState('');
   const showToast=(m:string)=>{ setToast(m); setTimeout(()=>setToast(''),2500); };
 
-  const getCollegeConfig=()=>COLLEGES.find(c=>c.id==="SRET");
+    const getCollegeConfig=()=>COLLEGES.find(c=>c.id==="SRET");
   const handleCollegeNext=()=>{ localStorage.setItem('selected_college',"SRET"); localStorage.setItem('selected_avatar',selectedAvatar); setScreen('verify'); };
   const handleEmailVerify=async()=>{ setVerifyError(''); const config=getCollegeConfig(); if(!config) return; const emailLower=collegeEmail.toLowerCase().trim(); if(!config.domains.some(d=>emailLower.endsWith(d))){ setVerifyError(`Only ${config.domains.join(' or ')} allowed`); return; } const dup=await getDocs(query(collection(db,'users'),where('collegeEmail','==',emailLower))); if(!dup.empty){ setVerifyError('Email already used'); return; } const otpCode=Math.floor(100000+Math.random()*900000).toString(); setGeneratedOtp(otpCode); await setDoc(doc(db,'email_otps',emailLower),{email:emailLower,otp:otpCode,createdAt:serverTimestamp()}); setOtpSent(true); showToast("OTP: "+otpCode); };
   const handleOtpSubmit=async()=>{ const snap=await getDocs(query(collection(db,'email_otps'),where('email','==',collegeEmail.toLowerCase().trim()))); if(snap.empty) return; const d=snap.docs[0].data() as any; if(d.otp!==otp.trim()){ setVerifyError('Wrong OTP'); return; } await deleteDoc(doc(db,'email_otps',collegeEmail.toLowerCase().trim())); localStorage.setItem('college_email',collegeEmail.toLowerCase().trim()); localStorage.setItem('verify_method','email'); setIsVerified(true); setScreen('login'); };
@@ -76,11 +102,11 @@ export default function YakFixed(){
     if(toUid===user?.uid) return; await addDoc(collection(db,'notifications'),{toUid, fromUid:user?.uid, fromUsername:"Anonymous", type, text, yakId:yakId||null, read:false, createdAt:serverTimestamp()});
   };
 
-  const handleVote=async(y:any,type:'up'|'down')=>{
+  const handleVote=async(y:YakType,type:'up'|'down')=>{
     if(!userData) return; const yakRef=doc(db,'yaks',y.id); const userRef=doc(db,'users',userData.id); const liked=userData.likedPosts?.includes(y.id);
     try{
       if(type==='up'){
-        if(liked){ await updateDoc(yakRef,{likes:increment(-1)}); await updateDoc(userRef,{likedPosts:arrayRemove(y.id)}); setUserData({...userData, likedPosts:userData.likedPosts.filter((i:string)=>i!==y.id)}); }
+        if(liked){ await updateDoc(yakRef,{likes:increment(-1)}); await updateDoc(userRef,{likedPosts:arrayRemove(y.id)}); setUserData({...userData, likedPosts:userData.likedPosts?.filter((i:string)=>i!==y.id)}); }
         else{ await updateDoc(yakRef,{likes:increment(1)}); await updateDoc(userRef,{likedPosts:arrayUnion(y.id)}); setUserData({...userData, likedPosts:[...(userData.likedPosts||[]), y.id]}); await createNotification(y.uid, 'upvote', `Someone liked: ${y.text.slice(0,30)}`, y.id); }
       }
     }catch(e:any){ showToast(e.message); }
@@ -94,9 +120,13 @@ export default function YakFixed(){
 
   useEffect(()=>{ getRedirectResult(auth).catch(()=>{}); },[]);
   useEffect(()=>{ return onSnapshot(collection(db,'users'), snap=>{ const c:Record<string,number>={}; snap.docs.forEach(d=>{ const col=(d.data() as any).college; if(col) c[col]=(c[col]||0)+1; }); setCollegeCounts(c); setTotalUsers(snap.size); }); },[]);
-  useEffect(()=>{ return onAuthStateChanged(auth, async(u:any)=>{ if(u){ setUser(u); const snap=await getDocs(query(collection(db,'users'),where('uid','==',u.uid))); if(snap.empty){ if(!isVerified){ setScreen('college'); return; } await addDoc(collection(db,'users'),{uid:u.uid,avatar:selectedAvatar,college:"SRET",yakarma:100,likedPosts:[],totalPosts:0,createdAt:serverTimestamp()}); window.location.reload(); }else{ setUserData({id:snap.docs[0].id,...snap.docs[0].data()}); setScreen('feed'); } }else setScreen('college'); }); },[isVerified]);
-  useEffect(()=>{ if(!userData) return; return onSnapshot(collection(db,'yaks'), s=>{ const data=s.docs.map(d=>({id:d.id,...d.data()})); data.sort((a,b)=> (b.createdAt?.toMillis?.()||0) - (a.createdAt?.toMillis?.()||0)); setYaks(data); setHotYaks([...data].sort((a,b)=> (b.likes||0)-(a.likes||0))); }); },[userData]);
-  useEffect(()=>{ if(!userData) return; return onSnapshot(collection(db,'users'), s=>{ const all=s.docs.map(d=>({id:d.id,...d.data()})); setLeaderboard(all.sort((a,b)=>b.yakarma-a.yakarma).slice(0,20)); }); },[userData]);
+
+  useEffect(()=>{ return onAuthStateChanged(auth, async(u:any)=>{ if(u){ setUser(u); const snap=await getDocs(query(collection(db,'users'),where('uid','==',u.uid))); if(snap.empty){ if(!isVerified){ setScreen('college'); return; } await addDoc(collection(db,'users'),{uid:u.uid,avatar:selectedAvatar,college:"SRET",yakarma:100,likedPosts:[],totalPosts:0,createdAt:serverTimestamp()}); window.location.reload(); }else{ setUserData({id:snap.docs[0].id,...snap.docs[0].data()} as UserType); setScreen('feed'); } }else setScreen('college'); }); },[isVerified]);
+
+  useEffect(()=>{ if(!userData) return; return onSnapshot(collection(db,'yaks'), s=>{ const data = s.docs.map(d=>({id:d.id,...d.data()}) as YakType); data.sort((a,b)=> (b.createdAt?.toMillis?.()||0) - (a.createdAt?.toMillis?.()||0)); setYaks(data); setHotYaks([...data].sort((a,b)=> (b.likes||0)-(a.likes||0))); }); },[userData]);
+
+  useEffect(()=>{ if(!userData) return; return onSnapshot(collection(db,'users'), s=>{ const all = s.docs.map(d=>({id:d.id,...d.data()}) as UserType); setLeaderboard(all.sort((a,b)=> (b.yakarma||0)-(a.yakarma||0)).slice(0,20)); }); },[userData]);
+
   useEffect(()=>{ if(!activePost) return; return onSnapshot(query(collection(db,'yaks/'+activePost+'/comments'),orderBy('createdAt','asc')),s=>setComments(s.docs.map(d=>({id:d.id,...d.data()})))); },[activePost]);
   useEffect(()=>{ if(!user?.uid) return; return onSnapshot(query(collection(db,'notifications'),where('toUid','==',user.uid),orderBy('createdAt','desc')), s=>{ const nots=s.docs.map(d=>({id:d.id,...d.data()})); setNotifications(nots as any); setUnreadCount((nots as any).filter((n:any)=>!n.read).length); }); },[user]);
   useEffect(()=>{ if(!user?.uid) return; return onSnapshot(query(collection(db,'dms'),where('participants','array-contains',user.uid)), s=>{ const chats=s.docs.map(d=>({id:d.id,...d.data()})); setDmChats(chats as any); }); },[user]);
@@ -114,14 +144,13 @@ export default function YakFixed(){
     return (<div className="min-h-screen bg-black text-white flex items-center justify-center p-6"><div className="max-w-md w-full bg-zinc-900 border-zinc-800 p-8 rounded-[20px] flex-col items-center"><div className="w-24 h-24 bg-gradient-to-br from-pink-500 to-yellow-500 rounded-[20px] flex items-center justify-center text-4xl">{selectedAvatar}</div><h1 className="font-black mt-6 text-center text-xl">SRET Verified</h1><button onClick={handleGoogleLogin} className="w-full mt-8 bg-gradient-to-r from-pink-500 to-yellow-500 py-4 rounded-full font-bold text-black">Continue with Google</button></div><Footer/></div>);
   }
   if(screen==='create'){
-    return(<div className="fixed inset-0 bg-black z-40 flex-col"><div className="max-w-[600px] mx-auto w-full flex items-center justify-between p-4 border-b border-zinc-800"><button onClick={()=>{ if(!posting) { setScreen('feed'); setYakImage(''); } }} className="text-[16px] font-bold text-white">Cancel</button><p className="text-[16px] font-bold">New Post</p><button onClick={handlePost} disabled={posting||(!newYak.trim()&&!yakImage)} className={`text-[16px] font-bold ${posting||(!newYak.trim()&&!yakImage)?'text-white/20':'text-blue-500'}`}>{posting?'Posting...':'Share'}</button></div><div className="max-w-[600px] mx-auto w-full flex-1 overflow-y-auto p-4"><div className="flex gap-3 mb-4"><div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-yellow-500 p-[2px]"><div className="w-full h-full rounded-full bg-black flex items-center justify-center text-xl">{userData?.avatar || "👻"}</div></div><div><p className="font-bold text-[14px]">Ghost</p><p className="text-[11px] text-white/50">SRET</p></div></div><textarea value={newYak} onChange={e=>setNewYak(e.target.value)} placeholder={`What's on your mind?\n\nUse #hashtag`} autoFocus className="w-full bg-transparent text-[16px] outline-none placeholder:text-white/40 resize-none min-h-[250px] text-white" maxLength={300}/>{yakImage? (<div className="relative mt-4"><img src={yakImage} className="w-full rounded-[12px]" alt="upload"/><button onClick={()=>setYakImage('')} className="absolute top-3 right-3 w-8 h-8 bg-black/80 rounded-full flex items-center justify-center text-white">X</button></div>) : (<label className="w-full border-dashed border-zinc-800 rounded-[12px] p-10 flex-col items-center justify-center cursor-pointer hover:border-pink-500 bg-zinc-900 mt-4"><span className="text-[32px] mb-2">📷</span><span className="text-[13px] font-bold">Upload Image</span><input type="file" hidden accept="image/*" onChange={e=>handleImageUpload(e,setYakImage)} /></label>)}</div></div>);
-    }
+    return(<div className="fixed inset-0 bg-black z-40 flex-col"><div className="max-w-[600px] mx-auto w-full flex items-center justify-between p-4 border-b border-zinc-800"><button onClick={()=>{ if(!posting) { setScreen('feed'); setYakImage(''); } }} className="text-[16px] font-bold text-white">Cancel</button><p className="text-[16px] font-bold">New Post</p><button onClick={handlePost} disabled={posting||(!newYak.trim()&&!yakImage)} className={`text-[16px] font-bold ${posting||(!newYak.trim()&&!yakImage)?'text-white/20':'text-blue-500'}`}>{posting?'Posting...':'Share'}</button></div><div className="max-w-[600px] mx-auto w-full flex-1 overflow-y-auto p-4"><div className="flex gap-3 mb-4"><div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-yellow-500 p-[2px]"><div className="w-full h-full rounded-full bg-black flex items-center justify-center text-xl">{userData?.avatar || "👻"}</div></div><div><p className="font-bold text-[14px]">Ghost</p><p className="text-[11px] text-white/50">SRET</p></div></div><textarea value={newYak} onChange={e=>setNewYak(e.target.value)} placeholder={`What's on your mind?\n\nUse #hashtag`} autoFocus className="w-full bg-transparent text-[16px] outline-none placeholder:text-white/40 resize-none min-h-[250px] text-white" maxLength={300}/>{yakImage? (<div className="relative mt-4"><img src={yakImage} className="w-full rounded-[12px]" alt="upload"/><button onClick={()=>setYakImage('')} className="absolute top-3 right-3 w-8 h-8 bg-black/80 rounded-full flex items-center justify-center text-white">X</button></div>) : (<label className="w-full border-dashed border-zinc-800 rounded-[12px] p-10 flex flex-col items-center justify-center cursor-pointer hover:border-pink-500 bg-zinc-900 mt-4"><span className="text-[32px] mb-2">📷</span><span className="text-[13px] font-bold">Upload Image</span><input type="file" hidden accept="image/*" onChange={e=>handleImageUpload(e,setYakImage)} /></label>)}</div></div>);
+                                                                                                                                                                                                                                                                                      }
 
-  const PostCard = ({yak}:{yak:any}) => {
+    const PostCard = ({yak}:{yak:YakType}) => {
     const liked = userData?.likedPosts?.includes(yak.id);
     return (
       <div className="bg-zinc-900 border-zinc-800 rounded-[12px] mb-4">
-        {/* Header */}
         <div className="flex items-center gap-3 p-3">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 via-red-500 to-yellow-500 p-[2px]">
             <div className="w-full h-full rounded-full bg-zinc-900 flex items-center justify-center text-xl">{yak.avatar || "👻"}</div>
@@ -133,10 +162,8 @@ export default function YakFixed(){
           <button className="text-white/60 text-xl">•••</button>
         </div>
 
-        {/* Image */}
         {yak.image && <img src={yak.image} className="w-full" />}
 
-        {/* Actions */}
         <div className="flex items-center gap-4 p-3">
           <button onClick={()=>handleVote(yak,'up')} className="flex items-center gap-1">
             <span className={`text-[24px] ${liked? 'text-red-500' : 'text-white'}`}>❤️</span>
@@ -146,7 +173,6 @@ export default function YakFixed(){
           <button className="ml-auto text-[20px]">🔖</button>
         </div>
 
-        {/* Likes + Caption */}
         <div className="px-3 pb-3">
           <p className="text-[13px] font-bold mb-1">{yak.likes || 0} likes</p>
           <p className="text-[14px] leading-[1.5]"><span className="font-bold">Ghost</span> {yak.text}</p>
@@ -154,7 +180,6 @@ export default function YakFixed(){
           <p className="text-[11px] text-white/40 mt-2">View all {yak.commentsCount || 0} comments</p>
         </div>
 
-        {/* Comments */}
         {activePost===yak.id && (
           <div className="border-t border-zinc-800 p-3">
             {comments.map(c=><div key={c.id} className="flex gap-2 mb-2"><b className="text-[13px]">Ghost:</b><p className="text-[13px]">{c.text}</p></div>)}
@@ -170,7 +195,6 @@ export default function YakFixed(){
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* TOP NAV */}
       <div className="sticky top-0 z-20 bg-black border-b border-zinc-800">
         <div className="max-w-[600px] mx-auto flex items-center justify-between p-4">
           <h1 className="text-[24px] font-black bg-gradient-to-r from-pink-500 to-yellow-500 bg-clip-text text-transparent">SRET</h1>
@@ -181,7 +205,6 @@ export default function YakFixed(){
         </div>
       </div>
 
-      {/* STORIES */}
       <div className="max-w-[600px] mx-auto p-4 overflow-x-auto border-b border-zinc-800">
         <div className="flex gap-4">
           {leaderboard.slice(0,8).map((u,i)=>(
@@ -195,9 +218,7 @@ export default function YakFixed(){
         </div>
       </div>
 
-      {/* FEED */}
       <div className="max-w-[600px] mx-auto">
-        {/* Create Post Box */}
         <div className="bg-zinc-900 border-zinc-800 rounded-[12px] p-3 m-4">
           <div className="flex gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-yellow-500 p-[2px]"><div className="w-full h-full rounded-full bg-black flex items-center justify-center text-xl">{userData?.avatar || "👻"}</div></div>
@@ -209,7 +230,6 @@ export default function YakFixed(){
         {(feedTab==='new'? yaks : hotYaks).map(yak=>(<PostCard key={yak.id} yak={yak} />))}
       </div>
 
-      {/* BOTTOM NAV */}
       <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-zinc-800">
         <div className="max-w-[600px] mx-auto px-6 h-[60px] flex items-center justify-between">
           <button onClick={()=>setFeedTab('new')} className="text-[26px]">🏠</button>

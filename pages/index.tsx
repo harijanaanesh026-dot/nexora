@@ -17,7 +17,7 @@ const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
 const COLLEGES = [{id:"SRET", label:"SRET", city:"Tirupati", domains:["sret.edu.in","sret.ac.in"], pattern:/^(20|21|22|23|24|25)[A-Z]{2,4}[0-9]{3,5}$/i, ex:"21CS101"}];
-const AVATARS = ["👻","🤫","💀","👽","🦊","🐼","🔥","😎"];
+const AVATARS = ["❤️","🩷","🖤","🧡","💚","💜","🩵","💛"];
 const ANON_NAMES = ["Anonymous Owl","Secret Tiger","Hidden Fox","Silent Panda","Ghost User","Shadow Yak"];
 const REPORT_REASONS = ["Spam / Promotion","Abusive / Hate","Fake Info / Misleading","NSFW / Inappropriate","Personal Info Leak","Harassment / Bullying","Other"];
 const Footer = () => (<div className="w-full py-8 flex flex-col items-center gap-1 border-t border-white/[0.06] mt-8"><p className="text-[10px] tracking-[0.3em] font-bold text-white/40">SRET ONLY • A PRODUCTION BY ANESH</p><p className="text-[9px] text-white/20">Premium • Privacy Safe • 1to1 Private DM</p></div>);

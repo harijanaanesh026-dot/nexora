@@ -22,7 +22,7 @@ const COLLEGES = [{id:"SRET", label:"SRET", city:"Tirupati", domains:["sret.edu.
 const AVATARS = ["❤️","💚","💜","🩷","🖤","🤍","💙","🩵"];
 const ANON_NAMES = ["Anonymous Owl","Secret Tiger","Hidden Fox","Silent Panda","Ghost User","Shadow Yak"];
 const REPORT_REASONS = ["Spam / Promotion","Abusive / Hate","Fake Info / Misleading","NSFW / Inappropriate","Personal Info Leak","Harassment / Bullying","Other"];
-const Footer = () => (<div className="w-full py-8 flex flex-col items-center gap-1 border-t border-white/[0.06] mt-8"><p className="text-[10px] tracking-[0.3em] font-bold text-white/40">SRET ONLY • A PRODUCTION BY ANESH</p><p className="text-[9px] text-white/20">Premium • Privacy Safe • 1to1 Private DM</p></div>);
+const Footer = () => (<div className="w-full py-8 flex flex-col items-center gap-1 border-t border-white/[0.06] mt-8"><p className="text-[10px] tracking-[0.3em] font-bold text-white/40">© 2026 Anonyfy. A Production By ANESH</p><p className="text-[9px] text-white/20"></p></div>);
 
 export default function YakFixed(){
   const [user,setUser]=useState<any>(null);
@@ -336,15 +336,15 @@ const renderComment = (c:any, depth=0) => {
               <button onClick={()=>setYakType('pyq')} className={`px-5 h-9 rounded-full text-xs font-bold border-2 whitespace-nowrap ${yakType==='pyq'?'bg-blue-500 text-white border-blue-500':'bg-white/5 border-white/10 text-white/40'}`}>📚 PYQ</button>
             </div>
             <div className="p-6 flex-1 overflow-y-auto bg-[#0a0a0b]">
-              <div className="flex gap-3 mb-6"><div className="w-11 h-11 bg-white/5 border-2 border-white/10 rounded-full flex items-center justify-center text-white">🔒</div><div><p className="font-bold text-[14px] text-white">Anonymous - SRET - 1to1 Private 🔒</p><p className="text-[11px] text-white/40">Others DM you privately - No one sees other's chat • Text Only - Real App Feel</p></div></div>
+              <div className="flex gap-3 mb-6"><div className="w-11 h-11 bg-white/5 border-2 border-white/10 rounded-full flex items-center justify-center text-white">🔒</div><div><p className="font-bold text-[14px] text-white">Anonymous - SRET </p><p className="text-[11px] text-white/40"></p></div></div>
               {yakType==='market' && <div className="flex gap-2 mb-4"><input value={marketPrice} onChange={e=>setMarketPrice(e.target.value)} placeholder="Price e.g. 250" className="w-[120px] p-4 bg-white/[0.03] border-2 border-green-500/20 rounded-xl text-sm outline-none text-white placeholder:text-white/30"/><p className="text-[10px] text-green-400 flex items-center">₹ Price - Text Only</p></div>}
               {yakType==='pyq' && <div className="flex gap-2 mb-4"><input value={pyqSubject} onChange={e=>setPyqSubject(e.target.value.toUpperCase())} placeholder="Subject: e.g. M1, DBMS" className="flex-1 p-4 bg-white/[0.03] border-2 border-blue-500/20 rounded-xl text-sm outline-none text-white placeholder:text-white/30 uppercase"/><p className="text-[10px] text-blue-400 flex items-center">SUBJECT - Text Only</p></div>}
-              <textarea value={newYak} onChange={e=>setNewYak(e.target.value)} placeholder={yakType==='market'? `What selling? e.g. Drafter - Good condition - SRET ONLY #marketplace - Private DM only - Text Only` : yakType==='pyq'? `Describe PYQ: e.g. DBMS 2023 Mid-1 - Important Qs - SRET ONLY #pyq #dbms - Private DM for PDF - Text Only` : `Talk about SRET... Use #hashtag like #SRET #Exams\n\n1to1 Private DM - No one sees other chat 🔒 - Text Only Real App\n\nExample: Exams ela #SRET #Exams`} autoFocus className="w-full bg-transparent text-[19px] leading-[1.45] outline-none placeholder:text-white/20 resize-none min-h-[140px] text-white" maxLength={300}/>
-              <p className="text-[10px] text-white/30 mt-2">{newYak.length}/300 • SRET ONLY • Text Only • Real App Feel</p>
+              <textarea value={newYak} onChange={e=>setNewYak(e.target.value)} placeholder={yakType==='market'? `What selling? e.g. Drafter - Good condition - SRET ONLY #marketplace - Private DM only - Text Only` : yakType==='pyq'? `Describe PYQ: e.g. DBMS 2023 Mid-1 - Important Qs - SRET ONLY #pyq #dbms - Private DM for PDF - Text Only` : `\n\n \n\n`} autoFocus className="w-full bg-transparent text-[19px] leading-[1.45] outline-none placeholder:text-white/20 resize-none min-h-[140px] text-white" maxLength={300}/>
+              <p className="text-[10px] text-white/30 mt-2">{newYak.length}/300  Text Only </p>
               {yakType==='poll' && (<div className="mt-6 space-y-3"><p className="text-[10px] text-white/30 font-bold">POLL OPTIONS - 24H - Private votes - Text Only</p>{pollOptions.map((opt,idx)=><div key={idx} className="flex gap-2"><input value={opt} onChange={e=>{ const n=[...pollOptions]; n[idx]=e.target.value; setPollOptions(n); }} placeholder={`Option ${idx+1}`} className="flex-1 p-4 bg-white/[0.03] border-2 border-white/10 rounded-xl text-sm outline-none focus:border-white text-white placeholder:text-white/30"/>{pollOptions.length>2 && <button onClick={()=>setPollOptions(pollOptions.filter((_,i)=>i!==idx))} className="w-12 h-12 bg-white/5 border-2 border-white/10 rounded-xl flex items-center justify-center text-white/40">X</button>}</div>)}{pollOptions.length<4 && <button onClick={()=>setPollOptions([...pollOptions,''])} className="w-full p-3 bg-white/[0.03] border-2 border-dashed border-white/10 rounded-xl text-xs font-bold text-white/40">Add Option - Text Only</button>}</div>)}
-              <div className="mt-6 bg-white/[0.03] border-2 border-white/10 rounded-[16px] p-4"><p className="text-[11px] font-bold text-white/40">TEXT ONLY - REAL APP FEEL - SRET ONLY</p><p className="text-[10px] text-white/30 mt-1">No image upload - Text only 300 chars - Anonymous - Private DM Secure - Real Student App</p></div>
+              <div className="mt-6 bg-white/[0.03] border-2 border-white/10 rounded-[16px] p-4"><p className="text-[11px] font-bold text-white/40">TEXT ONLY </p><p className="text-[10px] text-white/30 mt-1">No image upload - Text only 300 chars</p></div>
             </div>
-            <div className="p-5 border-t-2 border-white/5 bg-white/[0.02]"><div className="bg-green-500/5 border-2 border-green-500/10 rounded-xl p-4 flex gap-3 items-center"><div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div><p className="text-[11px] text-white/50"><span className="font-bold text-green-400">1to1 PRIVATE:</span> 🔒 No one can see other's chat - Only you 2 - SRET ONLY - Text Only Real App</p></div><Footer/></div>
+            <div className="p-5 border-t-2 border-white/5 bg-white/[0.02]"><div className="bg-green-500/5 border-2 border-green-500/10 rounded-xl p-4 flex gap-3 items-center"><div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div><p className="text-[11px] text-white/50"><span className="font-bold text-green-400"></span> </p></div><Footer/></div>
           </div>
         </div>
       )}
@@ -359,7 +359,7 @@ const renderComment = (c:any, depth=0) => {
             <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6"></div>
             <h3 className="font-black text-[16px] text-white">Report Post - SRET ONLY</h3>
             <p className="text-[11px] text-white/40 mt-1">{reportingPost.text.slice(0,60)}...</p>
-            <p className="text-[10px] font-bold tracking-widest text-white/30 mt-5">SELECT REASON - TEXT ONLY REAL APP</p>
+            <p className="text-[10px] font-bold tracking-widest text-white/30 mt-5">SELECT REASON </p>
             <div className="grid grid-cols-1 gap-2 mt-3">
               {REPORT_REASONS.map((r:any)=><button key={r} onClick={()=>setReportReason(r)} className={`p-3.5 rounded-xl text-left text-[12px] font-bold border-2 ${reportReason===r?'bg-white text-black border-white':'bg-white/5 border-white/10 text-white/60'}`}>{r} {reportReason===r?'✓':''}</button>)}
             </div>
@@ -385,7 +385,7 @@ const renderComment = (c:any, depth=0) => {
                   <button onClick={()=>handleAdminDelete(rep)} className="flex-1 h-10 bg-red-500 text-white rounded-full text-[11px] font-bold">Delete 🗑️</button>
                 </div>
               </div>)}
-              {adminReports.length===0 && <p className="text-center text-white/20 py-20">No pending reports - All clean - Text Only Real App</p>}
+              {adminReports.length===0 && <p className="text-center text-white/20 py-20">No pending reports </p>}
             </div>
           </div>
         </div>
@@ -396,19 +396,19 @@ const renderComment = (c:any, depth=0) => {
           <div className="bg-[#141416] border-2 border-white/10 w-full max-w-[360px] rounded-[24px] p-6 shadow-2xl">
             <div className="w-14 h-14 bg-white/5 border-2 border-white/10 rounded-full mx-auto flex items-center justify-center text-2xl">👋</div>
             <h3 className="font-black text-[18px] text-white text-center mt-4">Are you sure you want to logout?</h3>
-            <p className="text-[11px] text-white/40 text-center mt-2 leading-[1.5]">You will need to login again with Google<br/>Your anonymous posts & crushes stay safe<br/>SRET ONLY - Private DM secure 🔒 - Text Only Real App</p>
+            <p className="text-[11px] text-white/40 text-center mt-2 leading-[1.5]">You will need to login again with Google<br/>Your anonymous posts stay safe<br/></p>
             <div className="flex gap-3 mt-6">
               <button onClick={()=>setShowLogoutConfirm(false)} className="flex-1 h-12 bg-white text-black rounded-full font-bold text-xs">Cancel</button>
               <button onClick={()=>{ auth.signOut(); localStorage.clear(); window.location.reload(); }} className="flex-1 h-12 bg-red-500 text-white rounded-full font-bold text-xs">Yes, Logout</button>
             </div>
-            <p className="text-[9px] text-white/20 text-center mt-4">Your data stays safe - Only logout - Private chats remain 🔒 - Text Only</p>
+            <p className="text-[9px] text-white/20 text-center mt-4">Your data stays safe - Only logout - Private chats remain  </p>
           </div>
         </div>
       )}
 
       {showProfile && (<div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-50 flex items-end justify-center"><div className="bg-[#141416] border-2 border-white/10 w-full max-w-[600px] rounded-t-[28px] p-6 max-h-[85vh] overflow-y-auto shadow-2xl"><div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6"></div><div className="flex gap-4"><div className="w-[72px] h-[72px] bg-white/5 border-2 border-white/10 rounded-[20px] flex items-center justify-center text-3xl text-white">🔒</div><div className="flex-1"><h2 className="font-black text-[16px] leading-none text-white">SRET ONLY - 1to1 PRIVATE 🔒 - Real App</h2><p className="text-[11px] text-white/40 mt-2 leading-[1.4]">No one sees other's chat • Private DM • {totalUsers} verified • {dmChats.length} private chats • Text Only Real App Feel</p><div className="flex gap-2 mt-4 flex-wrap"><span className="px-3 py-1.5 bg-white text-black rounded-full text-[10px] font-bold">{userData.yakarma} karma</span><span className="px-3 py-1.5 bg-green-500/10 border border-green-500/20 text-green-400 rounded-full text-[9px] font-bold">🔒 {dmChats.length} PRIVATE</span><span className="px-3 py-1.5 bg-pink-500 text-white rounded-full text-[9px] font-bold">💘 {crushMatches.filter((c:any)=>c.matched &&!c.blocked).length} MATCHES</span></div></div></div>
       <div className="grid grid-cols-4 gap-3 mt-6"><div className="bg-white/[0.05] border-2 border-white/10 rounded-[18px] p-4 text-center"><p className="font-black text-xl text-white">{userData.totalPosts||0}</p><p className="text-[9px] font-bold tracking-widest text-white/30 mt-1">POSTS - TEXT ONLY</p></div><div className="bg-white/[0.05] border-2 border-white/10 rounded-[18px] p-4 text-center"><p className="font-black text-xl text-white">{totalUsers}</p><p className="text-[9px] font-bold tracking-widest text-white/30 mt-1">VERIFIED</p></div><div className="bg-green-500/10 border-2 border-green-500/20 rounded-[18px] p-4 text-center"><p className="font-black text-xl text-green-400">{dmChats.length}</p><p className="text-[9px] font-bold tracking-widest text-green-400/60 mt-1">PRIVATE DM</p></div><div className="bg-white text-black rounded-[18px] p-4 text-center"><p className="font-black text-xl">{userData.yakarma}</p><p className="text-[9px] font-bold tracking-widest mt-1">KARMA</p></div></div>
-      <div className="mt-6 bg-white/[0.03] border-2 border-white/10 rounded-[16px] p-4"><p className="text-[11px] font-bold text-white/60">REAL APP FEEL - SRET ONLY - TEXT ONLY:</p><p className="text-[11px] text-white/40 mt-2 leading-[1.6]">✅ Anonymous 👻 - Real student app feel<br/>✅ Text Only - No image upload - Clean & Fast<br/>✅ 1to1 Private DM - No one sees other chat<br/>✅ Poll • Market • PYQ • Crush - All Text Only<br/>✅ SRET ONLY - Verified Students Only<br/>✅ Build Pass - No image tag</p></div>
+      <div className="mt-6 bg-white/[0.03] border-2 border-white/10 rounded-[16px] p-4"><p className="text-[11px] font-bold text-white/60"></p><p className="text-[11px] text-white/40 mt-2 leading-[1.6]">✅ Anonymous 👻 - Real student app feel<br/>✅ Text Only - No image upload - Clean & Fast<br/>✅ 1to1 Private DM - No one sees other chat<br/>✅ Poll • Market • PYQ • Crush - All Text Only<br/>✅ SRET ONLY - Verified Students Only<br/>✅ Build Pass - No image tag</p></div>
       <button onClick={()=>setShowAdmin(true)} className="w-full mt-4 bg-yellow-500/10 border-2 border-yellow-500/20 h-12 rounded-full text-xs font-bold text-yellow-400">Admin Review Panel - {adminReports.length} Pending {adminReports.length>0?'🔴':''}</button>
       {blockedUsers.length>0 && (
         <div className="mt-6 bg-red-500/5 border-2 border-red-500/10 rounded-[16px] p-4">
@@ -422,14 +422,14 @@ const renderComment = (c:any, depth=0) => {
         </div>
       )}
       <div className="mt-6 bg-red-500/5 border-2 border-red-500/10 rounded-[16px] p-4">
-        <p className="text-[11px] font-bold text-red-400">🗑️ DANGER ZONE - DELETE DATA - SRET ONLY - TEXT ONLY</p>
+        <p className="text-[11px] font-bold text-red-400">🗑️ DANGER ZONE - DELETE DATA </p>
         <div className="mt-4 space-y-3">
           <div className="bg-white/[0.03] border border-white/10 rounded-xl p-3">
-            <p className="text-[11px] font-bold text-white">Delete Only Posts + Crushes - Text Only Real App</p>
+            <p className="text-[11px] font-bold text-white">Delete Only Posts </p>
             <button onClick={async()=>{ if(!confirm("Delete your posts? - SRET ONLY - Text Only")) return; const uid=user.uid; const yaksSnap = await getDocs(query(collection(db,'yaks'),where('uid','==',uid))); for(const d of yaksSnap.docs){ await deleteDoc(doc(db,'yaks',d.id)); } await updateDoc(doc(db,'users',userData.id),{totalPosts:0, yakarma:100}); showToast("Posts deleted - SRET ONLY"); }} className="w-full mt-3 h-10 bg-white/5 border border-white/10 rounded-full text-[11px] font-bold text-white/60">Delete My Posts Only - Text Only</button>
           </div>
           <div className="bg-red-500/5 border border-red-500/10 rounded-xl p-3">
-            <p className="text-[11px] font-bold text-red-400">Delete Account + All Data Permanently - Text Only</p>
+            <p className="text-[11px] font-bold text-red-400">Delete Account + All Data Permanently </p>
             <button onClick={async()=>{
               const confirm1 = confirm("DELETE ACCOUNT? - SRET ONLY - Text Only Real App\n\nDeletes all posts and data\nCannot be undone");
               if(!confirm1) return;
@@ -441,11 +441,11 @@ const renderComment = (c:any, depth=0) => {
                 await deleteDoc(doc(db,'users',userDocId));
                 await auth.currentUser?.delete(); localStorage.clear(); window.location.reload();
               }catch(e:any){ showToast(e.message); }
-            }} className="w-full mt-3 h-10 bg-red-500 text-white rounded-full text-[11px] font-bold">🗑️ Delete Account + All Data Forever - Text Only</button>
+            }} className="w-full mt-3 h-10 bg-red-500 text-white rounded-full text-[11px] font-bold">🗑️ Delete Account + All Data Forever </button>
           </div>
         </div>
       </div>
-      <button onClick={()=>setShowLogoutConfirm(true)} className="w-full mt-6 bg-white/5 border-2 border-white/10 h-12 rounded-full text-xs font-bold text-white/60">Logout - SRET ONLY - Text Only Real App</button><button onClick={()=>setShowProfile(false)} className="w-full mt-3 bg-white text-black h-12 rounded-full font-bold text-xs">Close - Real App</button><div className="mt-4"><Footer/></div></div></div>)}
+      <button onClick={()=>setShowLogoutConfirm(true)} className="w-full mt-6 bg-white/5 border-2 border-white/10 h-12 rounded-full text-xs font-bold text-white/60">Logout </button><button onClick={()=>setShowProfile(false)} className="w-full mt-3 bg-white text-black h-12 rounded-full font-bold text-xs">Close</button><div className="mt-4"><Footer/></div></div></div>)}
     </div>
   );
 }

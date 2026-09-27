@@ -22,7 +22,7 @@ const ANON_NAMES = ["Anonymous Owl","Secret Tiger","Hidden Fox","Silent Panda","
 const REPORT_REASONS = ["Spam / Promotion","Abusive / Hate","Fake Info / Misleading","NSFW / Inappropriate","Personal Info Leak","Harassment / Bullying","Other"];
 const BAD_WORDS = ["fuck","sex","porn","xxx","boobs","pussy","dick","cock","nude","slut","bitch","asshole","rape","gaand","gandu","loda","chod","chutiya","lund","randi"];
 const containsVulgar = (t:string) => BAD_WORDS.some(w=>t.toLowerCase().includes(w));
-const Footer = () => (<div className="w-full py-8 flex flex-col items-center gap-1 border-t border-white/[0.06] mt-8"><p className="text-[10px] tracking-[0.3em] font-bold text-white/40"> Dabean A Production By ANESH </p><p className="text-[9px] text-white/20"> Hearts Avatar -  No Vulgar - Delete Anytime</p></div>);
+const Footer = () => (<div className="w-full py-8 flex flex-col items-center gap-1 border-t border-white/[0.06] mt-8"><p className="text-[10px] tracking-[0.3em] font-bold text-white/40"> Dabean A Production By ANESH </p><p className="text-[9px] text-white/20"> Hearts Avatar </p></div>);
 
 export default function YakFixed(){
   const [user,setUser]=useState<any>(null);

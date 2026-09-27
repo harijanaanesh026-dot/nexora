@@ -22,7 +22,7 @@ const ANON_NAMES = ["Anonymous Owl","Secret Tiger","Hidden Fox","Silent Panda","
 const REPORT_REASONS = ["Spam / Promotion","Abusive / Hate","Fake Info / Misleading","NSFW / Inappropriate","Personal Info Leak","Harassment / Bullying","Other"];
 const BAD_WORDS = ["fuck","sex","porn","xxx","boobs","pussy","dick","cock","nude","slut","bitch","asshole","rape","gaand","gandu","loda","chod","chutiya","lund","randi"];
 const containsVulgar = (t:string) => BAD_WORDS.some(w=>t.toLowerCase().includes(w));
-const Footer = () => (<div className="w-full py-8 flex flex-col items-center gap-1 border-t border-white/[0.06] mt-8"><p className="text-[10px] tracking-[0.3em] font-bold text-white/40"> Dabean A Production By ANESH </p><p className="text-[9px] text-white/20"> Hearts Avatar </p></div>);
+const Footer = () => (<div className="w-full py-8 flex flex-col items-center gap-1 border-t border-white/[0.06] mt-8"><p className="text-[10px] tracking-[0.3em] font-bold text-white/40"> Dabean A Production By ANESH </p><p className="text-[9px] text-white/20">  </p></div>);
 
 export default function YakFixed(){
   const [user,setUser]=useState<any>(null);
@@ -135,15 +135,15 @@ export default function YakFixed(){
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white text-black rounded-xl flex items-center justify-center font-black text-xl">{selectedAvatar}</div>
             <div>
-              <p className="font-black text-sm tracking-wide">SRET ONLY {selectedAvatar} ANONYMOUS</p>
+              <p className="font-black text-sm tracking-wide">SRET {selectedAvatar} ANONYMOUS</p>
               <p className="text-[10px] text-white/40">{totalUsers} SRET anonymous {selectedAvatar} </p>
             </div>
           </div>
-          <h1 className="text-[36px] font-black mt-8 leading-[0.9] tracking-tight">SRET<br/>Only<br/><span className="text-white/30"> {selectedAvatar}</span></h1>
+          <h1 className="text-[36px] font-black mt-8 leading-[0.9] tracking-tight">SRET<br/><br/><span className="text-white/30"> {selectedAvatar}</span></h1>
           <p className="text-[13px] text-white/50 mt-3"></p>
           <p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mt-8">SELECT AVATAR</p>
           <div className="grid grid-cols-4 gap-2.5 mt-3">{AVATARS.map(a=><button key={a} onClick={()=>setSelectedAvatar(a)} className={`h-16 rounded-[18px] text-2xl border-2 ${selectedAvatar===a?'bg-white text-black border-white scale-105':'bg-white/[0.05] border-white/10 text-white'}`}>{a}</button>)}</div>
-          <p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mt-8">COLLEGE - SRET ONLY {selectedAvatar}</p>
+          <p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mt-8">COLLEGE - SRET{selectedAvatar}</p>
           <div className="mt-3"><div className="w-full p-4 rounded-[18px] border-2 bg-white text-black border-white flex justify-between"><div><p className="font-bold text-[13px]">SRET - Tirupati -  {selectedAvatar}</p><p className="text-[11px] text-black/60">{collegeCounts["SRET"]||0} anonymous {selectedAvatar} • </p></div><div className="w-7 h-7 rounded-full bg-black text-white flex items-center justify-center">✓</div></div></div>
           <button onClick={handleCollegeNext} className="w-full mt-8 py-4 rounded-full font-black text-[14px] bg-white text-black">Enter SRET as {selectedAvatar} Anonymous </button>
           <Footer/>

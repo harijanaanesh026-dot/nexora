@@ -135,11 +135,11 @@ export default function YakFixed(){
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white text-black rounded-xl flex items-center justify-center font-black text-xl">{selectedAvatar}</div>
             <div>
-              <p className="font-black text-sm tracking-wide">Social network campus {selectedAvatar} </p>
+              <p className="font-black text-sm tracking-wide">Social network campus 🏫{selectedAvatar} </p>
               <p className="text-[10px] text-white/40">{totalUsers} SRET anonymous {selectedAvatar} </p>
             </div>
           </div>
-          <h1 className="text-[36px] font-black mt-8 leading-[0.9] tracking-tight">Anonymous 🏫<br/><br/><span className="text-white/30"> {selectedAvatar}</span></h1>
+          <h1 className="text-[36px] font-black mt-8 leading-[0.9] tracking-tight">Talk Beyond Identity.<br/><br/><span className="text-white/30"> {selectedAvatar}</span></h1>
           <p className="text-[13px] text-white/50 mt-3"></p>
           <p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mt-8">SELECT AVATAR</p>
           <div className="grid grid-cols-4 gap-2.5 mt-3">{AVATARS.map(a=><button key={a} onClick={()=>setSelectedAvatar(a)} className={`h-16 rounded-[18px] text-2xl border-2 ${selectedAvatar===a?'bg-white text-black border-white scale-105':'bg-white/[0.05] border-white/10 text-white'}`}>{a}</button>)}</div>

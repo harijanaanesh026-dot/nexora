@@ -17,12 +17,13 @@ const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
 const COLLEGES = [{id:"SRET", label:"SRET", city:"Tirupati", domains:["sret.edu.in","sret.ac.in"], pattern:/^(20|21|22|23|24|25)[A-Z]{2,4}[0-9]{3,5}$/i, ex:"21CS101"}];
-const AVATARS = ["❤️","🧡","💛","💚","💙","💜","🤎","🖤","🤍","🩷","🩵","🩶"];
+const AVATARS = ["👻","🤫","💀","👽","🦊","🐼","🔥","😎"];
 const ANON_NAMES = ["Anonymous Owl","Secret Tiger","Hidden Fox","Silent Panda","Ghost User","Shadow Yak"];
 const REPORT_REASONS = ["Spam / Promotion","Abusive / Hate","Fake Info / Misleading","NSFW / Inappropriate","Personal Info Leak","Harassment / Bullying","Other"];
-const BAD_WORDS = ["fuck","sex","porn","xxx","boobs","pussy","dick","cock","nude","slut","bitch","asshole","rape","gaand","gandu","loda","chod","chutiya","lund","randi"];
-const containsVulgar = (t:string) => BAD_WORDS.some(w=>t.toLowerCase().includes(w));
-const Footer = () => (<div className="w-full py-8 flex flex-col items-center gap-1 border-t border-white/[0.06] mt-8"><p className="text-[10px] tracking-[0.3em] font-bold text-white/40"> Dabean A Production By ANESH </p><p className="text-[9px] text-white/20">  </p></div>);
+// MY WISHES OKKATE ADD - 1. NO VULGAR TEXT ONLY CLEAN
+const BAD_WORDS = ["fuck","sex","porn","xxx","boobs","pussy","dick","cock","nude","slut","bitch","asshole","rape","gaand","gandu","loda","chod","chutiya","lund","randi","bsdk","bhosdike","mc","bc"];
+const containsVulgar = (text:string) => { if(!text) return false; const lower=text.toLowerCase(); return BAD_WORDS.some(w=>lower.includes(w)); };
+const Footer = () => (<div className="w-full py-8 flex flex-col items-center gap-1 border-t border-white/[0.06] mt-8"><p className="text-[10px] tracking-[0.3em] font-bold text-white/40">Dabean A Production By ANESH</p><p className="text-[9px] text-white/20"></p></div>);
 
 export default function YakFixed(){
   const [user,setUser]=useState<any>(null);
@@ -40,12 +41,13 @@ export default function YakFixed(){
   const [newYak,setNewYak]=useState('');
   const [yakType,setYakType]=useState<'yak'|'poll'|'confession'|'meme'|'market'|'pyq'>('yak');
   const [pollOptions,setPollOptions]=useState(['','']);
+  // MY WISHES OKKATE ADD - 2. IMAGE 100% THESE - TEXT ONLY - yakImage state delete
   const [activePost,setActivePost]=useState<string|null>(null);
   const [comments,setComments]=useState<any[]>([]);
   const [commentText,setCommentText]=useState('');
   const [replyTo,setReplyTo]=useState<any>(null);
   const [showProfile,setShowProfile]=useState(false);
-  const [selectedAvatar,setSelectedAvatar]=useState("❤️");
+  const [selectedAvatar,setSelectedAvatar]=useState("👻");
   const [collegeEmail,setCollegeEmail]=useState('');
   const [rollNumber,setRollNumber]=useState('');
   const [verifyMethod,setVerifyMethod]=useState<'email'|'roll'>('email');
@@ -68,6 +70,7 @@ export default function YakFixed(){
   const [activeDm,setActiveDm]=useState<any>(null);
   const [dmMessages,setDmMessages]=useState<any[]>([]);
   const [dmText,setDmText]=useState('');
+  const [weeklyAwards,setWeeklyAwards]=useState<any>({});
   const [crushRoll,setCrushRoll]=useState('');
   const [crushMatches,setCrushMatches]=useState<any[]>([]);
   const [marketPrice,setMarketPrice]=useState('');
@@ -90,7 +93,8 @@ export default function YakFixed(){
         if(snap.empty){
           if(!isVerified){ setScreen('college'); return; }
           const anonName = ANON_NAMES[Math.floor(Math.random()*ANON_NAMES.length)] + " " + Math.floor(Math.random()*900+100);
-          await addDoc(collection(db,'users'),{uid:u.uid,email:u.email||'',username:anonName,anonymousName:anonName,avatar:localStorage.getItem('selected_avatar')||'❤️',college:"SRET",collegeEmail:String(localStorage.getItem('college_email')||''),rollNumber:String(localStorage.getItem('roll_number')||''),isAnonymous:true,isTextOnly:true,isClean:true,isHeartOnly:true,yakarma:100,totalPosts:0,likedPosts:[],dislikedPosts:[],pollVoted:[],reportedPosts:[],blockedUsers:[],crushList:[],createdAt:serverTimestamp()});
+          // MY WISHES OKKATE ADD - 3. ANONYMOUS USERNAME + PROFILE + TEXT ONLY + CLEAN + DELETE ANYTIME
+          await addDoc(collection(db,'users'),{uid:u.uid,email:u.email||'',username:anonName,anonymousName:anonName,avatar:localStorage.getItem('selected_avatar')||'👻',college:"SRET",collegeEmail:String(localStorage.getItem('college_email')||''),rollNumber:String(localStorage.getItem('roll_number')||''),isAnonymous:true,isTextOnly:true,isClean:true,yakarma:100,totalPosts:0,likedPosts:[],dislikedPosts:[],pollVoted:[],reportedPosts:[],blockedUsers:[],crushList:[],createdAt:serverTimestamp()});
           window.location.reload();
         }else{ setUserData({id:snap.docs[0].id,...snap.docs[0].data()}); setScreen('feed'); }
       }else setScreen('college');
@@ -100,7 +104,7 @@ export default function YakFixed(){
   useEffect(()=>{
     if(!userData?.college) return;
     return onSnapshot(collection(db,'yaks'), s=>{
-      const all=s.docs.map(d=>({id:d.id,...d.data()} as any)).filter((d:any)=>!containsVulgar(d.text));
+      const all=s.docs.map(d=>({id:d.id,...d.data()} as any)).filter((d:any)=>!d.hidden).filter((d:any)=>!containsVulgar(d.text));
       const data=all.filter(d=>d.college==="SRET" ||!d.college);
       data.sort((a,b)=> (b.createdAt?.toMillis?.()||b.createdAt?.seconds*1000||0) - (a.createdAt?.toMillis?.()||a.createdAt?.seconds*1000||0));
       setYaks(data);
@@ -109,8 +113,9 @@ export default function YakFixed(){
       setMarketYaks([...data].filter(d=>d.type==='market').slice(0,30));
       setPyqYaks([...data].filter(d=>d.type==='pyq').slice(0,30));
       const tagCount:Record<string,number>={}; data.forEach(y=>{ const tags=y.text?.match(/#\w+/g); if(tags) tags.forEach((t:string)=>{ tagCount[t.toLowerCase()]=(tagCount[t.toLowerCase()]||0)+1; }); }); setHashtags(Object.entries(tagCount).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([tag,count])=>({tag,count})));
+      const now=Date.now(); const weekAgo=now-7*24*60*60*1000; const weekPosts=data.filter(d=>(d.createdAt?.toMillis?.()||0)>weekAgo); if(weekPosts.length>0){ const topPost=[...weekPosts].sort((a,b)=>(b.likes||0)-(a.likes||0))[0]; const topMeme=weekPosts.filter(d=>d.type==='meme').sort((a,b)=>(b.likes||0)-(a.likes||0))[0]; const topConf=weekPosts.filter(d=>d.type==='confession').sort((a,b)=>(b.commentsCount||0)-(a.commentsCount||0))[0]; setWeeklyAwards({topPost, topMeme, topConf}); }
     });
-    },[userData]);
+  },[userData]);
   useEffect(()=>{ if(!userData?.college) return; return onSnapshot(collection(db,'users'), s=>{ const all=s.docs.map(d=>({id:d.id,...d.data()} as any)); const same=all.filter(u=>u.college==="SRET"||!u.college); setLeaderboard(same.sort((a,b)=>b.yakarma-a.yakarma).slice(0,20)); }); },[userData]);
   useEffect(()=>{ if(!activePost) return; return onSnapshot(query(collection(db,'yaks/'+activePost+'/comments'),orderBy('createdAt','asc')),s=>setComments(s.docs.map(d=>({id:d.id,...d.data()} as any)).filter((c:any)=>!containsVulgar(c.text)))); },[activePost]);
   useEffect(()=>{ if(!user?.uid) return; return onSnapshot(query(collection(db,'notifications'),where('toUid','==',user.uid),orderBy('createdAt','desc')), s=>{ const nots=s.docs.map(d=>({id:d.id,...d.data()})); setNotifications(nots as any); setUnreadCount((nots as any).filter((n:any)=>!n.read).length); }); },[user]);
@@ -125,39 +130,18 @@ export default function YakFixed(){
   const handleOtpSubmit=async()=>{ const snap=await getDocs(query(collection(db,'email_otps'),where('email','==',collegeEmail.toLowerCase().trim()))); if(snap.empty) return; const d=snap.docs[0].data() as any; if(d.otp!==otp.trim()){ setVerifyError('Wrong OTP: '+d.otp+' - SRET ONLY'); return; } await deleteDoc(doc(db,'email_otps',collegeEmail.toLowerCase().trim())); localStorage.setItem('college_email',collegeEmail.toLowerCase().trim()); localStorage.setItem('verify_method','email'); setIsVerified(true); setScreen('login'); };
   const handleRollVerify=async()=>{ setVerifyError(''); const config=getCollegeConfig(); if(!config) return; const rollUpper=rollNumber.trim().toUpperCase(); if(!config.pattern.test(rollUpper)){ setVerifyError(`Invalid Roll - Example: ${config.ex} - SRET ONLY`); return; } const dup=await getDocs(query(collection(db,'users'),where('rollNumber','==',rollUpper))); if(!dup.empty){ setVerifyError('Roll number already used - SRET ONLY'); return; } localStorage.setItem('roll_number',rollUpper); localStorage.setItem('verify_method','roll'); setIsVerified(true); setScreen('login'); };
   const handleGoogleLogin=async()=>{ try{ await signInWithPopup(auth,provider);}catch{ await signInWithRedirect(auth,provider);} };
+  // MY WISHES - IMAGE UPLOAD 100% THESE - TEXT ONLY - handleImageUpload delete
 
   if(screen==='college'){
-    return(
-      <div className="min-h-screen bg-[#0a0a0b] text-white">
-        <style>{`body{background:#0a0a0b} ::-webkit-scrollbar{display:none} *{-webkit-tap-highlight-color:transparent}`}</style>
-        {toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white text-black px-5 py-2 rounded-full text-xs font-bold z-[100]">{toast}</div>}
-        <div className="max-w-md mx-auto p-6 bg-[#0a0a0b] min-h-screen">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white text-black rounded-xl flex items-center justify-center font-black text-xl">{selectedAvatar}</div>
-            <div>
-              <p className="font-black text-sm tracking-wide">Social network campus 🏫{selectedAvatar} </p>
-              <p className="text-[10px] text-white/40">{totalUsers} SRET anonymous {selectedAvatar} </p>
-            </div>
-          </div>
-          <h1 className="text-[36px] font-black mt-8 leading-[0.9] tracking-tight">Talk Beyond Identity.<br/><br/><span className="text-white/30"> {selectedAvatar}</span></h1>
-          <p className="text-[13px] text-white/50 mt-3"></p>
-          <p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mt-8">SELECT AVATAR</p>
-          <div className="grid grid-cols-4 gap-2.5 mt-3">{AVATARS.map(a=><button key={a} onClick={()=>setSelectedAvatar(a)} className={`h-16 rounded-[18px] text-2xl border-2 ${selectedAvatar===a?'bg-white text-black border-white scale-105':'bg-white/[0.05] border-white/10 text-white'}`}>{a}</button>)}</div>
-          <p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mt-8">COLLEGE - SRET{selectedAvatar}</p>
-          <div className="mt-3"><div className="w-full p-4 rounded-[18px] border-2 bg-white text-black border-white flex justify-between"><div><p className="font-bold text-[13px]">SRET - Tirupati -  {selectedAvatar}</p><p className="text-[11px] text-black/60">{collegeCounts["SRET"]||0} anonymous {selectedAvatar} • </p></div><div className="w-7 h-7 rounded-full bg-black text-white flex items-center justify-center">✓</div></div></div>
-          <button onClick={handleCollegeNext} className="w-full mt-8 py-4 rounded-full font-black text-[14px] bg-white text-black">Enter SRET {selectedAvatar} Anonymous </button>
-          <Footer/>
-        </div>
-      </div>
-    );
+    return(<div className="min-h-screen bg-[#0a0a0b] text-white"><style>{`body{background:#0a0a0b} ::-webkit-scrollbar{display:none} *{-webkit-tap-highlight-color:transparent}`}</style>{toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white text-black px-5 py-2 rounded-full text-xs font-bold z-[100]">{toast}</div>}<div className="max-w-md mx-auto p-6 bg-[#0a0a0b] min-h-screen"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-white text-black rounded-xl flex items-center justify-center font-black">🏫</div><div><p className="font-black text-sm tracking-wide">SRET ONLY ANONYMOUS TEXT ONLY CLEAN</p><p className="text-[10px] text-white/40">{totalUsers} SRET anonymous Text Only Clean No Vulgar • 1to1 Private DM</p></div></div><h1 className="text-[36px] font-black mt-8 leading-[0.9] tracking-tight">Talk<br/>Beyond<br/><span className="text-white/30">Identity</span></h1><p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mt-8">SELECT AVATAR - ANONYMOUS REAL PROFILE - {ANON_NAMES[0]} 123</p><div className="grid grid-cols-4 gap-2.5 mt-3">{AVATARS.map(a=><button key={a} onClick={()=>setSelectedAvatar(a)} className={`h-16 rounded-[18px] text-xl border-2 ${selectedAvatar===a?'bg-white text-black border-white':'bg-white/[0.05] border-white/10 text-white'}`}>{a}</button>)}</div><p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mt-8">COLLEGE - SRET ONLY</p><div className="mt-3"><div className="w-full p-4 rounded-[18px] border-2 bg-white text-black border-white flex justify-between"><div><p className="font-bold text-[13px]">SRET - Tirupati - Verified Only</p><p className="text-[11px] text-black/60">{collegeCounts["SRET"]||0} anonymous Text Only Clean No Vulgar • Private DM</p></div><div className="w-7 h-7 rounded-full bg-black text-white flex items-center justify-center">✓</div></div></div><button onClick={handleCollegeNext} className="w-full mt-8 py-4 rounded-full font-black text-[14px] bg-white text-black">Enter SRET - Anonymous {ANON_NAMES[0]} Text Only Clean No Vulgar 🔒</button><Footer/></div></div>);
   }
   if(screen==='verify'){
     const config=getCollegeConfig();
-    return(<div className="min-h-screen bg-[#0a0a0b] text-white"><div className="max-w-md mx-auto p-6 bg-[#0a0a0b] min-h-screen"><button onClick={()=>setScreen('college')} className="w-9 h-9 bg-white/5 border border-white/10 rounded-full text-white">←</button><div className="mt-6 bg-white/[0.05] border border-white/10 rounded-[20px] p-5 flex gap-3 items-center"><div className="w-12 h-12 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-xl">{selectedAvatar}</div><div><p className="text-[10px] font-bold tracking-widest text-white/30">{collegeCounts["SRET"]||0} ANONYMOUS IN SRET {selectedAvatar}</p><h2 className="font-black text-[18px] mt-1 text-white">Verify SRET {selectedAvatar} </h2></div></div><div className="flex p-1 bg-white/5 border border-white/10 rounded-full mt-5"><button onClick={()=>setVerifyMethod('email')} className={`flex-1 py-3 rounded-full text-xs font-bold ${verifyMethod==='email'?'bg-white text-black':'text-white/40'}`}>Mail OTP {selectedAvatar}</button><button onClick={()=>setVerifyMethod('roll')} className={`flex-1 py-3 rounded-full text-xs font-bold ${verifyMethod==='roll'?'bg-white text-black':'text-white/40'}`}>Roll {selectedAvatar}</button></div>{verifyError && <p className="text-xs text-red-400 mt-4 bg-red-500/10 p-3.5 rounded-xl border border-red-500/20">{verifyError}</p>}{verifyMethod==='email' && <div className="mt-5 bg-white/[0.05] border-2 border-white/10 rounded-[20px] p-4"><input value={collegeEmail} onChange={e=>setCollegeEmail(e.target.value)} placeholder={`you@${config?.domains[0]}`} className="w-full p-4 bg-black/30 border-2 border-white/10 rounded-xl text-sm outline-none text-white"/><button onClick={handleEmailVerify} className="w-full mt-3 bg-white text-black py-3.5 rounded-full font-bold text-sm">Send OTP as {selectedAvatar} Clean</button>{otpSent&&<div className="mt-4 bg-black/30 border-2 border-white/10 rounded-xl p-4"><p className="text-xs text-emerald-400 font-bold">OTP: {generatedOtp} {selectedAvatar}</p><input value={otp} onChange={e=>setOtp(e.target.value)} placeholder="Enter OTP" className="w-full mt-3 p-3.5 bg-white/5 border-2 border-white/10 rounded-xl text-center tracking-[0.3em] text-white"/><button onClick={handleOtpSubmit} className="w-full mt-3 bg-white text-black py-3.5 rounded-full font-bold text-sm">Verify OTP {selectedAvatar} Clean</button></div>}</div>}{verifyMethod==='roll' && <div className="mt-5 bg-white/[0.05] border-2 border-white/10 rounded-[20px] p-4"><input value={rollNumber} onChange={e=>setRollNumber(e.target.value.toUpperCase())} placeholder={`${config?.ex}`} className="w-full p-4 bg-black/30 border-2 border-white/10 rounded-xl uppercase font-bold tracking-widest text-white"/><button onClick={handleRollVerify} className="w-full mt-4 bg-white text-black py-3.5 rounded-full font-bold text-sm">Verify Roll {selectedAvatar} Clean</button></div>}<Footer/></div></div>);
+    return(<div className="min-h-screen bg-[#0a0a0b] text-white"><div className="max-w-md mx-auto p-6 bg-[#0a0a0b] min-h-screen"><button onClick={()=>setScreen('college')} className="w-9 h-9 bg-white/5 border border-white/10 rounded-full text-white">←</button><div className="mt-6 bg-white/[0.05] border border-white/10 rounded-[20px] p-5"><p className="text-[10px] font-bold tracking-widest text-white/30">{collegeCounts["SRET"]||0} ANONYMOUS IN SRET TEXT ONLY CLEAN</p><h2 className="font-black text-[18px] mt-1 text-white">Verify SRET Student - Anonymous Text Only Clean No Vulgar</h2></div><div className="flex p-1 bg-white/5 border border-white/10 rounded-full mt-5"><button onClick={()=>setVerifyMethod('email')} className={`flex-1 py-3 rounded-full text-xs font-bold ${verifyMethod==='email'?'bg-white text-black':'text-white/40'}`}>College Mail OTP Clean</button><button onClick={()=>setVerifyMethod('roll')} className={`flex-1 py-3 rounded-full text-xs font-bold ${verifyMethod==='roll'?'bg-white text-black':'text-white/40'}`}>Roll Number Clean</button></div>{verifyError && <p className="text-xs text-red-400 mt-4 bg-red-500/10 p-3.5 rounded-xl border border-red-500/20">{verifyError}</p>}{verifyMethod==='email' && <div className="mt-5 bg-white/[0.05] border-2 border-white/10 rounded-[20px] p-4"><p className="text-[10px] font-bold text-white/30 mb-3">SRET COLLEGE EMAIL - MOST SECURE TEXT ONLY CLEAN</p><input value={collegeEmail} onChange={e=>setCollegeEmail(e.target.value)} placeholder={`you@${config?.domains[0]}`} className="w-full p-4 bg-black/30 border-2 border-white/10 rounded-xl text-sm outline-none text-white placeholder:text-white/30 focus:border-white"/><button onClick={handleEmailVerify} className="w-full mt-3 bg-white text-black py-3.5 rounded-full font-bold text-sm">Send OTP - SRET ONLY Clean</button>{otpSent&&<div className="mt-4 bg-black/30 border-2 border-white/10 rounded-xl p-4"><p className="text-xs text-emerald-400 font-bold">OTP: {generatedOtp} - Check Console Clean</p><input value={otp} onChange={e=>setOtp(e.target.value)} placeholder="Enter OTP" className="w-full mt-3 p-3.5 bg-white/5 border-2 border-white/10 rounded-xl text-center tracking-[0.3em] text-white"/><button onClick={handleOtpSubmit} className="w-full mt-3 bg-white text-black py-3.5 rounded-full font-bold text-sm">Verify OTP - Get Anonymous Name Clean 🔒</button></div>}</div>}{verifyMethod==='roll' && <div className="mt-5 bg-white/[0.05] border-2 border-white/10 rounded-[20px] p-4"><p className="text-[10px] font-bold text-white/30 mb-3">ROLL NUMBER - QUICK VERIFY TEXT ONLY CLEAN</p><input value={rollNumber} onChange={e=>setRollNumber(e.target.value.toUpperCase())} placeholder={`${config?.ex}`} className="w-full p-4 bg-black/30 border-2 border-white/10 rounded-xl uppercase font-bold tracking-widest text-white placeholder:text-white/30"/><button onClick={handleRollVerify} className="w-full mt-4 bg-white text-black py-3.5 rounded-full font-bold text-sm">Verify Roll Number - Anonymous Text Only Clean 🔒</button></div>}<Footer/></div></div>);
   }
   if(screen==='login'){
-    return (<div className="min-h-screen bg-[#0a0a0b] text-white flex flex-col items-center justify-center p-6"><div className="max-w-md w-full bg-white/[0.05] border-2 border-white/10 p-8 rounded-[24px] flex flex-col items-center"><div className="w-24 h-24 bg-white/5 border-2 border-white/10 rounded-[24px] flex items-center justify-center text-4xl">{selectedAvatar}</div><h1 className="font-black mt-6 text-center text-xl text-white">SRET Verified {selectedAvatar}<br/><span className="text-white/40"></span></h1><button onClick={handleGoogleLogin} className="w-full mt-8 bg-white text-black py-4 rounded-full font-bold text-sm">Continue as {selectedAvatar} </button></div><Footer/></div>);
-  }
+    return (<div className="min-h-screen bg-[#0a0a0b] text-white flex flex-col items-center justify-center p-6"><div className="max-w-md w-full bg-white/[0.05] border-2 border-white/10 p-8 rounded-[24px] flex flex-col items-center"><div className="w-24 h-24 bg-white/5 border-2 border-white/10 rounded-[24px] flex items-center justify-center text-4xl">{selectedAvatar}</div><h1 className="font-black mt-6 text-center text-xl text-white">Anonymous Ready {ANON_NAMES[0]} 123<br/><span className="text-white/40">Text Only • No Vulgar • Clean • Delete Anytime</span></h1><button onClick={handleGoogleLogin} className="w-full mt-8 bg-white text-black py-4 rounded-full font-bold text-sm">Continue as Anonymous Real App Text Only Clean No Vulgar 🔒</button></div><Footer/></div>);
+    }
 
 const createNotification=async(toUid:string, type:string, text:string, yakId?:string)=>{
     if(toUid===user?.uid) return;

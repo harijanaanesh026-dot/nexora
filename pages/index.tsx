@@ -23,7 +23,7 @@ const REPORT_REASONS = ["Spam / Promotion","Abusive / Hate","Fake Info / Mislead
 // MY WISHES OKKATE ADD - 1. NO VULGAR TEXT ONLY CLEAN
 const BAD_WORDS = ["fuck","sex","porn","xxx","boobs","pussy","dick","cock","nude","slut","bitch","asshole","rape","gaand","gandu","loda","chod","chutiya","lund","randi","bsdk","bhosdike","mc","bc"];
 const containsVulgar = (text:string) => { if(!text) return false; const lower=text.toLowerCase(); return BAD_WORDS.some(w=>lower.includes(w)); };
-const Footer = () => (<div className="w-full py-8 flex flex-col items-center gap-1 border-t border-white/[0.06] mt-8"><p className="text-[10px] tracking-[0.3em] font-bold text-white/40">Dabean A Production By ANESH</p><p className="text-[9px] text-white/20"></p></div>);
+const Footer = () => (<div className="w-full py-8 flex flex-col items-center gap-1 border-t border-white/[0.06] mt-8"><p className="text-[10px] tracking-[0.3em] font-bold text-white/40">© 2026 Dabean. A production by ANESH</p><p className="text-[9px] text-white/20"></p></div>);
 
 export default function YakFixed(){
   const [user,setUser]=useState<any>(null);

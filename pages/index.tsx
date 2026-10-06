@@ -177,20 +177,8 @@ export default function YakFixed(){
   const handleDeleteDmMessage=async(chatId:string, messageId:string)=>{ if(!confirm("Delete message?")) return; try{ await deleteDoc(doc(db,'dms/'+chatId+'/messages',messageId)); setShowDmMessageMenu(null); showToast("Message Deleted"); }catch(e:any){ showToast(e.message); } };
   const handleDeleteComment=async(yakId:string, commentId:string)=>{ if(!confirm("Delete comment?")) return; try{ await deleteDoc(doc(db,'yaks/'+yakId+'/comments',commentId)); await updateDoc(doc(db,'yaks',yakId),{commentsCount:increment(-1)}); setShowCommentMenu(null); showToast("Comment Deleted"); }catch(e:any){ showToast(e.message); } };
 
-  // ✅ NEE ADIGINA BLOCK/UNBLOCK - OKATE ADD
-  const handleBlockUser=async(uid:string)=>{
-    if(!userData) return;
-    if(uid===user?.uid){ showToast("Can't block yourself"); return; }
-    if(blockedUsers.includes(uid)){ showToast("Already blocked"); return; }
-    if(!confirm("Block this user?")) return;
-    try{ await updateDoc(doc(db,'users',userData.id),{blockedUsers:arrayUnion(uid)}); setBlockedUsers([...blockedUsers, uid]); showToast("Blocked 🚫"); setShowMenu(null); setShowCommentMenu(null); }catch(e:any){ showToast(e.message); }
-  };
-  const handleUnblockUser=async(uid:string)=>{
-    try{ await updateDoc(doc(db,'users',userData.id),{blockedUsers:arrayRemove(uid)}); setBlockedUsers(blockedUsers.filter((id:string)=>id!==uid)); showToast("Unblocked ✅"); }catch(e:any){ showToast(e.message); }
-  };
-
   if(screen==='college'){
-    return(<div className="min-h-screen bg-[#0a0a0b] text-white"><style>{`body{background:#0a0a0b} ::-webkit-scrollbar{display:none}`}</style>{toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white text-black px-5 py-2 rounded-full text-xs font-bold z-[100]">{toast}</div>}<div className="max-w-md mx-auto p-6 min-h-screen"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-white text-black rounded-xl flex items-center justify-center font-black">S</div><div><p className="font-black text-sm">SRET ANON</p><p className="text-[10px] text-white/40">{totalUsers} verified • {blockedUsers.length} blocked</p></div></div><h1 className="text-[36px] font-black mt-8 leading-[0.9]">Talk<br/>Beyond<br/><span className="text-white/30">Identity</span></h1><p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mt-8">SELECT AVATAR</p><div className="grid grid-cols-4 gap-2.5 mt-3">{AVATARS.map(a=><button key={a} onClick={()=>setSelectedAvatar(a)} className={`h-16 rounded-[18px] text-xl border-2 ${selectedAvatar===a?'bg-white text-black border-white':'bg-white/[0.05] border-white/10'}`}>{a}</button>)}</div><div className="mt-8 w-full p-4 rounded-[18px] border-2 bg-white text-black flex justify-between"><div><p className="font-bold text-[13px]">SRET - Tirupati</p><p className="text-[11px] text-black/60">{collegeCounts["SRET"]||0} verified</p></div><div className="w-7 h-7 rounded-full bg-black text-white flex items-center justify-center">✓</div></div><button onClick={handleCollegeNext} className="w-full mt-8 py-4 rounded-full font-black bg-white text-black">Enter SRET</button><Footer/></div></div>);
+    return(<div className="min-h-screen bg-[#0a0a0b] text-white"><style>{`body{background:#0a0a0b} ::-webkit-scrollbar{display:none}`}</style>{toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white text-black px-5 py-2 rounded-full text-xs font-bold z-[100]">{toast}</div>}<div className="max-w-md mx-auto p-6 min-h-screen"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-white text-black rounded-xl flex items-center justify-center font-black">S</div><div><p className="font-black text-sm">SRET ANON</p><p className="text-[10px] text-white/40">{totalUsers} verified</p></div></div><h1 className="text-[36px] font-black mt-8 leading-[0.9]">Talk<br/>Beyond<br/><span className="text-white/30">Identity</span></h1><p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mt-8">SELECT AVATAR</p><div className="grid grid-cols-4 gap-2.5 mt-3">{AVATARS.map(a=><button key={a} onClick={()=>setSelectedAvatar(a)} className={`h-16 rounded-[18px] text-xl border-2 ${selectedAvatar===a?'bg-white text-black border-white':'bg-white/[0.05] border-white/10'}`}>{a}</button>)}</div><div className="mt-8 w-full p-4 rounded-[18px] border-2 bg-white text-black flex justify-between"><div><p className="font-bold text-[13px]">SRET - Tirupati</p><p className="text-[11px] text-black/60">{collegeCounts["SRET"]||0} verified</p></div><div className="w-7 h-7 rounded-full bg-black text-white flex items-center justify-center">✓</div></div><button onClick={handleCollegeNext} className="w-full mt-8 py-4 rounded-full font-black bg-white text-black">Enter SRET</button><Footer/></div></div>);
   }
   if(screen==='verify'){
     const config=getCollegeConfig();
@@ -248,7 +236,7 @@ export default function YakFixed(){
   };
   const handleStartDm = async (otherUid:string)=>{
     if(otherUid===user?.uid){ showToast("Can't DM yourself"); return; }
-    if(blockedUsers.includes(otherUid)){ showToast("Blocked - Unblock first"); return; }
+    if(blockedUsers.includes(otherUid)){ showToast("Blocked"); return; }
     const existing=dmChats.find(c=> c.participants.includes(otherUid) && c.participants.length===2);
     if(existing){ setActiveDm(existing); setFeedTab('dm'); setScreen('feed'); return; }
     try{ const newChat=await addDoc(collection(db,'dms'),{ participants:[user.uid, otherUid], lastMessage:"Started chat", lastMessageAt:serverTimestamp(), createdAt:serverTimestamp(), isPrivate:true }); setActiveDm({id:newChat.id, participants:[user.uid, otherUid]}); setFeedTab('dm'); setScreen('feed'); }catch(e:any){ showToast(e.message); }
@@ -258,12 +246,13 @@ export default function YakFixed(){
     try{ await addDoc(collection(db,'dms/'+activeDm.id+'/messages'),{ text:dmText.trim(), uid:user.uid, username:"Anonymous", createdAt:serverTimestamp() }); await updateDoc(doc(db,'dms',activeDm.id),{lastMessage:dmText.trim(), lastMessageAt:serverTimestamp()}); }catch(e:any){ showToast(e.message); }
   };
   const markNotificationsRead=async()=>{ try{ for(const n of notifications.filter((n:any)=>!n.read)){ await updateDoc(doc(db,'notifications',n.id),{read:true}); } }catch{} };
+  const handleBlockUser=async(uid:string)=>{ if(!userData || uid===user?.uid) return; if(!confirm("Block?")) return; try{ await updateDoc(doc(db,'users',userData.id),{blockedUsers:arrayUnion(uid)}); setBlockedUsers([...blockedUsers, uid]); setShowMenu(null); }catch(e:any){ showToast(e.message); } };
+  const handleUnblockUser=async(uid:string)=>{ try{ await updateDoc(doc(db,'users',userData.id),{blockedUsers:arrayRemove(uid)}); setBlockedUsers(blockedUsers.filter(id=>id!==uid)); }catch(e:any){ showToast(e.message); } };
   const handleCrushSubmit=async()=>{ const roll=crushRoll.trim().toUpperCase(); if(!roll) return; try{ await addDoc(collection(db,'crushes'),{fromUid:user.uid, toRoll:roll, matched:false, createdAt:serverTimestamp()}); setCrushRoll(''); showToast("Crush added"); }catch(e:any){ showToast(e.message); } };
   const handleCancelCrush=async(id:string)=>{ if(!confirm("Cancel?")) return; try{ await deleteDoc(doc(db,'crushes',id)); }catch(e:any){ showToast(e.message); } };
   const renderComment = (c:any, depth=0) => {
     const isReply = depth > 0;
     const isOwn = c.uid===user?.uid;
-    if(blockedUsers.includes(c.uid)) return null;
     return (
       <div key={c.id} className={`${isReply? 'ml-6 border-l border-white/10 pl-3' : ''} mt-3`}>
         <div className="flex gap-2.5">
@@ -275,8 +264,8 @@ export default function YakFixed(){
                 <button onClick={()=>setShowCommentMenu(showCommentMenu===c.id?null:c.id)} className="w-6 h-6 bg-white/5 rounded-full flex items-center justify-center text-white/30 text-[10px]">...</button>
               </div>
               {showCommentMenu===c.id && (
-                <div className="absolute right-2 top-8 w-[180px] bg-black border border-white/10 rounded-xl p-2 z-10">
-                  {isOwn? <button onClick={()=>{ if(activePost) handleDeleteComment(activePost, c.id); }} className="w-full text-left px-3 py-2 rounded-lg text-[11px] font-bold bg-red-500/10 text-red-400">Delete</button> : <><button onClick={()=>{ setReplyTo(c); setShowCommentMenu(null); }} className="w-full text-left px-3 py-2 rounded-lg text-[11px] bg-white/5">Reply</button><button onClick={()=>handleBlockUser(c.uid)} className="w-full text-left px-3 py-2 rounded-lg text-[11px] bg-red-500/10 text-red-400 mt-1">🚫 Block User</button></>}
+                <div className="absolute right-2 top-8 w-[150px] bg-black border border-white/10 rounded-xl p-2 z-10">
+                  {isOwn? <button onClick={()=>{ if(activePost) handleDeleteComment(activePost, c.id); }} className="w-full text-left px-3 py-2 rounded-lg text-[11px] font-bold bg-red-500/10 text-red-400">Delete</button> : <button onClick={()=>{ setReplyTo(c); setShowCommentMenu(null); }} className="w-full text-left px-3 py-2 rounded-lg text-[11px] bg-white/5">Reply</button>}
                   <button onClick={()=>setShowCommentMenu(null)} className="w-full mt-1 py-1 rounded-lg text-[10px] text-white/30">Cancel</button>
                 </div>
               )}
@@ -286,7 +275,6 @@ export default function YakFixed(){
             <div className="flex gap-3 mt-1.5 ml-1">
               <button onClick={()=>setReplyTo(c)} className="text-[11px] font-bold text-white/30">Reply</button>
               {isOwn && <button onClick={()=>{ if(activePost) handleDeleteComment(activePost, c.id); }} className="text-[11px] font-bold text-red-400/60">Delete</button>}
-              {!isOwn && <button onClick={()=>handleBlockUser(c.uid)} className="text-[11px] font-bold text-white/20">Block</button>}
             </div>
             {c.replies?.length > 0 && <div className="mt-1">{c.replies.map((rep:any)=>renderComment(rep, depth+1))}</div>}
           </div>
@@ -306,7 +294,7 @@ export default function YakFixed(){
       {toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white text-black px-5 py-2 rounded-full text-xs font-bold z-[100]">{toast}</div>}
       <div className="sticky top-0 z-20 bg-[#0a0a0b]/90 backdrop-blur-xl border-b border-white/10">
         <div className="max-w-[600px] mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2"><div className="w-8 h-8 bg-white text-black rounded-xl flex items-center justify-center font-black">S</div><p className="font-bold text-[13px]">SRET • {blockedUsers.length} blocked</p></div>
+          <div className="flex items-center gap-2"><div className="w-8 h-8 bg-white text-black rounded-xl flex items-center justify-center font-black">S</div><p className="font-bold text-[13px]">SRET</p></div>
           <div className="flex gap-2">
             <button onClick={()=>setScreen('alerts')} className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center relative">🏫{collegeAlertsList.length>0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full text-[8px] flex items-center justify-center">{collegeAlertsList.length}</span>}</button>
             <button onClick={()=>{ setShowNotifications(true); markNotificationsRead(); }} className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center relative">🔔{unreadCount>0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[8px] flex items-center justify-center">{unreadCount}</span>}</button>
@@ -349,7 +337,7 @@ export default function YakFixed(){
             {feedTab==='dm' && (
               <div className="space-y-2">
                 <div className="bg-white/[0.03] border border-white/10 rounded-[16px] p-4">
-                  <div className="flex justify-between"><p className="font-bold text-[13px]">DM - {dmChats.length} • Blocked {blockedUsers.length}</p><button onClick={()=>setActiveDm(null)} className="text-[10px] bg-white/10 px-2 py-1 rounded-full">All</button></div>
+                  <div className="flex justify-between"><p className="font-bold text-[13px]">DM - {dmChats.length}</p><button onClick={()=>setActiveDm(null)} className="text-[10px] bg-white/10 px-2 py-1 rounded-full">All</button></div>
                   {activeDm? (
                     <div className="mt-3">
                       <div className="flex justify-between"><p className="text-[11px] text-white/40">{activeDm.id.slice(0,8)}</p><button onClick={()=>setShowDmDeleteConfirm(activeDm)} className="text-[10px] bg-red-500/20 text-red-400 px-2 py-1 rounded-full">Delete Chat</button></div>
@@ -363,6 +351,7 @@ export default function YakFixed(){
                 <Footer/>
               </div>
             )}
+
             {feedTab!=='top' && feedTab!=='crush' && feedTab!=='market' && feedTab!=='pyq' && feedTab!=='dm' && (
               <>
                 {(feedTab==='new'? filteredYaks : feedTab==='meme'? displayMemeYaks : displayHotYaks).map(y=>{
@@ -373,7 +362,7 @@ export default function YakFixed(){
                         <div className="flex gap-2"><div className="w-8 h-8 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-xs">A</div><div><p className="font-bold text-[12px]">Anonymous {isOwn?'- You':''}</p><p className="text-[10px] text-white/30">{score} • {y.type}</p></div></div>
                         <div className="flex gap-2"><button onClick={()=>handleStartDm(y.uid)} className="w-7 h-7 bg-white/5 rounded-full flex items-center justify-center text-[10px]">DM</button><button onClick={()=>setShowMenu(showMenu===y.id?null:y.id)} className="w-7 h-7 bg-white/5 rounded-full text-white/40">...</button></div>
                       </div>
-                      {showMenu===y.id && <div className="mt-2 bg-black border border-white/10 rounded-xl p-2">{isOwn? <><button onClick={()=>{ setEditingPost(y); setEditText(y.text); setShowMenu(null); }} className="w-full text-left px-3 py-2 rounded-lg text-xs bg-white/5">Edit</button><button onClick={()=>handleDelete(y)} className="w-full text-left px-3 py-2 rounded-lg text-xs bg-red-500/10 text-red-400 mt-1">Delete</button></> : <><button onClick={()=>{ setReportingPost(y); setShowMenu(null); }} className="w-full text-left px-3 py-2 rounded-lg text-xs bg-white/5">Report</button><button onClick={()=>handleBlockUser(y.uid)} className="w-full text-left px-3 py-2 rounded-lg text-xs bg-red-500/10 text-red-400 mt-1 font-bold">🚫 Block User</button></>}<button onClick={()=>setShowMenu(null)} className="w-full mt-1 py-1 text-[10px] text-white/30">Cancel</button></div>}
+                      {showMenu===y.id && <div className="mt-2 bg-black border border-white/10 rounded-xl p-2">{isOwn? <><button onClick={()=>{ setEditingPost(y); setEditText(y.text); setShowMenu(null); }} className="w-full text-left px-3 py-2 rounded-lg text-xs bg-white/5">Edit</button><button onClick={()=>handleDelete(y)} className="w-full text-left px-3 py-2 rounded-lg text-xs bg-red-500/10 text-red-400 mt-1">Delete</button></> : <><button onClick={()=>{ setReportingPost(y); setShowMenu(null); }} className="w-full text-left px-3 py-2 rounded-lg text-xs bg-white/5">Report</button><button onClick={()=>handleBlockUser(y.uid)} className="w-full text-left px-3 py-2 rounded-lg text-xs bg-red-500/10 text-red-400 mt-1">Block</button></>}<button onClick={()=>setShowMenu(null)} className="w-full mt-1 py-1 text-[10px] text-white/30">Cancel</button></div>}
                       <p className="text-[14px] mt-3 leading-[1.4] whitespace-pre-wrap">{y.text}</p>
                       {isPoll && y.pollOptions && (
                         <div className="mt-3 space-y-2">
@@ -411,41 +400,17 @@ export default function YakFixed(){
                 {screen==='alerts' && (
           <div className="space-y-3">
             <div className="bg-red-500/10 border border-red-500/20 rounded-[16px] p-4">
-              <div className="flex justify-between items-center"><p className="font-bold text-[14px]">🏫 College Alerts - {collegeAlertsList.length}</p><button onClick={()=>setScreen('feed')} className="w-8 h-8 bg-white/10 rounded-full">←</button></div>
-              <button onClick={()=>setShowCollegeAlertAdmin(true)} className="w-full mt-3 py-2.5 bg-white text-black rounded-full text-xs font-bold">+ New Alert</button>
+              <div className="flex justify-between items-center"><p className="font-bold text-[14px]">College Alerts</p><button onClick={()=>setScreen('feed')} className="w-8 h-8 bg-white/10 rounded-full">←</button></div>
+              <button onClick={()=>setShowCollegeAlertAdmin(true)} className="w-full mt-3 py-2.5 bg-white text-black rounded-full font-bold text-xs">+ New Alert</button>
             </div>
             {collegeAlertsList.map((a:any)=><div key={a.id} className="bg-white/[0.03] border border-white/10 rounded-[16px] p-4"><div className="flex justify-between"><span className="bg-red-500/20 text-red-400 text-[10px] px-2 py-1 rounded-full">#{a.type}</span><button onClick={()=>setShowMenu(showMenu===a.id?null:a.id)} className="w-6 h-6 bg-white/5 rounded-full">...</button></div>{showMenu===a.id && <div className="mt-2 bg-black border border-white/10 rounded-xl p-2"><button onClick={()=>{ setEditingAlert(a); setEditAlertTitle(a.title); setEditAlertDesc(a.desc); setEditAlertType(a.type); setShowMenu(null); }} className="w-full text-left px-3 py-2 rounded-lg text-xs bg-white/5">Edit</button><button onClick={()=>handleDeleteAlert(a.id)} className="w-full text-left px-3 py-2 rounded-lg text-xs bg-red-500/10 text-red-400 mt-1">Delete</button></div>}<p className="font-bold text-[14px] mt-2">{a.title}</p><p className="text-[12px] text-white/60 mt-1 whitespace-pre-wrap">{a.desc}</p></div>)}
             {collegeAlertsList.length===0 && <div className="py-16 text-center bg-white/[0.02] border border-white/10 rounded-[16px]"><p className="font-bold">No Alerts</p></div>}
             <Footer/>
           </div>
         )}
-        {screen==='settings' && (
-          <div className="space-y-3">
-            <div className="bg-white/[0.03] border border-white/10 rounded-[16px] p-4">
-              <div className="flex justify-between items-center"><p className="font-bold">⚙️ Settings - DABEAN</p><button onClick={()=>setScreen('feed')} className="w-8 h-8 bg-white/10 rounded-full">X</button></div>
-            </div>
-            <div className="bg-red-500/10 border border-red-500/20 rounded-[16px] p-4">
-              <p className="font-bold text-[13px]">🚫 BLOCKED USERS - {blockedUsers.length}</p>
-              <p className="text-[10px] text-white/40 mt-1">Blocked users posts, comments, DMs hide avuthayi. Unblock cheste malli kanipisthayi.</p>
-              <div className="mt-3 bg-black/60 border border-white/10 rounded-xl p-2 min-h-[60px]">
-                {blockedUsers.length===0? <p className="text-[11px] text-white/30 text-center py-6">No blocked users 😊</p> :
-                  blockedUsers.map((uid:any)=><div key={uid} className="flex justify-between items-center py-3 border-b border-white/5 last:border-0"><p className="text-[11px] font-mono">{uid.slice(0,18)}...</p><button onClick={()=>handleUnblockUser(uid)} className="px-4 py-1.5 bg-white text-black rounded-full text-[11px] font-bold">Unblock</button></div>)
-                }
-              </div>
-              {blockedUsers.length>0 && <button onClick={async()=>{ if(!confirm(`Unblock all ${blockedUsers.length}?`)) return; for(const id of blockedUsers){ await updateDoc(doc(db,'users',userData.id),{blockedUsers:arrayRemove(id)}); } setBlockedUsers([]); showToast("All unblocked ✅"); }} className="w-full mt-3 py-2.5 bg-white/5 border border-white/10 rounded-full text-[11px]">Unblock All ({blockedUsers.length})</button>}
-            </div>
-            <div className="bg-white/[0.03] border border-white/10 rounded-[16px] p-4">
-              <p className="text-[11px] font-bold tracking-widest text-white/30">MY ACTIVITY</p>
-              <div className="flex justify-between py-2 mt-2"><p className="text-[12px]">My Posts</p><p className="text-[12px] font-bold">{yaks.filter((y:any)=>y.uid===user?.uid).length}</p></div>
-              <div className="flex justify-between py-2"><p className="text-[12px]">Blocked</p><p className="text-[12px] font-bold text-red-400">{blockedUsers.length}</p></div>
-              <div className="flex justify-between py-2"><p className="text-[12px]">Total Users</p><p className="text-[12px]">{totalUsers}</p></div>
-            </div>
-            <Footer/>
-          </div>
-        )}
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-[#0a0a0b]/90 backdrop-blur-xl border-t border-white/10"><div className="max-w-[600px] mx-auto px-4 h-[64px] flex items-center justify-between"><button onClick={()=>{ setScreen('feed'); setFeedTab('new'); }} className="flex flex-col items-center"><div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold ${screen==='feed' && feedTab==='new'?'bg-white text-black':'bg-white/5 text-white/40'}`}>S</div><span className="text-[8px] text-white/30 mt-1">Feed</span></button><button onClick={()=>setScreen('alerts')} className="flex flex-col items-center"><div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] ${screen==='alerts'?'bg-red-600 text-white':'bg-white/5 text-white/40'}`}>🏫</div><span className="text-[8px] text-white/30 mt-1">Alerts</span></button><button onClick={()=>setScreen('create')} className="w-12 h-12 bg-white text-black rounded-full flex items-center justify-center text-xl font-black">+</button><button onClick={()=>setScreen('settings')} className="flex flex-col items-center"><div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold ${screen==='settings'?'bg-white text-black':'bg-white/5 text-white/40'}`}>⚙️</div><span className="text-[8px] text-white/30 mt-1">Blocked {blockedUsers.length}</span></button><button onClick={()=>setShowProfile(true)} className="flex flex-col items-center"><div className="w-7 h-7 bg-white/5 rounded-full flex items-center justify-center text-xs">👤</div><span className="text-[8px] text-white/30 mt-1">{userData?.yakarma||0}</span></button></div></div>
+      <div className="fixed bottom-0 left-0 right-0 bg-[#0a0a0b]/90 backdrop-blur-xl border-t border-white/10"><div className="max-w-[600px] mx-auto px-4 h-[64px] flex items-center justify-between"><button onClick={()=>{ setScreen('feed'); setFeedTab('new'); }} className="flex flex-col items-center"><div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold ${screen==='feed' && feedTab==='new'?'bg-white text-black':'bg-white/5 text-white/40'}`}>S</div><span className="text-[8px] text-white/30 mt-1">Feed</span></button><button onClick={()=>setScreen('alerts')} className="flex flex-col items-center"><div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] ${screen==='alerts'?'bg-red-600 text-white':'bg-white/5 text-white/40'}`}>🏫</div><span className="text-[8px] text-white/30 mt-1">Alerts</span></button><button onClick={()=>setScreen('create')} className="w-12 h-12 bg-white text-black rounded-full flex items-center justify-center text-xl font-black">+</button><button onClick={()=>setShowProfile(true)} className="flex flex-col items-center"><div className="w-7 h-7 bg-white/5 rounded-full flex items-center justify-center text-xs">👤</div><span className="text-[8px] text-white/30 mt-1">{userData?.yakarma||0}</span></button></div></div>
 
       {screen==='create' && (
         <div className="fixed inset-0 bg-[#0a0a0b] z-40 flex flex-col">
@@ -467,10 +432,13 @@ export default function YakFixed(){
         <div className="fixed inset-0 bg-black/70 z-[150] flex items-end justify-center p-4">
           <div className="bg-[#141416] border border-white/10 w-full max-w-[600px] rounded-t-[24px] p-5 pb-8">
             <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-5"></div>
-            <div className="flex items-center gap-3"><div className="w-12 h-12 bg-white/5 rounded-[14px] flex items-center justify-center">👤</div><div><p className="font-bold">Anonymous • {blockedUsers.length} blocked</p><p className="text-[11px] text-white/40">Karma {userData?.yakarma||0} • {userData?.totalPosts||0} posts</p></div></div>
-            <div className="mt-4 bg-white/[0.03] border border-white/10 rounded-[14px] p-3"><div className="flex justify-between items-center"><p className="text-[11px] font-bold">Blocked Users</p><span className="bg-red-500/20 text-red-400 px-2 py-1 rounded-full text-[10px]">{blockedUsers.length}</span></div></div>
+            <div className="flex items-center gap-3"><div className="w-12 h-12 bg-white/5 rounded-[14px] flex items-center justify-center">👤</div><div><p className="font-bold">Anonymous</p><p className="text-[11px] text-white/40">Karma {userData?.yakarma||0} • {userData?.totalPosts||0} posts</p></div></div>
+            <div className="mt-4 bg-white/[0.03] border border-white/10 rounded-[14px] p-3"><div className="flex justify-between items-center"><p className="text-[11px] font-bold">Push</p><span className={`w-2 h-2 rounded-full ${pushEnabled?'bg-green-500':'bg-red-500'}`}></span></div></div>
             <div className="mt-4 space-y-2">
-              <button onClick={()=>{ setShowProfile(false); setScreen('settings'); }} className="w-full py-2.5 rounded-full bg-white text-black text-xs font-bold">⚙️ Settings - Blocked ({blockedUsers.length})</button>
+              <button onClick={()=>{ setShowProfile(false); setScreen('alerts'); }} className="w-full py-2.5 rounded-full bg-white/5 border border-white/10 text-xs font-bold">Alerts {collegeAlertsList.length}</button>
+              <button onClick={()=>{ setShowProfile(false); setFeedTab('dm'); setScreen('feed'); }} className="w-full py-2.5 rounded-full bg-white/5 border border-white/10 text-xs font-bold">DM {dmChats.length}</button>
+              <button onClick={()=>{ setShowProfile(false); setShowAdmin(true); }} className="w-full py-2.5 rounded-full bg-white/5 border border-white/10 text-xs font-bold">Admin {adminReports.length}</button>
+              <button onClick={()=>setShowLogoutConfirm(true)} className="w-full py-2.5 rounded-full bg-red-600 text-white text-xs font-bold">Logout</button>
               <button onClick={()=>setShowProfile(false)} className="w-full py-2.5 rounded-full bg-white/5 border border-white/10 text-xs">Close</button>
             </div>
           </div>
@@ -479,7 +447,7 @@ export default function YakFixed(){
 
       {showLogoutConfirm && (<div className="fixed inset-0 bg-black/70 z-[160] flex items-center justify-center p-4"><div className="bg-[#1a1a1a] border border-white/10 rounded-[16px] p-5 w-full max-w-sm text-center"><p className="font-bold">Logout?</p><div className="flex gap-2 mt-4"><button onClick={()=>setShowLogoutConfirm(false)} className="flex-1 py-2.5 rounded-full bg-white/10 text-xs">Cancel</button><button onClick={handleLogout} className="flex-1 py-2.5 rounded-full bg-red-600 text-white text-xs font-bold">Logout</button></div></div></div>)}
       {editingPost && <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-4"><div className="bg-[#141416] border border-white/10 w-full max-w-[600px] rounded-t-[24px] p-5 pb-8"><p className="font-bold">Edit Post</p><textarea value={editText} onChange={e=>setEditText(e.target.value)} className="w-full mt-4 bg-white/5 border border-white/10 rounded-xl p-3 text-sm min-h-[100px] resize-none"/><div className="flex gap-2 mt-4"><button onClick={()=>{ setEditingPost(null); setEditText(''); }} className="flex-1 h-10 bg-white/5 border border-white/10 rounded-full text-xs">Cancel</button><button onClick={handleEdit} className="flex-1 h-10 bg-white text-black rounded-full text-xs font-bold">Save</button></div></div></div>}
-      {reportingPost && (<div className="fixed inset-0 bg-black/70 z-[180] flex items-center justify-center p-4"><div className="bg-[#1a1a1a] border border-white/10 rounded-[16px] p-4 w-full max-w-sm"><p className="font-bold text-sm">Report or Block</p><div className="mt-3 space-y-2">{REPORT_REASONS.map(r=><button key={r} onClick={()=>setReportReason(r)} className={`w-full text-left px-3 py-2 rounded-xl text-xs border ${reportReason===r?'bg-white text-black':'bg-white/5 border-white/10 text-white/60'}`}>{r}</button>)}</div><div className="flex gap-2 mt-3"><button onClick={()=>{ setReportingPost(null); setReportReason(''); }} className="flex-1 py-2 rounded-full bg-white/10 text-xs">Cancel</button><button onClick={()=>handleReport(reportingPost, reportReason)} className="flex-1 py-2 rounded-full bg-red-600 text-white text-xs font-bold">Report</button></div><button onClick={()=>handleBlockUser(reportingPost.uid)} className="w-full mt-2 py-2.5 rounded-full bg-white/5 border border-red-500/20 text-red-400 text-xs font-bold">🚫 Block User - Hide posts</button></div></div>)}
+      {reportingPost && (<div className="fixed inset-0 bg-black/70 z-[180] flex items-center justify-center p-4"><div className="bg-[#1a1a1a] border border-white/10 rounded-[16px] p-4 w-full max-w-sm"><p className="font-bold text-sm">Report</p><div className="mt-3 space-y-2">{REPORT_REASONS.map(r=><button key={r} onClick={()=>setReportReason(r)} className={`w-full text-left px-3 py-2 rounded-xl text-xs border ${reportReason===r?'bg-white text-black':'bg-white/5 border-white/10 text-white/60'}`}>{r}</button>)}</div><div className="flex gap-2 mt-3"><button onClick={()=>{ setReportingPost(null); setReportReason(''); }} className="flex-1 py-2 rounded-full bg-white/10 text-xs">Cancel</button><button onClick={()=>handleReport(reportingPost, reportReason)} className="flex-1 py-2 rounded-full bg-red-600 text-white text-xs font-bold">Report</button></div></div></div>)}
       {showNotifications && (<div className="fixed inset-0 bg-black/70 z-[170] flex items-end justify-center p-4"><div className="bg-[#141416] border border-white/10 w-full max-w-[600px] rounded-t-[24px] p-5 pb-8 max-h-[80vh] overflow-y-auto"><div className="flex justify-between items-center"><p className="font-bold">Notifications</p><button onClick={()=>setShowNotifications(false)} className="w-8 h-8 bg-white/5 rounded-full">X</button></div><div className="mt-4 space-y-2">{notifications.map((n:any)=><div key={n.id} className="p-3 rounded-xl border border-white/10 bg-white/[0.03]"><p className="text-xs font-bold">{n.type}</p><p className="text-[11px] text-white/60 mt-1">{n.text}</p></div>)}{notifications.length===0 && <p className="text-[11px] text-white/30 text-center py-8">No notifications</p>}</div></div></div>)}
       {showAdmin && (<div className="fixed inset-0 bg-black/70 z-[175] flex items-end justify-center p-4"><div className="bg-[#141416] border border-white/10 w-full max-w-[600px] rounded-t-[24px] p-5 pb-8 max-h-[80vh] overflow-y-auto"><div className="flex justify-between items-center"><p className="font-bold">Admin</p><button onClick={()=>setShowAdmin(false)} className="w-8 h-8 bg-white/5 rounded-full">X</button></div><div className="mt-4 space-y-2">{adminReports.map((r:any)=><div key={r.id} className="bg-white/[0.03] border border-white/10 rounded-xl p-3"><p className="text-[11px] font-bold text-red-400">{r.reason}</p><p className="text-[11px] mt-1">{r.yakText}</p><div className="flex gap-2 mt-2"><button onClick={()=>handleAdminRestore(r)} className="px-3 h-7 rounded-full bg-green-600 text-white text-[10px]">Restore</button><button onClick={()=>handleAdminDelete(r)} className="px-3 h-7 rounded-full bg-red-600 text-white text-[10px]">Delete</button><button onClick={()=>handleAdminDismiss(r)} className="px-3 h-7 rounded-full bg-white/10 text-white text-[10px]">Dismiss</button></div></div>)}{adminReports.length===0 && <p className="text-[11px] text-white/30 text-center py-8">No reports</p>}</div></div></div>)}
       {showCollegeAlertAdmin && (<div className="fixed inset-0 bg-black/70 z-[200] flex items-center justify-center p-4"><div className="bg-[#1a1a1a] border border-white/10 rounded-[16px] p-4 w-full max-w-sm"><p className="font-bold text-sm">New Alert</p><select value={newAlertType} onChange={e=>setNewAlertType(e.target.value)} className="w-full mt-3 p-2.5 bg-black border border-white/10 rounded-xl text-sm"><option>ExamAlert</option><option>Holiday</option><option>FeeDue</option><option>Placement</option><option>Event</option><option>Official</option></select><input value={newAlertTitle} onChange={e=>setNewAlertTitle(e.target.value)} placeholder="Title" className="w-full mt-3 p-2.5 bg-black border border-white/10 rounded-xl text-sm"/><textarea value={newAlertDesc} onChange={e=>setNewAlertDesc(e.target.value)} placeholder="Description" className="w-full mt-3 p-2.5 bg-black border border-white/10 rounded-xl text-sm h-20"/><div className="flex gap-2 mt-3"><button onClick={()=>setShowCollegeAlertAdmin(false)} className="flex-1 py-2.5 rounded-full bg-white/10 text-xs">Cancel</button><button onClick={postCollegeAlert} className="flex-1 py-2.5 rounded-full bg-white text-black text-xs font-bold">Post</button></div></div></div>)}

@@ -94,7 +94,6 @@ export default function YakFixed(){
   const [showDmDeleteConfirm,setShowDmDeleteConfirm]=useState<any>(null);
   const [showDmMessageMenu,setShowDmMessageMenu]=useState<string|null>(null);
   const [showCommentMenu,setShowCommentMenu]=useState<string|null>(null);
-  // NEW SETTINGS STATES
   const [notifComment,setNotifComment]=useState(true);
   const [notifDm,setNotifDm]=useState(true);
   const [notifAlert,setNotifAlert]=useState(true);
@@ -134,9 +133,6 @@ export default function YakFixed(){
       setMarketYaks([...data].filter(d=>d.type==='market').slice(0,30));
       setPyqYaks([...data].filter(d=>d.type==='pyq').slice(0,30));
       const tagCount:Record<string,number>={}; data.forEach(y=>{ const tags=y.text?.match(/#\w+/g); if(tags) tags.forEach((t:string)=>{ tagCount[t.toLowerCase()]=(tagCount[t.toLowerCase()]||0)+1; }); }); setHashtags(Object.entries(tagCount).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([tag,count])=>({tag,count})));
-      // MY ACTIVITY COUNT
-      const myCount = data.filter((d:any)=>d.uid===user?.uid).length;
-      // we use later
     });
   },[userData, autoBlockVulgar]);
   useEffect(()=>{ if(!userData?.college) return; return onSnapshot(collection(db,'users'), s=>{ const all=s.docs.map(d=>({id:d.id,...d.data()} as any)); const same=all.filter(u=>u.college==="SRET"||!u.college); setLeaderboard(same.sort((a,b)=>b.yakarma-a.yakarma).slice(0,20)); }); },[userData]);
@@ -174,7 +170,6 @@ export default function YakFixed(){
     };
     setupPush();
   },[user, userData]);
-  // MY ACTIVITY - COMMENTS COUNT
   useEffect(()=>{
     if(!user?.uid) return;
     const fetchMyComments = async()=>{
@@ -214,7 +209,7 @@ export default function YakFixed(){
   }
   if(screen==='login'){
     return (<div className="min-h-screen bg-[#0a0a0b] text-white flex flex-col items-center justify-center p-6"><div className="max-w-md w-full bg-white/[0.05] border-2 border-white/10 p-8 rounded-[24px] flex flex-col items-center"><div className="w-24 h-24 bg-white/5 border-2 border-white/10 rounded-[24px] flex items-center justify-center text-4xl">{selectedAvatar}</div><h1 className="font-black mt-6 text-center text-xl">Anonymous Ready</h1><button onClick={handleGoogleLogin} className="w-full mt-8 bg-white text-black py-4 rounded-full font-bold">Continue</button></div><Footer/></div>);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              }
+  }
 
     const handleVote=async(y:any,type:'up'|'down')=>{
     if(!userData) return; const yakRef=doc(db,'yaks',y.id); const userRef=doc(db,'users',userData.id); const liked=userData.likedPosts?.includes(y.id); const disliked=userData.dislikedPosts?.includes(y.id);
@@ -326,7 +321,10 @@ export default function YakFixed(){
           <div className="flex gap-2">
             <button onClick={()=>setScreen('alerts')} className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center relative">🏫{collegeAlertsList.length>0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full text-[8px] flex items-center justify-center">{collegeAlertsList.length}</span>}</button>
             <button onClick={()=>{ setShowNotifications(true); markNotificationsRead(); }} className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center relative">🔔{unreadCount>0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[8px] flex items-center justify-center">{unreadCount}</span>}</button>
-            <button onClick={()=>setShowProfile(true)} className="w-9 h-9 bg-white/10 rounded-full">👤</button>
+            {/* INSTAGRAM 3 LINES */}
+            <button onClick={()=>setShowProfile(true)} className="w-9 h-9 bg-white/5 border border-white/10 rounded-full flex flex-col items-center justify-center gap-[3px]">
+              <div className="w-4 h-[2px] bg-white rounded-full"></div><div className="w-4 h-[2px] bg-white rounded-full"></div><div className="w-4 h-[2px] bg-white rounded-full"></div>
+            </button>
           </div>
         </div>
         <div className="max-w-[600px] mx-auto px-3 pb-2 flex gap-2">
@@ -356,26 +354,23 @@ export default function YakFixed(){
               <div className="bg-white/[0.03] border border-white/10 rounded-[16px] p-3"><p className="text-[10px] font-bold text-white/30">TRENDING</p><div className="flex gap-2 mt-2 flex-wrap">{hashtags.slice(0,6).map((h:any)=><button key={h.tag} onClick={()=>setSearchQuery(h.tag)} className="px-2.5 py-1 bg-white/5 border border-white/10 rounded-full text-[11px]">{h.tag}</button>)}</div></div>
             )}
             {feedTab==='top' && (<div className="space-y-2">{leaderboard.map((u:any,i:number)=><div key={u.id} className="bg-white/[0.03] border border-white/10 rounded-[14px] p-3 flex justify-between items-center"><div className="flex gap-2 items-center"><span className="w-6 h-6 bg-white/5 rounded-full flex items-center justify-center text-xs">{i+1}</span><p className="text-[13px] font-bold">Anonymous {i+1}</p></div><p className="text-sm font-bold">{u.yakarma}</p></div>)}<Footer/></div>)}
-            {feedTab==='crush' && (<div className="space-y-3"><div className="bg-pink-500/10 border border-pink-500/20 rounded-[16px] p-4"><p className="font-bold">Secret Crush</p><div className="flex gap-2 mt-3"><input value={crushRoll} onChange={e=>setCrushRoll(e.target.value.toUpperCase())} placeholder="Roll" className="flex-1 bg-black/30 border border-white/10 rounded-full px-4 h-10 text-sm"/><button onClick={handleCrushSubmit} className="px-4 h-10 bg-pink-500 rounded-full text-xs font-bold">Add</button></div></div>{crushMatches.map((m:any)=><div key={m.id} className="bg-white/[0.03] border border-white/10 rounded-[14px] p-3 flex justify-between items-center"><p className="text-[12px] font-bold">{m.toRoll}</p><button onClick={()=>handleCancelCrush(m.id)} className="text-[10px] bg-white/10 px-2 py-1 rounded-full">Cancel</button></div>)}<Footer/></div>)}
-            {feedTab==='market' && (<div className="space-y-2">{displayMarketYaks.map((y:any)=><div key={y.id} className="bg-white/[0.03] border border-white/10 rounded-[16px] p-4"><div className="flex justify-between"><p className="font-bold text-[13px]">Anonymous</p><p className="text-green-400 font-bold">₹{y.price}</p></div><p className={`mt-2 ${fontSize==='small'?'text-[11px]':fontSize==='large'?'text-[15px]':'text-[13px]'}`}>{y.text}</p></div>)}<Footer/></div>)}
-            {feedTab==='pyq' && (<div className="space-y-2">{displayPyqYaks.map((y:any)=><div key={y.id} className="bg-white/[0.03] border border-white/10 rounded-[16px] p-4"><p className="font-bold text-[13px]">{y.subject}</p><p className={`mt-2 ${fontSize==='small'?'text-[11px]':fontSize==='large'?'text-[15px]':'text-[13px]'}`}>{y.text}</p></div>)}<Footer/></div>)}
             {feedTab==='dm' && (
               <div className="space-y-2">
                 <div className="bg-white/[0.03] border border-white/10 rounded-[16px] p-4">
-                  <div className="flex justify-between"><p className="font-bold text-[13px]">DM - {dmChats.length}</p><button onClick={()=>setActiveDm(null)} className="text-[10px] bg-white/10 px-2 py-1 rounded-full">All</button></div>
+                  <div className="flex justify-between"><p className="font-bold text-[13px]">DM - {dmChats.length} • Instagram Style</p><button onClick={()=>setActiveDm(null)} className="text-[10px] bg-white/10 px-2 py-1 rounded-full">All Chats</button></div>
                   {activeDm? (
                     <div className="mt-3">
-                      <div className="max-h-[300px] overflow-y-auto mt-3 space-y-2">{dmMessages.map((m:any)=><div key={m.id} className={`p-2.5 rounded-[12px] max-w-[80%] text-[12px] ${m.uid===user?.uid?'bg-white text-black ml-auto':'bg-white/5 border border-white/10'}`}><p>{m.text}</p></div>)}</div>
-                      <div className="flex gap-2 mt-3"><input value={dmText} onChange={e=>setDmText(e.target.value)} placeholder="Message" className="flex-1 h-10 bg-white/5 border border-white/10 rounded-full px-4 text-sm"/><button onClick={handleSendDm} className="w-10 h-10 bg-white text-black rounded-full">Go</button></div>
+                      <div className="max-h-[350px] overflow-y-auto mt-3 space-y-2">{dmMessages.map((m:any)=><div key={m.id} className={`p-2.5 rounded-[18px] max-w-[75%] text-[12px] ${m.uid===user?.uid?'bg-gradient-to-tr from-purple-500 to-pink-500 text-white ml-auto rounded-br-[4px]':'bg-white/5 border border-white/10 rounded-bl-[4px]'}`}><p>{m.text}</p></div>)}</div>
+                      <div className="flex gap-2 mt-3 items-center"><input value={dmText} onChange={e=>setDmText(e.target.value)} placeholder="Message..." className="flex-1 h-10 bg-white/5 border border-white/10 rounded-full px-4 text-sm"/><button onClick={handleSendDm} className="w-10 h-10 bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 rounded-full text-white">↗</button></div>
                     </div>
                   ) : (
-                    <div className="mt-3 space-y-2">{dmChats.map((c:any)=><div key={c.id} className="flex justify-between items-center bg-white/[0.02] border border-white/10 rounded-[14px] p-3"><button onClick={()=>setActiveDm(c)} className="flex-1 text-left"><p className="text-[12px] font-bold">Chat {c.participants.filter((p:string)=>p!==user?.uid)[0]?.slice(0,6)}</p><p className="text-[11px] text-white/40">{c.lastMessage?.slice(0,30)}</p></button><button onClick={()=>handleDeleteDmChat(c.id)} className="text-[10px] bg-red-500/10 text-red-400 px-2 py-1 rounded-full ml-2">Delete</button></div>)}{dmChats.length===0 && <p className="text-[11px] text-white/30 text-center py-6">No DMs</p>}</div>
+                    <div className="mt-3 space-y-1">{dmChats.map((c:any)=><div key={c.id} className="flex justify-between items-center hover:bg-white/5 rounded-[14px] p-3"><button onClick={()=>setActiveDm(c)} className="flex gap-3 items-center flex-1 text-left"><div className="w-12 h-12 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 p-[2px]"><div className="w-full h-full rounded-full bg-black flex items-center justify-center">A</div></div><div><p className="text-[13px] font-bold">Anonymous Chat</p><p className="text-[11px] text-white/40">{c.lastMessage?.slice(0,30) || 'Tap to chat'}</p></div></button><button onClick={()=>handleDeleteDmChat(c.id)} className="text-[10px] bg-red-500/10 text-red-400 px-2 py-1 rounded-full">Delete</button></div>)}{dmChats.length===0 && <p className="text-[11px] text-white/30 text-center py-6">No DMs - Start from feed DM button</p>}</div>
                   )}
                 </div>
                 <Footer/>
               </div>
             )}
-            {feedTab!=='top' && feedTab!=='crush' && feedTab!=='market' && feedTab!=='pyq' && feedTab!=='dm' && (
+            {feedTab!=='top' && feedTab!=='dm' && (
               <>
                 {(feedTab==='new'? filteredYaks : feedTab==='meme'? displayMemeYaks : displayHotYaks).map(y=>{
                   const liked=userData.likedPosts?.includes(y.id); const disliked=userData.dislikedPosts?.includes(y.id); const score=(y.likes||0)-(y.dislikes||0); const isOwn=user?.uid===y.uid; const isPoll=y.type==='poll'; const hasVoted=userData.pollVoted?.includes(y.id); const nestedTree = activePost===y.id? buildTree(comments) : [];
@@ -430,72 +425,58 @@ export default function YakFixed(){
           <div className="space-y-3">
             <div className="bg-white/[0.03] border border-white/10 rounded-[16px] p-4 flex justify-between items-center"><p className="font-bold text-[15px]">⚙️ DABEAN SETTINGS</p><button onClick={()=>setScreen('feed')} className="w-8 h-8 bg-white/10 rounded-full">X</button></div>
 
-            {/* 1 NOTIFICATION SETTINGS */}
             <div className="bg-white/[0.03] border border-white/10 rounded-[16px] p-4">
               <p className="text-[11px] font-bold tracking-widest text-white/30">🔔 NOTIFICATION SETTINGS</p>
               <div className="mt-3 space-y-3">
-                <div className="flex justify-between items-center"><div><p className="text-[12px] font-bold">Comments on my post</p><p className="text-[10px] text-white/40">Someone comments</p></div><button onClick={()=>setNotifComment(!notifComment)} className={`w-10 h-6 rounded-full p-1 ${notifComment?'bg-white':'bg-white/10'}`}><div className={`w-4 h-4 rounded-full bg-black transition-all ${notifComment?'translate-x-4 bg-black':'translate-x-0 bg-white'}`}></div></button></div>
-                <div className="flex justify-between items-center"><div><p className="text-[12px] font-bold">DM Messages</p><p className="text-[10px] text-white/40">New DM alert</p></div><button onClick={()=>setNotifDm(!notifDm)} className={`w-10 h-6 rounded-full p-1 ${notifDm?'bg-white':'bg-white/10'}`}><div className={`w-4 h-4 rounded-full transition-all ${notifDm?'translate-x-4 bg-black':'translate-x-0 bg-white'}`}></div></button></div>
-                <div className="flex justify-between items-center"><div><p className="text-[12px] font-bold">College Alerts</p><p className="text-[10px] text-white/40">Exam, Holiday alerts</p></div><button onClick={()=>setNotifAlert(!notifAlert)} className={`w-10 h-6 rounded-full p-1 ${notifAlert?'bg-white':'bg-white/10'}`}><div className={`w-4 h-4 rounded-full transition-all ${notifAlert?'translate-x-4 bg-black':'translate-x-0 bg-white'}`}></div></button></div>
+                <div className="flex justify-between items-center"><div><p className="text-[12px] font-bold">Comments</p><p className="text-[10px] text-white/40">On my post</p></div><button onClick={()=>setNotifComment(!notifComment)} className={`w-10 h-6 rounded-full p-1 ${notifComment?'bg-white':'bg-white/10'}`}><div className={`w-4 h-4 rounded-full transition-all ${notifComment?'translate-x-4 bg-black':'bg-white'}`}></div></button></div>
+                <div className="flex justify-between items-center"><div><p className="text-[12px] font-bold">DM</p><p className="text-[10px] text-white/40">New DM alert</p></div><button onClick={()=>setNotifDm(!notifDm)} className={`w-10 h-6 rounded-full p-1 ${notifDm?'bg-white':'bg-white/10'}`}><div className={`w-4 h-4 rounded-full transition-all ${notifDm?'translate-x-4 bg-black':'bg-white'}`}></div></button></div>
+                <div className="flex justify-between items-center"><div><p className="text-[12px] font-bold">Alerts</p><p className="text-[10px] text-white/40">College alerts</p></div><button onClick={()=>setNotifAlert(!notifAlert)} className={`w-10 h-6 rounded-full p-1 ${notifAlert?'bg-white':'bg-white/10'}`}><div className={`w-4 h-4 rounded-full transition-all ${notifAlert?'translate-x-4 bg-black':'bg-white'}`}></div></button></div>
               </div>
             </div>
 
-            {/* 2 APPEARANCE */}
             <div className="bg-white/[0.03] border border-white/10 rounded-[16px] p-4">
               <p className="text-[11px] font-bold tracking-widest text-white/30">🎨 APPEARANCE</p>
               <div className="mt-3 space-y-3">
                 <div className="flex justify-between items-center"><p className="text-[12px] font-bold">Font Size</p><div className="flex gap-1 bg-white/5 rounded-full p-1"><button onClick={()=>setFontSize('small')} className={`px-3 py-1 rounded-full text-[10px] ${fontSize==='small'?'bg-white text-black':'text-white/40'}`}>Small</button><button onClick={()=>setFontSize('medium')} className={`px-3 py-1 rounded-full text-[10px] ${fontSize==='medium'?'bg-white text-black':'text-white/40'}`}>Medium</button><button onClick={()=>setFontSize('large')} className={`px-3 py-1 rounded-full text-[10px] ${fontSize==='large'?'bg-white text-black':'text-white/40'}`}>Large</button></div></div>
-                <div className="flex justify-between items-center"><div><p className="text-[12px] font-bold">Thick Font</p><p className="text-[10px] text-white/40">Bold text off - thin clean</p></div><button onClick={()=>setThickFont(!thickFont)} className={`w-10 h-6 rounded-full p-1 ${thickFont?'bg-white':'bg-white/10'}`}><div className={`w-4 h-4 rounded-full transition-all ${thickFont?'translate-x-4 bg-black':'translate-x-0 bg-white'}`}></div></button></div>
-                <div className="flex justify-between items-center"><p className="text-[12px] font-bold">Theme</p><p className="text-[10px] bg-white text-black px-3 py-1 rounded-full font-bold">OLED Black</p></div>
+                <div className="flex justify-between items-center"><div><p className="text-[12px] font-bold">Thick Font</p><p className="text-[10px] text-white/40">Thin clean</p></div><button onClick={()=>setThickFont(!thickFont)} className={`w-10 h-6 rounded-full p-1 ${thickFont?'bg-white':'bg-white/10'}`}><div className={`w-4 h-4 rounded-full transition-all ${thickFont?'translate-x-4 bg-black':'bg-white'}`}></div></button></div>
               </div>
             </div>
 
-            {/* 3 SAFETY */}
             <div className="bg-red-500/5 border border-red-500/20 rounded-[16px] p-4">
               <p className="text-[11px] font-bold tracking-widest text-red-300">🛡️ SAFETY</p>
               <div className="mt-3 space-y-3">
-                <div className="flex justify-between items-center"><div><p className="text-[12px] font-bold">Auto Block Vulgar</p><p className="text-[10px] text-white/40">Hide abusive posts</p></div><button onClick={()=>setAutoBlockVulgar(!autoBlockVulgar)} className={`w-10 h-6 rounded-full p-1 ${autoBlockVulgar?'bg-green-500':'bg-white/10'}`}><div className={`w-4 h-4 rounded-full bg-white transition-all ${autoBlockVulgar?'translate-x-4':''}`}></div></button></div>
+                <div className="flex justify-between items-center"><div><p className="text-[12px] font-bold">Auto Block Vulgar</p></div><button onClick={()=>setAutoBlockVulgar(!autoBlockVulgar)} className={`w-10 h-6 rounded-full p-1 ${autoBlockVulgar?'bg-green-500':'bg-white/10'}`}><div className={`w-4 h-4 rounded-full bg-white transition-all ${autoBlockVulgar?'translate-x-4':''}`}></div></button></div>
                 <div className="bg-black/60 border border-white/10 rounded-xl p-3">
                   <div className="flex justify-between"><p className="text-[11px] font-bold">🚫 Blocked - {blockedUsers.length}</p><button onClick={async()=>{ if(blockedUsers.length===0) return; if(!confirm(`Unblock all ${blockedUsers.length}?`)) return; for(const id of blockedUsers){ await updateDoc(doc(db,'users',userData.id),{blockedUsers:arrayRemove(id)}); } setBlockedUsers([]); }} className="text-[10px] bg-white/10 px-2 py-1 rounded-full">Unblock All</button></div>
-                  <div className="mt-2 max-h-[120px] overflow-y-auto">{blockedUsers.length===0? <p className="text-[11px] text-white/30 text-center py-3">No blocked users 😊</p> : blockedUsers.map((uid:any)=><div key={uid} className="flex justify-between items-center py-2 border-b border-white/5 last:border-0"><p className="text-[10px] font-mono">{uid.slice(0,18)}...</p><button onClick={()=>handleUnblockUser(uid)} className="px-3 py-1 bg-white text-black rounded-full text-[10px] font-bold">Unblock</button></div>)}</div>
+                  <div className="mt-2 max-h-[120px] overflow-y-auto">{blockedUsers.length===0? <p className="text-[11px] text-white/30 text-center py-3">No blocked 😊</p> : blockedUsers.map((uid:any)=><div key={uid} className="flex justify-between items-center py-2 border-b border-white/5 last:border-0"><p className="text-[10px] font-mono">{uid.slice(0,18)}...</p><button onClick={()=>handleUnblockUser(uid)} className="px-3 py-1 bg-white text-black rounded-full text-[10px] font-bold">Unblock</button></div>)}</div>
                 </div>
-                <button onClick={()=>setShowAdmin(true)} className="w-full py-2 bg-white/5 border border-white/10 rounded-full text-[11px] font-bold">📋 My Reports - {adminReports.length}</button>
               </div>
             </div>
 
-            {/* 4 MY ACTIVITY */}
             <div className="bg-white/[0.03] border border-white/10 rounded-[16px] p-4">
               <p className="text-[11px] font-bold tracking-widest text-white/30">📊 MY ACTIVITY</p>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <div className="bg-white/5 border border-white/10 rounded-xl p-3"><p className="text-[10px] text-white/40">My Posts</p><p className="text-[18px] font-black mt-1">{yaks.filter((y:any)=>y.uid===user?.uid).length}</p></div>
                 <div className="bg-white/5 border border-white/10 rounded-xl p-3"><p className="text-[10px] text-white/40">My Comments</p><p className="text-[18px] font-black mt-1">{myCommentsCount}</p></div>
-                <div className="bg-white/5 border border-white/10 rounded-xl p-3"><p className="text-[10px] text-white/40">Liked Posts</p><p className="text-[18px] font-black mt-1">{userData?.likedPosts?.length||0}</p></div>
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3"><p className="text-[10px] text-white/40">Liked</p><p className="text-[18px] font-black mt-1">{userData?.likedPosts?.length||0}</p></div>
                 <div className="bg-white/5 border border-white/10 rounded-xl p-3"><p className="text-[10px] text-white/40">Yakarma</p><p className="text-[18px] font-black mt-1">{userData?.yakarma||0}</p></div>
-                <div className="bg-white/5 border border-white/10 rounded-xl p-3"><p className="text-[10px] text-white/40">Blocked</p><p className="text-[18px] font-black mt-1 text-red-400">{blockedUsers.length}</p></div>
-                <div className="bg-white/5 border border-white/10 rounded-xl p-3"><p className="text-[10px] text-white/40">Total Users</p><p className="text-[18px] font-black mt-1">{totalUsers}</p></div>
               </div>
             </div>
 
-            {/* 5 HELP & ABOUT */}
             <div className="bg-white/[0.03] border border-white/10 rounded-[16px] p-4">
               <p className="text-[11px] font-bold tracking-widest text-white/30">❓ HELP & ABOUT</p>
               <div className="mt-3 space-y-2">
                 {[
-                  {q:"Anonymous ante enti?", a:"Nee peru evariki kanipinchadu. Posts anni anonymous ga untayi."},
-                  {q:"Block ela cheyali?", a:"Post... menu lo Block User click chey. Settings lo unblock cheyochu."},
-                  {q:"Data safe na?", a:"100% safe. Nee email, roll evariki kanipinchadu."},
-                  {q:"Yakarma ante enti?", a:"Post, like, comment chesthe karma peruguthundi."},
+                  {q:"Anonymous ante enti?", a:"Nee peru evariki kanipinchadu."},
+                  {q:"Block ela?", a:"Post... lo Block User."},
+                  {q:"Data safe?", a:"100% safe. Email, roll hide."},
                 ].map((f,i)=>(
                   <div key={i} className="bg-black/40 border border-white/10 rounded-xl">
-                    <button onClick={()=>setFaqOpen(faqOpen===f.q?null:f.q)} className="w-full text-left p-3 flex justify-between"><p className="text-[12px] font-bold">{f.q}</p><span className="text-[10px]">{faqOpen===f.q?'−':'+'}</span></button>
+                    <button onClick={()=>setFaqOpen(faqOpen===f.q?null:f.q)} className="w-full text-left p-3 flex justify-between"><p className="text-[12px] font-bold">{f.q}</p><span>{faqOpen===f.q?'−':'+'}</span></button>
                     {faqOpen===f.q && <p className="px-3 pb-3 text-[11px] text-white/50">{f.a}</p>}
                   </div>
                 ))}
-                <div className="pt-3 border-t border-white/10 mt-3">
-                  <div className="flex justify-between py-1"><p className="text-[11px] text-white/40">Contact</p><p className="text-[11px] font-bold">dabean.sret@gmail.com</p></div>
-                  <div className="flex justify-between py-1"><p className="text-[11px] text-white/40">Version</p><p className="text-[11px] font-bold">v1.0.0</p></div>
-                  <p className="text-[9px] text-white/20 text-center pt-2">© 2026 DABEAN BY ANESH</p>
-                </div>
+                <p className="text-[9px] text-white/20 text-center pt-2">© 2026 DABEAN BY ANESH</p>
               </div>
             </div>
 
@@ -507,7 +488,7 @@ export default function YakFixed(){
         )}
       </div>
 
-            <div className="fixed bottom-0 left-0 right-0 bg-[#0a0a0b]/90 backdrop-blur-xl border-t border-white/10"><div className="max-w-[600px] mx-auto px-4 h-[64px] flex items-center justify-between"><button onClick={()=>{ setScreen('feed'); setFeedTab('new'); }} className="flex flex-col items-center"><div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold ${screen==='feed' && feedTab==='new'?'bg-white text-black':'bg-white/5 text-white/40'}`}>S</div><span className="text-[8px] text-white/30 mt-1">Feed</span></button><button onClick={()=>setScreen('alerts')} className="flex flex-col items-center"><div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] ${screen==='alerts'?'bg-red-600 text-white':'bg-white/5 text-white/40'}`}>🏫</div><span className="text-[8px] text-white/30 mt-1">Alerts</span></button><button onClick={()=>setScreen('create')} className="w-12 h-12 bg-white text-black rounded-full flex items-center justify-center text-xl font-black">+</button><button onClick={()=>setScreen('settings')} className="flex flex-col items-center"><div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold ${screen==='settings'?'bg-white text-black':'bg-white/5 text-white/40'}`}>⚙️</div><span className="text-[8px] text-white/30 mt-1">Settings</span></button><button onClick={()=>setShowProfile(true)} className="flex flex-col items-center"><div className="w-7 h-7 bg-white/5 rounded-full flex items-center justify-center text-xs">👤</div><span className="text-[8px] text-white/30 mt-1">{userData?.yakarma||0}</span></button></div></div>
+            <div className="fixed bottom-0 left-0 right-0 bg-[#0a0a0b]/90 backdrop-blur-xl border-t border-white/10"><div className="max-w-[600px] mx-auto px-4 h-[64px] flex items-center justify-between"><button onClick={()=>{ setScreen('feed'); setFeedTab('new'); }} className="flex flex-col items-center"><div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold ${screen==='feed' && feedTab==='new'?'bg-white text-black':'bg-white/5 text-white/40'}`}>S</div><span className="text-[8px] text-white/30 mt-1">Feed</span></button><button onClick={()=>setScreen('alerts')} className="flex flex-col items-center"><div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] ${screen==='alerts'?'bg-red-600 text-white':'bg-white/5 text-white/40'}`}>🏫</div><span className="text-[8px] text-white/30 mt-1">Alerts</span></button><button onClick={()=>setScreen('create')} className="w-12 h-12 bg-white text-black rounded-full flex items-center justify-center text-xl font-black">+</button><button onClick={()=>setScreen('settings')} className="flex flex-col items-center"><div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold ${screen==='settings'?'bg-white text-black':'bg-white/5 text-white/40'}`}>⚙️</div><span className="text-[8px] text-white/30 mt-1">Settings</span></button><button onClick={()=>setShowProfile(true)} className="flex flex-col items-center"><div className="w-7 h-7 bg-white/5 rounded-full flex items-center justify-center text-xs">☰</div><span className="text-[8px] text-white/30 mt-1">Menu</span></button></div></div>
 
       {screen==='create' && (
         <div className="fixed inset-0 bg-[#0a0a0b] z-40 flex flex-col">
@@ -525,14 +506,40 @@ export default function YakFixed(){
         </div>
       )}
 
+      {/* INSTAGRAM SIDE DRAWER */}
       {showProfile && (
-        <div className="fixed inset-0 bg-black/70 z-[150] flex items-end justify-center p-4">
-          <div className="bg-[#141416] border border-white/10 w-full max-w-[600px] rounded-t-[24px] p-5 pb-8">
-            <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-5"></div>
-            <div className="flex items-center gap-3"><div className="w-12 h-12 bg-white/5 rounded-[14px] flex items-center justify-center">👤</div><div><p className="font-bold">Anonymous • {blockedUsers.length} blocked</p><p className="text-[11px] text-white/40">Karma {userData?.yakarma||0} • {userData?.totalPosts||0} posts</p></div></div>
-            <div className="mt-4 space-y-2">
-              <button onClick={()=>{ setShowProfile(false); setScreen('settings'); }} className="w-full py-2.5 rounded-full bg-white text-black text-xs font-bold">⚙️ Settings</button>
-              <button onClick={()=>setShowProfile(false)} className="w-full py-2.5 rounded-full bg-white/5 border border-white/10 text-xs">Close</button>
+        <div className="fixed inset-0 z-[150] flex justify-end">
+          <div onClick={()=>setShowProfile(false)} className="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+          <div className="relative w-[85%] max-w-[360px] h-full bg-[#0a0a0b] border-l border-white/10 flex flex-col animate-[slideIn_0.25s_ease]">
+            <style>{`@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
+            <div className="p-5 border-b border-white/10 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 p-[2px]"><div className="w-full h-full rounded-full bg-black flex items-center justify-center text-xl">{selectedAvatar}</div></div>
+                <div><p className="font-bold text-[14px] flex items-center gap-1">{userData?.anonymousName||'Anonymous'} <span className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center text-[8px]">✓</span></p><p className="text-[11px] text-white/40">SRET • {totalUsers} verified</p><p className="text-[10px] text-white/30 mt-0.5">{blockedUsers.length} blocked • {userData?.yakarma||0} karma</p></div>
+              </div>
+              <button onClick={()=>setShowProfile(false)} className="w-8 h-8 bg-white/5 rounded-full">X</button>
+            </div>
+            <div className="flex justify-around py-4 border-b border-white/10">
+              <div className="text-center"><p className="font-black text-[16px]">{yaks.filter((y:any)=>y.uid===user?.uid).length}</p><p className="text-[11px] text-white/40">Posts</p></div>
+              <div className="text-center"><p className="font-black text-[16px]">{userData?.yakarma||0}</p><p className="text-[11px] text-white/40">Karma</p></div>
+              <div className="text-center"><p className="font-black text-[16px]">{dmChats.length}</p><p className="text-[11px] text-white/40">DMs</p></div>
+              <div className="text-center"><p className="font-black text-[16px] text-red-400">{blockedUsers.length}</p><p className="text-[11px] text-white/40">Blocked</p></div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-1">
+              <p className="text-[10px] font-bold tracking-widest text-white/30 px-3 py-2">MENU • INSTAGRAM STYLE</p>
+              <button onClick={()=>{ setShowProfile(false); setScreen('feed'); setFeedTab('new'); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/5 text-left"><div className="w-8 h-8 bg-white/5 rounded-full flex items-center justify-center">🏠</div><div><p className="text-[13px] font-bold">Feed</p><p className="text-[10px] text-white/40">Home</p></div></button>
+              <button onClick={()=>{ setShowProfile(false); setScreen('alerts'); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/5 text-left"><div className="w-8 h-8 bg-red-500/10 rounded-full flex items-center justify-center">🏫</div><div className="flex-1"><p className="text-[13px] font-bold">Alerts • {collegeAlertsList.length}</p><p className="text-[10px] text-white/40">Exams</p></div><div className="w-5 h-5 bg-red-600 rounded-full flex items-center justify-center text-[9px]">{collegeAlertsList.length}</div></button>
+              <button onClick={()=>{ setShowProfile(false); setScreen('feed'); setFeedTab('dm'); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-white/5 border border-white/10 text-left"><div className="w-8 h-8 bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 rounded-full flex items-center justify-center text-white">💬</div><div className="flex-1"><p className="text-[13px] font-bold">Chats • {dmChats.length} - IG Style</p><p className="text-[10px] text-white/40">Anonymous DMs</p></div></button>
+              <button onClick={()=>{ setShowProfile(false); setScreen('settings'); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/5 text-left"><div className="w-8 h-8 bg-white/5 rounded-full flex items-center justify-center">⚙️</div><div><p className="text-[13px] font-bold">Settings • 5 Sections</p><p className="text-[10px] text-white/40">Notifications, Appearance...</p></div></button>
+              <button onClick={()=>{ setShowProfile(false); setShowNotifications(true); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/5 text-left"><div className="w-8 h-8 bg-white/5 rounded-full flex items-center justify-center relative">🔔{unreadCount>0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span>}</div><div className="flex-1"><p className="text-[13px] font-bold">Notifications • {unreadCount}</p></div></button>
+              <button onClick={()=>{ setShowProfile(false); setScreen('feed'); setFeedTab('top'); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/5 text-left"><div className="w-8 h-8 bg-yellow-500/10 rounded-full flex items-center justify-center">🏆</div><div><p className="text-[13px] font-bold">Leaderboard</p></div></button>
+              <div className="pt-3 mt-3 border-t border-white/10">
+                <button onClick={()=>{ setShowProfile(false); setScreen('settings'); }} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-red-500/5 border border-red-500/10 text-left"><div className="w-8 h-8 bg-red-500/10 rounded-full flex items-center justify-center">🚫</div><div className="flex-1"><p className="text-[13px] font-bold text-red-300">Blocked • {blockedUsers.length}</p></div><p className="text-[10px] bg-red-500/20 text-red-300 px-2 py-1 rounded-full">{blockedUsers.length}</p></button>
+              </div>
+            </div>
+            <div className="p-4 border-t border-white/10 space-y-2">
+              <button onClick={()=>setShowLogoutConfirm(true)} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-white/5 border border-white/10"><div className="w-8 h-8 bg-white/5 rounded-full flex items-center justify-center">↪️</div><p className="text-[13px] font-bold">Logout</p></button>
+              <p className="text-[9px] text-white/20 text-center pt-2">© 2026 DABEAN BY ANESH</p>
             </div>
           </div>
         </div>

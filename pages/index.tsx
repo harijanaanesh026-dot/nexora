@@ -381,7 +381,7 @@ export default function YakFixed(){
                         </div>
                       )}
                       <div className="flex gap-2 mt-3">
-                        <div className="flex bg-white/5 border border-white/10 rounded-full p-1"><button onClick={()=>handleVote(y,'up')} className={`px-3 py-1.5 rounded-full text-xs ${liked?'bg-white text-black':'text-white/40'}`}>Up {y.likes||0}</button><span className="px-2 py-1.5 text-[11px] text-white/20">{score}</span><button onClick={()=>handleVote(y,'down')} className={`px-3 py-1.5 rounded-full text-xs ${disliked?'bg-red-500 text-white':'text-white/30'}`}>Down {y.dislikes||0}</button></div>
+                        <div className="flex bg-white/5 border border-white/10 rounded-full p-1"><button onClick={()=>handleVote(y,'up')} className={`px-3 py-1.5 rounded-full text-xs ${liked?'bg-white text-black':'text-white/40'}`}>UpVote {y.likes||0}</button><span className="px-2 py-1.5 text-[11px] text-white/20">{score}</span><button onClick={()=>handleVote(y,'down')} className={`px-3 py-1.5 rounded-full text-xs ${disliked?'bg-red-500 text-white':'text-white/30'}`}>DownVote {y.dislikes||0}</button></div>
                         <button onClick={()=>{ setActivePost(activePost===y.id?null:y.id); }} className="px-3 h-8 rounded-full text-xs bg-white/5 border border-white/10 text-white/40">Comments {y.commentsCount||0}</button>
                       </div>
                       {activePost===y.id && (

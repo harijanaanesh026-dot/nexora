@@ -27,9 +27,9 @@ const containsVulgar = (t:string) => { if(!t) return false; return BAD_WORDS.som
 const ADMIN_EMAILS = ["tonyhayes026@gmail.com", "harijanaamesh026@gmail.com"];
 const isAdmin = (email: any) => email && ADMIN_EMAILS.includes(String(email).toLowerCase());
 
-// === POST SHARING ADDED ===
-// NEW (Correct - Nee live link):
+// === CONFIG ADDED ===
 const APP_URL = "https://nexora-gamma-gilt.vercel.app";
+const REPORT_DELETE_THRESHOLD = 3; // 3 Reports = Auto Delete
 
 const Footer = () => (<div className="w-full py-8 flex flex-col items-center gap-1 border-t border-white/[0.06] mt-8"><p className="text-[10px] tracking-[0.3em] font-bold text-white/40">© 2026 Dabean. A production by ANESH</p></div>);
 
@@ -105,7 +105,7 @@ export default function YakFixed(){
   const [showShareMenu,setShowShareMenu]=useState<string|null>(null);
   const showToast=(m:string)=>{ setToast(m); setTimeout(()=>setToast(''),2500); };
 
-  useEffect(()=>{ getRedirectResult(auth).catch(()=>{}); },[]);
+    useEffect(()=>{ getRedirectResult(auth).catch(()=>{}); },[]);
   useEffect(()=>{ return onSnapshot(collection(db,'users'), snap=>{ const c:Record<string,number>={}; snap.docs.forEach(d=>{ const col=(d.data() as any).college; if(col) c[col]=(c[col]||0)+1; }); setCollegeCounts(c); setTotalUsers(snap.size); }); },[]);
   useEffect(()=>{
     return onAuthStateChanged(auth, async(u:any)=>{
@@ -172,7 +172,6 @@ export default function YakFixed(){
     setupPush();
   },[user, userData]);
 
-  // === POST SHARING - NEW FUNCTIONS ADDED ===
   const handleShare = async (y:any) => {
     const shareText = `${y.text}\n\n— via DABEAN SRET • Anonymous\n${APP_URL}?post=${y.id}`;
     try {
@@ -198,8 +197,23 @@ export default function YakFixed(){
     showToast("Link copied 📋");
     setShowShareMenu(null);
   };
+  const handleCommentLike = async (yakId:string, commentId:string, currentLikes:number, likedBy:any[]) => {
+    if(!user?.uid) return;
+    const hasLiked = likedBy?.includes(user.uid);
+    try {
+      if(hasLiked){
+        await updateDoc(doc(db,'yaks/'+yakId+'/comments', commentId), { likes: increment(-1), likedBy: arrayRemove(user.uid) });
+      } else {
+        await updateDoc(doc(db,'yaks/'+yakId+'/comments', commentId), { likes: increment(1), likedBy: arrayUnion(user.uid) });
+      }
+    } catch(e:any){ showToast(e.message); }
+  };
+  const handleCommentShare = async (c:any) => {
+    const text = `${c.text}\n\n— Comment via DABEAN\n${APP_URL}`;
+    try { await navigator.clipboard.writeText(text); showToast("Comment copied 📋"); } catch {}
+  };
 
-  const getCollegeConfig=()=>COLLEGES.find(c=>c.id==="SRET");
+    const getCollegeConfig=()=>COLLEGES.find(c=>c.id==="SRET");
   const handleCollegeNext=()=>{ localStorage.setItem('selected_college',"SRET"); localStorage.setItem('selected_avatar',selectedAvatar); setScreen('verify'); };
   const handleEmailVerify=async()=>{ setVerifyError(''); const config=getCollegeConfig(); if(!config) return; const emailLower=collegeEmail.toLowerCase().trim(); if(!config.domains.some(d=>emailLower.endsWith(d))){ setVerifyError(`Only ${config.domains.join(' or ')} allowed`); return; } const dup=await getDocs(query(collection(db,'users'),where('collegeEmail','==',emailLower))); if(!dup.empty){ setVerifyError('Email already used'); return; } const otpCode=Math.floor(100000+Math.random()*900000).toString(); setGeneratedOtp(otpCode); await setDoc(doc(db,'email_otps',emailLower),{email:emailLower,otp:otpCode,createdAt:serverTimestamp()}); setOtpSent(true); showToast("OTP: "+otpCode); };
   const handleOtpSubmit=async()=>{ const snap=await getDocs(query(collection(db,'email_otps'),where('email','==',collegeEmail.toLowerCase().trim()))); if(snap.empty) return; const d=snap.docs[0].data() as any; if(d.otp!==otp.trim()){ setVerifyError('Wrong OTP: '+d.otp); return; } await deleteDoc(doc(db,'email_otps',collegeEmail.toLowerCase().trim())); localStorage.setItem('college_email',collegeEmail.toLowerCase().trim()); setIsVerified(true); setScreen('login'); };
@@ -226,7 +240,7 @@ export default function YakFixed(){
     return (<div className="min-h-screen bg-[#0a0a0b] text-white flex flex-col items-center justify-center p-6"><div className="max-w-md w-full bg-white/[0.05] border-2 border-white/10 p-8 rounded-[24px] flex flex-col items-center"><div className="w-24 h-24 bg-white/5 border-2 border-white/10 rounded-[24px] flex items-center justify-center text-4xl">{selectedAvatar}</div><h1 className="font-black mt-6 text-center text-xl">Anonymous Ready</h1><button onClick={handleGoogleLogin} className="w-full mt-8 bg-white text-black py-4 rounded-full font-bold">Continue</button></div><Footer/></div>);
   }
 
-const handleVote=async(y:any,type:'up'|'down')=>{
+  const handleVote=async(y:any,type:'up'|'down')=>{
     if(!userData) return; const yakRef=doc(db,'yaks',y.id); const userRef=doc(db,'users',userData.id); const liked=userData.likedPosts?.includes(y.id); const disliked=userData.dislikedPosts?.includes(y.id);
     try{
       if(type==='up'){
@@ -267,14 +281,37 @@ const handleVote=async(y:any,type:'up'|'down')=>{
     try{ await deleteDoc(doc(db,'yaks',y.id)); await updateDoc(doc(db,'users',userData.id),{totalPosts:increment(-1)}).catch(()=>{}); showToast(isAdminUser && !isOwner ? "🛡️ Admin deleted vulgar post ✅" : "Deleted"); }catch(e:any){ showToast(e.message); } setShowMenu(null); 
   };
   const handleEdit=async()=>{ if(!editingPost) return; if(!editText.trim()) return; if(containsVulgar(editText)){ showToast("Vulgar not allowed"); return; } try{ await updateDoc(doc(db,'yaks',editingPost.id),{text:editText.trim(), edited:true}); }catch(e:any){ showToast(e.message); } setEditingPost(null); setEditText(''); setShowMenu(null); };
-  const handleReport=async(y:any, reasonArg?:string)=>{ const finalReason=reasonArg||reportReason; if(!userData) return; if(userData.reportedPosts?.includes(y.id)){ showToast("Already reported"); setReportingPost(null); setShowMenu(null); return; } if(!finalReason){ showToast("Select reason"); return; } try{ await addDoc(collection(db,'reports'),{yakId:y.id, yakText:y.text.slice(0,200), yakUid:y.uid, reportedBy:user.uid, reason:finalReason, status:"pending", createdAt:serverTimestamp()}); await updateDoc(doc(db,'yaks',y.id),{reports:increment(1)}); await updateDoc(doc(db,'users',userData.id),{reportedPosts:arrayUnion(y.id)}); setUserData({...userData, reportedPosts:[...(userData.reportedPosts||[]), y.id]}); showToast("Reported"); setReportingPost(null); setReportReason(''); setShowMenu(null); }catch(e:any){ showToast(e.message); } };
+  
+  // === REPORT WITH AUTO DELETE LOGIC ===
+  const handleReport=async(y:any, reasonArg?:string)=>{ 
+    const finalReason=reasonArg||reportReason; 
+    if(!userData) return; 
+    if(userData.reportedPosts?.includes(y.id)){ showToast("Already reported"); setReportingPost(null); setShowMenu(null); return; } 
+    if(!finalReason){ showToast("Select reason"); return; } 
+    try{ 
+      await addDoc(collection(db,'reports'),{yakId:y.id, yakText:y.text.slice(0,200), yakUid:y.uid, reportedBy:user.uid, reason:finalReason, status:"pending", createdAt:serverTimestamp()}); 
+      const newReportCount = (y.reports||0)+1;
+      // Auto delete if 3 reports reached
+      if(newReportCount >= REPORT_DELETE_THRESHOLD){
+        await updateDoc(doc(db,'yaks',y.id),{reports:increment(1), hidden:true});
+        showToast(`🚫 Auto deleted - ${REPORT_DELETE_THRESHOLD} reports`);
+      } else {
+        await updateDoc(doc(db,'yaks',y.id),{reports:increment(1)});
+        showToast(`Reported (${newReportCount}/${REPORT_DELETE_THRESHOLD})`);
+      }
+      await updateDoc(doc(db,'users',userData.id),{reportedPosts:arrayUnion(y.id)}); 
+      setUserData({...userData, reportedPosts:[...(userData.reportedPosts||[]), y.id]}); 
+      setReportingPost(null); setReportReason(''); setShowMenu(null); 
+    }catch(e:any){ showToast(e.message); } 
+  };
+  
   const handleAdminRestore=async(r:any)=>{ try{ await updateDoc(doc(db,'yaks',r.yakId),{hidden:false, reports:0}); await updateDoc(doc(db,'reports',r.id),{status:"dismissed"}); }catch(e:any){ showToast(e.message); } };
   const handleAdminDelete=async(r:any)=>{ if(!confirm('Delete?')) return; try{ await deleteDoc(doc(db,'yaks',r.yakId)); await updateDoc(doc(db,'reports',r.id),{status:"deleted"}); }catch(e:any){ showToast(e.message); } };
   const handleAdminDismiss=async(r:any)=>{ try{ await updateDoc(doc(db,'reports',r.id),{status:"dismissed"}); }catch(e:any){ showToast(e.message); } };
   const buildTree = (flat:any[]) => { const map:Record<string, any> = {}; const roots:any[] = []; flat.forEach(c => { map[c.id] = {...c, replies: []}; }); flat.forEach(c => { if(c.parentId && map[c.parentId]){ map[c.parentId].replies.push(map[c.id]); } else { roots.push(map[c.id]); } }); return roots; };
   const handleCommentPost = async (yId:string) => {
     if(!commentText.trim() ||!user) return; if(containsVulgar(commentText)){ showToast("Vulgar not allowed"); return; }
-    const payload:any = { text:commentText.trim(), uid: user.uid, username:"Anonymous", parentId: replyTo? replyTo.id : null, replyToUsername: replyTo? replyTo.username : null, createdAt: serverTimestamp() };
+    const payload:any = { text:commentText.trim(), uid: user.uid, username:"Anonymous", parentId: replyTo? replyTo.id : null, replyToUsername: replyTo? replyTo.username : null, likes:0, likedBy:[], createdAt: serverTimestamp() };
     setCommentText(''); const temp = replyTo; setReplyTo(null);
     try{ await addDoc(collection(db,'yaks/'+yId+'/comments'), payload); await updateDoc(doc(db,'yaks', yId), {commentsCount: increment(1)}); }catch(e:any){ showToast(e.message); setCommentText(payload.text); setReplyTo(temp); }
   };
@@ -292,9 +329,12 @@ const handleVote=async(y:any,type:'up'|'down')=>{
   const markNotificationsRead=async()=>{ try{ for(const n of notifications.filter((n:any)=>!n.read)){ await updateDoc(doc(db,'notifications',n.id),{read:true}); } }catch{} };
   const handleCrushSubmit=async()=>{ const roll=crushRoll.trim().toUpperCase(); if(!roll) return; try{ await addDoc(collection(db,'crushes'),{fromUid:user.uid, toRoll:roll, matched:false, createdAt:serverTimestamp()}); setCrushRoll(''); showToast("Crush added"); }catch(e:any){ showToast(e.message); } };
   const handleCancelCrush=async(id:string)=>{ if(!confirm("Cancel?")) return; try{ await deleteDoc(doc(db,'crushes',id)); }catch(e:any){ showToast(e.message); } };
+  
+  // === UPDATED COMMENT RENDER WITH LIKE + SHARE ===
   const renderComment = (c:any, depth=0) => {
     const isReply = depth > 0;
     const isOwn = c.uid===user?.uid;
+    const hasLiked = c.likedBy?.includes(user?.uid);
     if(blockedUsers.includes(c.uid)) return null;
     return (
       <div key={c.id} className={`${isReply? 'ml-6 border-l border-white/10 pl-3' : ''} mt-3`}>
@@ -315,8 +355,10 @@ const handleVote=async(y:any,type:'up'|'down')=>{
               {isReply && c.replyToUsername && <p className="text-[10px] text-white/30 mt-1">Reply to {c.replyToUsername}</p>}
               <p className="text-[13px] mt-1 leading-[1.4] whitespace-pre-wrap break-words">{c.text}</p>
             </div>
-            <div className="flex gap-3 mt-1.5 ml-1">
+            <div className="flex gap-3 mt-1.5 ml-1 items-center">
+              <button onClick={()=>{ if(activePost) handleCommentLike(activePost, c.id, c.likes||0, c.likedBy||[]); }} className={`text-[11px] font-bold flex items-center gap-1 ${hasLiked?'text-white':'text-white/30'}`}>{hasLiked?'❤️':'🤍'} {c.likes||0}</button>
               <button onClick={()=>setReplyTo(c)} className="text-[11px] font-bold text-white/30">Reply</button>
+              <button onClick={()=>handleCommentShare(c)} className="text-[11px] font-bold text-white/30">↗ Share</button>
               {isOwn && <button onClick={()=>{ if(activePost) handleDeleteComment(activePost, c.id); }} className="text-[11px] font-bold text-red-400/60">Delete</button>}
               {!isOwn && <button onClick={()=>handleBlockUser(c.uid)} className="text-[11px] font-bold text-red-400/40">Block</button>}
             </div>
@@ -332,7 +374,7 @@ const handleVote=async(y:any,type:'up'|'down')=>{
   const displayMarketYaks = marketYaks.filter(y=>!blockedUsers.includes(y.uid));
   const displayPyqYaks = pyqYaks.filter(y=>!blockedUsers.includes(y.uid));
 
-return(
+  return(
     <div className="min-h-screen bg-[#0a0a0b] text-white flex flex-col">
       <style>{`body{background:#0a0a0b} ::-webkit-scrollbar{display:none}`}</style>
       {toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white text-black px-5 py-2 rounded-full text-xs font-bold z-[100]">{toast}</div>}
@@ -403,7 +445,7 @@ return(
                   return(
                     <div key={y.id} className="bg-white/[0.03] border border-white/10 rounded-[16px] p-4 relative">
                       <div className="flex justify-between items-start">
-                        <div className="flex gap-2"><div className="w-8 h-8 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-xs">A</div><div><p className="font-bold text-[12px]">Anonymous {isOwn?'- You':''} {isAdmin(user?.email) && <span className="text-[8px] bg-red-600 px-1 rounded ml-1">ADMIN VIEW</span>}</p><p className="text-[10px] text-white/30">{score} • {y.type}</p></div></div>
+                        <div className="flex gap-2"><div className="w-8 h-8 bg-white/5 border border-white/10 rounded-full flex items-center justify-center text-xs">A</div><div><p className="font-bold text-[12px]">Anonymous {isOwn?'- You':''} {isAdmin(user?.email) && <span className="text-[8px] bg-red-600 px-1 rounded ml-1">ADMIN VIEW</span>}</p><p className="text-[10px] text-white/30">{score} • {y.type} {y.reports>0 && <span className="text-red-400">• {y.reports} reports</span>}</p></div></div>
                         <div className="flex gap-2">
                           <button onClick={()=>setShowShareMenu(showShareMenu===y.id?null:y.id)} className="w-7 h-7 bg-white/10 rounded-full flex items-center justify-center text-[12px]">↗</button>
                           <button onClick={()=>handleStartDm(y.uid)} className="w-7 h-7 bg-white/5 rounded-full flex items-center justify-center text-[10px]">DM</button>
@@ -527,9 +569,9 @@ return(
 
       {showLogoutConfirm && (<div className="fixed inset-0 bg-black/70 z-[160] flex items-center justify-center p-4"><div className="bg-[#1a1a1a] border border-white/10 rounded-[16px] p-5 w-full max-w-sm text-center"><p className="font-bold">Logout?</p><div className="flex gap-2 mt-4"><button onClick={()=>setShowLogoutConfirm(false)} className="flex-1 py-2.5 rounded-full bg-white/10 text-xs">Cancel</button><button onClick={handleLogout} className="flex-1 py-2.5 rounded-full bg-red-600 text-white text-xs font-bold">Logout</button></div></div></div>)}
       {editingPost && <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-4"><div className="bg-[#141416] border border-white/10 w-full max-w-[600px] rounded-t-[24px] p-5 pb-8"><p className="font-bold">Edit Post</p><textarea value={editText} onChange={e=>setEditText(e.target.value)} className="w-full mt-4 bg-white/5 border border-white/10 rounded-xl p-3 text-sm min-h-[100px] resize-none"/><div className="flex gap-2 mt-4"><button onClick={()=>{ setEditingPost(null); setEditText(''); }} className="flex-1 h-10 bg-white/5 border border-white/10 rounded-full text-xs">Cancel</button><button onClick={handleEdit} className="flex-1 h-10 bg-white text-black rounded-full text-xs font-bold">Save</button></div></div></div>}
-      {reportingPost && (<div className="fixed inset-0 bg-black/70 z-[180] flex items-center justify-center p-4"><div className="bg-[#1a1a1a] border border-white/10 rounded-[16px] p-4 w-full max-w-sm"><p className="font-bold text-sm">Report or Block</p><p className="text-[11px] text-white/40 mt-1">Block = Hide all posts forever</p><div className="mt-3 space-y-2">{REPORT_REASONS.map(r=><button key={r} onClick={()=>setReportReason(r)} className={`w-full text-left px-3 py-2 rounded-xl text-xs border ${reportReason===r?'bg-white text-black':'bg-white/5 border-white/10 text-white/60'}`}>{r}</button>)}</div><div className="flex gap-2 mt-3"><button onClick={()=>{ setReportingPost(null); setReportReason(''); }} className="flex-1 py-2 rounded-full bg-white/10 text-xs">Cancel</button><button onClick={()=>handleReport(reportingPost, reportReason)} className="flex-1 py-2 rounded-full bg-red-600 text-white text-xs font-bold">Report</button></div><button onClick={()=>handleBlockUser(reportingPost.uid)} className="w-full mt-3 py-2.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold">🚫 Block Ghost Instead</button></div></div>)}
+      {reportingPost && (<div className="fixed inset-0 bg-black/70 z-[180] flex items-center justify-center p-4"><div className="bg-[#1a1a1a] border border-white/10 rounded-[16px] p-4 w-full max-w-sm"><p className="font-bold text-sm">Report or Block</p><p className="text-[11px] text-white/40 mt-1">Block = Hide all posts forever • Auto delete at {REPORT_DELETE_THRESHOLD} reports</p><div className="mt-3 space-y-2">{REPORT_REASONS.map(r=><button key={r} onClick={()=>setReportReason(r)} className={`w-full text-left px-3 py-2 rounded-xl text-xs border ${reportReason===r?'bg-white text-black':'bg-white/5 border-white/10 text-white/60'}`}>{r}</button>)}</div><div className="flex gap-2 mt-3"><button onClick={()=>{ setReportingPost(null); setReportReason(''); }} className="flex-1 py-2 rounded-full bg-white/10 text-xs">Cancel</button><button onClick={()=>handleReport(reportingPost, reportReason)} className="flex-1 py-2 rounded-full bg-red-600 text-white text-xs font-bold">Report ({REPORT_DELETE_THRESHOLD} = delete)</button></div><button onClick={()=>handleBlockUser(reportingPost.uid)} className="w-full mt-3 py-2.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold">🚫 Block Ghost Instead</button></div></div>)}
       {showNotifications && (<div className="fixed inset-0 bg-black/70 z-[170] flex items-end justify-center p-4"><div className="bg-[#141416] border border-white/10 w-full max-w-[600px] rounded-t-[24px] p-5 pb-8 max-h-[80vh] overflow-y-auto"><div className="flex justify-between items-center"><p className="font-bold">Notifications</p><button onClick={()=>setShowNotifications(false)} className="w-8 h-8 bg-white/5 rounded-full">X</button></div><div className="mt-4 space-y-2">{notifications.map((n:any)=><div key={n.id} className="p-3 rounded-xl border border-white/10 bg-white/[0.03]"><p className="text-xs font-bold">{n.type}</p><p className="text-[11px] text-white/60 mt-1">{n.text}</p></div>)}{notifications.length===0 && <p className="text-[11px] text-white/30 text-center py-8">No notifications</p>}</div></div></div>)}
-      {showAdmin && (<div className="fixed inset-0 bg-black/70 z-[175] flex items-end justify-center p-4"><div className="bg-[#141416] border border-white/10 w-full max-w-[600px] rounded-t-[24px] p-5 pb-8 max-h-[80vh] overflow-y-auto"><div className="flex justify-between items-center"><p className="font-bold">Admin {isAdmin(user?.email) && <span className="bg-red-600 text-[10px] px-2 py-0.5 rounded">ADMIN MODE</span>}</p><button onClick={()=>setShowAdmin(false)} className="w-8 h-8 bg-white/5 rounded-full">X</button></div><div className="mt-4 space-y-2">{adminReports.map((r:any)=><div key={r.id} className="bg-white/[0.03] border border-white/10 rounded-xl p-3"><p className="text-[11px] font-bold text-red-400">{r.reason}</p><p className="text-[11px] mt-1">{r.yakText}</p><div className="flex gap-2 mt-2"><button onClick={()=>handleAdminRestore(r)} className="px-3 h-7 rounded-full bg-green-600 text-white text-[10px]">Restore</button><button onClick={()=>handleAdminDelete(r)} className="px-3 h-7 rounded-full bg-red-600 text-white text-[10px]">Delete</button><button onClick={()=>handleAdminDismiss(r)} className="px-3 h-7 rounded-full bg-white/10 text-white text-[10px]">Dismiss</button></div></div>)}{adminReports.length===0 && <p className="text-[11px] text-white/30 text-center py-8">No reports</p>}</div></div></div>)}
+      {showAdmin && (<div className="fixed inset-0 bg-black/70 z-[175] flex items-end justify-center p-4"><div className="bg-[#141416] border border-white/10 w-full max-w-[600px] rounded-t-[24px] p-5 pb-8 max-h-[80vh] overflow-y-auto"><div className="flex justify-between items-center"><p className="font-bold">Admin {isAdmin(user?.email) && <span className="bg-red-600 text-[10px] px-2 py-0.5 rounded">ADMIN MODE</span>} • Auto delete {REPORT_DELETE_THRESHOLD}</p><button onClick={()=>setShowAdmin(false)} className="w-8 h-8 bg-white/5 rounded-full">X</button></div><div className="mt-4 space-y-2">{adminReports.map((r:any)=><div key={r.id} className="bg-white/[0.03] border border-white/10 rounded-xl p-3"><p className="text-[11px] font-bold text-red-400">{r.reason}</p><p className="text-[11px] mt-1">{r.yakText}</p><div className="flex gap-2 mt-2"><button onClick={()=>handleAdminRestore(r)} className="px-3 h-7 rounded-full bg-green-600 text-white text-[10px]">Restore</button><button onClick={()=>handleAdminDelete(r)} className="px-3 h-7 rounded-full bg-red-600 text-white text-[10px]">Delete</button><button onClick={()=>handleAdminDismiss(r)} className="px-3 h-7 rounded-full bg-white/10 text-white text-[10px]">Dismiss</button></div></div>)}{adminReports.length===0 && <p className="text-[11px] text-white/30 text-center py-8">No reports</p>}</div></div></div>)}
       {showCollegeAlertAdmin && (<div className="fixed inset-0 bg-black/70 z-[200] flex items-center justify-center p-4"><div className="bg-[#1a1a1a] border border-white/10 rounded-[16px] p-4 w-full max-w-sm"><p className="font-bold text-sm">New Alert</p><select value={newAlertType} onChange={e=>setNewAlertType(e.target.value)} className="w-full mt-3 p-2.5 bg-black border border-white/10 rounded-xl text-sm"><option>ExamAlert</option><option>Holiday</option><option>FeeDue</option><option>Placement</option><option>Event</option><option>Official</option></select><input value={newAlertTitle} onChange={e=>setNewAlertTitle(e.target.value)} placeholder="Title" className="w-full mt-3 p-2.5 bg-black border border-white/10 rounded-xl text-sm"/><textarea value={newAlertDesc} onChange={e=>setNewAlertDesc(e.target.value)} placeholder="Description" className="w-full mt-3 p-2.5 bg-black border border-white/10 rounded-xl text-sm h-20"/><div className="flex gap-2 mt-3"><button onClick={()=>setShowCollegeAlertAdmin(false)} className="flex-1 py-2.5 rounded-full bg-white/10 text-xs">Cancel</button><button onClick={postCollegeAlert} className="flex-1 py-2.5 rounded-full bg-white text-black text-xs font-bold">Post</button></div></div></div>)}
       {editingAlert && (<div className="fixed inset-0 bg-black/70 z-[210] flex items-center justify-center p-4"><div className="bg-[#1a1a1a] border border-white/10 rounded-[16px] p-4 w-full max-w-sm"><p className="font-bold text-sm">Edit Alert</p><select value={editAlertType} onChange={e=>setEditAlertType(e.target.value)} className="w-full mt-3 p-2.5 bg-black border border-white/10 rounded-xl text-sm"><option>ExamAlert</option><option>Holiday</option><option>FeeDue</option><option>Placement</option><option>Event</option><option>Official</option></select><input value={editAlertTitle} onChange={e=>setEditAlertTitle(e.target.value)} placeholder="Title" className="w-full mt-3 p-2.5 bg-black border border-white/10 rounded-xl text-sm"/><textarea value={editAlertDesc} onChange={e=>setEditAlertDesc(e.target.value)} placeholder="Description" className="w-full mt-3 p-2.5 bg-black border border-white/10 rounded-xl text-sm h-20"/><div className="flex gap-2 mt-3"><button onClick={()=>setEditingAlert(null)} className="flex-1 py-2.5 rounded-full bg-white/10 text-xs">Cancel</button><button onClick={handleUpdateAlert} className="flex-1 py-2.5 rounded-full bg-white text-black text-xs font-bold">Update</button></div></div></div>)}
       {showDmDeleteConfirm && (<div className="fixed inset-0 bg-black/70 z-[220] flex items-center justify-center p-4"><div className="bg-[#1a1a1a] border border-white/10 rounded-[16px] p-5 w-full max-w-sm text-center"><p className="font-bold">Delete DM?</p><p className="text-[11px] text-white/50 mt-1">All messages will be deleted</p><div className="flex gap-2 mt-4"><button onClick={()=>setShowDmDeleteConfirm(null)} className="flex-1 py-2.5 rounded-full bg-white/10 text-xs">Cancel</button><button onClick={()=>handleDeleteDmChat(showDmDeleteConfirm.id)} className="flex-1 py-2.5 rounded-full bg-red-600 text-white text-xs font-bold">Delete</button></div></div></div>)}

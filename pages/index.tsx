@@ -28,7 +28,8 @@ const ADMIN_EMAILS = ["tonyhayes026@gmail.com", "harijanaamesh026@gmail.com"];
 const isAdmin = (email: any) => email && ADMIN_EMAILS.includes(String(email).toLowerCase());
 
 // === POST SHARING ADDED ===
-const APP_URL = "https://nexora.vercel.app";
+// NEW (Correct - Nee live link):
+const APP_URL = "https://nexora-gamma-gilt.vercel.app";
 
 const Footer = () => (<div className="w-full py-8 flex flex-col items-center gap-1 border-t border-white/[0.06] mt-8"><p className="text-[10px] tracking-[0.3em] font-bold text-white/40">© 2026 Dabean. A production by ANESH</p></div>);
 

@@ -34,7 +34,6 @@ export default function YakFixed(){
   const [user,setUser]=useState<any>(null);
   const [userData,setUserData]=useState<any>(null);
   const [screen,setScreen]=useState('college');
-  // NEW NAV - Only 5 tabs top
   const [feedTab,setFeedTab]=useState<'new'|'hot'|'top'|'meme'|'poll'>('new');
   const [yaks,setYaks]=useState<any[]>([]);
   const [hotYaks,setHotYaks]=useState<any[]>([]);
@@ -140,13 +139,7 @@ export default function YakFixed(){
   useEffect(()=>{ if(!activeDm) return; return onSnapshot(query(collection(db,'dms/'+activeDm.id+'/messages'),orderBy('createdAt','asc')), s=>setDmMessages(s.docs.map(d=>({id:d.id,...d.data()})))); },[activeDm]);
   useEffect(()=>{ if(!user?.uid) return; return onSnapshot(query(collection(db,'crushes'),where('fromUid','==',user.uid)), s=>setCrushMatches(s.docs.map(d=>({id:d.id,...d.data()})))); },[user]);
   useEffect(()=>{ if(!userData) return; return onSnapshot(query(collection(db,'reports'),where('status','==','pending'),orderBy('createdAt','desc')), s=>setAdminReports(s.docs.map(d=>({id:d.id,...d.data()})))); },[userData]);
-  useEffect(()=>{
-    if(!userData?.college) return;
-    return onSnapshot(collection(db,'college_alerts'), s=>{
-      const all = s.docs.map(d=>({id:d.id,...d.data()} as any)).filter((a:any)=> a.college==="SRET").filter((a:any)=>!containsVulgar(a.title||'') &&!containsVulgar(a.desc||'')).sort((a:any,b:any)=> (b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
-      setCollegeAlertsList(all);
-    });
-  },[userData]);
+  useEffect(()=>{ if(!userData?.college) return; return onSnapshot(collection(db,'college_alerts'), s=>{ const all = s.docs.map(d=>({id:d.id,...d.data()} as any)).filter((a:any)=> a.college==="SRET").filter((a:any)=>!containsVulgar(a.title||'') &&!containsVulgar(a.desc||'')).sort((a:any,b:any)=> (b.createdAt?.seconds||0)-(a.createdAt?.seconds||0)); setCollegeAlertsList(all); }); },[userData]);
   useEffect(()=>{
     if(!user?.uid ||!userData) return;
     const setupPush = async()=>{
@@ -156,11 +149,7 @@ export default function YakFixed(){
         if(perm==='granted'){
           const messaging = getMessaging(app);
           const token = await getToken(messaging, {vapidKey: 'BEl62iUYgUivxIkv69yViEuiBIa-Iev-5oWq-fpYh-3sX9oXq-3sX9o'});
-          if(token){
-            setPushEnabled(true);
-            await updateDoc(doc(db,'users',userData.id),{fcmToken:token, pushEnabled:true}).catch(()=>{});
-            await setDoc(doc(db,'fcm_tokens',user.uid),{uid:user.uid,token,college:"SRET",createdAt:serverTimestamp()}).catch(()=>{});
-          }
+          if(token){ setPushEnabled(true); await updateDoc(doc(db,'users',userData.id),{fcmToken:token, pushEnabled:true}).catch(()=>{}); await setDoc(doc(db,'fcm_tokens',user.uid),{uid:user.uid,token,college:"SRET",createdAt:serverTimestamp()}).catch(()=>{}); }
         }
         const messaging = getMessaging(app);
         onMessage(messaging, (payload)=>{ showToast(`${payload.notification?.title}`); });
@@ -172,44 +161,23 @@ export default function YakFixed(){
   const handleShare = async (y:any) => {
     const shareText = `${y.text}\n\n— via DABEAN SRET • Anonymous\n${APP_URL}?post=${y.id}`;
     try {
-      if(navigator.share){
-        await navigator.share({ title: "DABEAN - SRET", text: y.text, url: `${APP_URL}?post=${y.id}` });
-        showToast("Shared ✅");
-      } else {
-        await navigator.clipboard.writeText(shareText);
-        showToast("Link copied! 📋");
-      }
-    } catch {
-      try { await navigator.clipboard.writeText(shareText); showToast("Copied 📋"); } catch {}
-    }
+      if(navigator.share){ await navigator.share({ title: "DABEAN - SRET", text: y.text, url: `${APP_URL}?post=${y.id}` }); showToast("Shared ✅"); }
+      else { await navigator.clipboard.writeText(shareText); showToast("Link copied! 📋"); }
+    } catch { try { await navigator.clipboard.writeText(shareText); showToast("Copied 📋"); } catch {} }
     setShowShareMenu(null);
   };
-  const handleWhatsAppShare = (y:any) => {
-    const text = encodeURIComponent(`${y.text}\n\n— via DABEAN\n${APP_URL}?post=${y.id}`);
-    window.open(`https://wa.me/?text=${text}`, '_blank');
-    setShowShareMenu(null);
-  };
-  const handleCopyLink = async (y:any) => {
-    await navigator.clipboard.writeText(`${APP_URL}?post=${y.id}`);
-    showToast("Link copied 📋");
-    setShowShareMenu(null);
-  };
+  const handleWhatsAppShare = (y:any) => { const text = encodeURIComponent(`${y.text}\n\n— via DABEAN\n${APP_URL}?post=${y.id}`); window.open(`https://wa.me/?text=${text}`, '_blank'); setShowShareMenu(null); };
+  const handleCopyLink = async (y:any) => { await navigator.clipboard.writeText(`${APP_URL}?post=${y.id}`); showToast("Link copied 📋"); setShowShareMenu(null); };
   const handleCommentLike = async (yakId:string, commentId:string) => {
     if(!user?.uid) return;
     try {
       const c = comments.find((cc:any)=>cc.id===commentId);
       const hasLiked = c?.likedBy?.includes(user.uid);
-      if(hasLiked){
-        await updateDoc(doc(db,'yaks/'+yakId+'/comments', commentId), { likes: increment(-1), likedBy: arrayRemove(user.uid) });
-      } else {
-        await updateDoc(doc(db,'yaks/'+yakId+'/comments', commentId), { likes: increment(1), likedBy: arrayUnion(user.uid) });
-      }
+      if(hasLiked){ await updateDoc(doc(db,'yaks/'+yakId+'/comments', commentId), { likes: increment(-1), likedBy: arrayRemove(user.uid) }); }
+      else { await updateDoc(doc(db,'yaks/'+yakId+'/comments', commentId), { likes: increment(1), likedBy: arrayUnion(user.uid) }); }
     } catch(e:any){ showToast(e.message); }
   };
-  const handleCommentShare = async (c:any) => {
-    const text = `${c.text}\n\n— Comment via DABEAN\n${APP_URL}`;
-    try { await navigator.clipboard.writeText(text); showToast("Comment copied 📋"); } catch {}
-  };
+  const handleCommentShare = async (c:any) => { const text = `${c.text}\n\n— Comment via DABEAN\n${APP_URL}`; try { await navigator.clipboard.writeText(text); showToast("Comment copied 📋"); } catch {} };
 
   const getCollegeConfig=()=>COLLEGES.find(c=>c.id==="SRET");
   const handleCollegeNext=()=>{ localStorage.setItem('selected_college',"SRET"); localStorage.setItem('selected_avatar',selectedAvatar); setScreen('verify'); };
@@ -228,7 +196,7 @@ export default function YakFixed(){
   const handleUnblockUser=async(uid:string)=>{ try{ await updateDoc(doc(db,'users',userData.id),{blockedUsers:arrayRemove(uid)}); setBlockedUsers(blockedUsers.filter(id=>id!==uid)); showToast("Ghost unblocked ✅"); }catch(e:any){ showToast(e.message); } };
 
   if(screen==='college'){
-    return(<div className="min-h-screen bg-[#0a0a0b] text-white"><style>{`body{background:#0a0a0b} ::-webkit-scrollbar{display:none}`}</style>{toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white text-black px-5 py-2 rounded-full text-xs font-bold z-[100]">{toast}</div>}<div className="max-w-md mx-auto p-6 min-h-screen"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-white text-black rounded-xl flex items-center justify-center font-black">S</div><div><p className="font-black text-sm">DABEAN</p><p className="text-[10px] text-white/40">{totalUsers} verified</p></div></div><h1 className="text-[36px] font-black mt-8 leading-[0.9]">Talk<br/>Beyond<br/><span className="text-white/30">Identity</span></h1><p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mt-8">SELECT AVATAR</p><div className="grid grid-cols-4 gap-2.5 mt-3">{AVATARS.map(a=><button key={a} onClick={()=>setSelectedAvatar(a)} className={`h-16 rounded-[18px] text-xl border-2 ${selectedAvatar===a?'bg-white text-black border-white':'bg-white/[0.05] border-white/10'}`}>{a}</button>)}</div><div className="mt-8 w-full p-4 rounded-[18px] border-2 bg-white text-black flex justify-between"><div><p className="font-bold text-[13px]">SRET - Tirupati</p><p className="text-[11px] text-black/60">{collegeCounts["SRET"]||0} verified</p></div><div className="w-7 h-7 rounded-full bg-black text-white flex items-center justify-center">✓</div></div><button onClick={handleCollegeNext} className="w-full mt-8 py-4 rounded-full font-black bg-white text-black">Enter SRET</button><Footer/></div></div>);
+    return(<div className="min-h-screen bg-[#0a0a0b] text-white"><style>{`body{background:#000} ::-webkit-scrollbar{display:none}`}</style>{toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white text-black px-5 py-2 rounded-full text-xs font-bold z-[100]">{toast}</div>}<div className="max-w-md mx-auto p-6 min-h-screen"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-white text-black rounded-xl flex items-center justify-center font-black">D</div><div><p className="font-black text-sm">DABEAN</p><p className="text-[10px] text-white/40">{totalUsers} verified</p></div></div><h1 className="text-[36px] font-black mt-8 leading-[0.9]">Talk<br/>Beyond<br/><span className="text-white/30">Identity</span></h1><p className="text-[10px] font-bold tracking-[0.2em] text-white/30 mt-8">SELECT AVATAR</p><div className="grid grid-cols-4 gap-2.5 mt-3">{AVATARS.map(a=><button key={a} onClick={()=>setSelectedAvatar(a)} className={`h-16 rounded-[18px] text-xl border-2 ${selectedAvatar===a?'bg-white text-black border-white':'bg-white/[0.05] border-white/10'}`}>{a}</button>)}</div><div className="mt-8 w-full p-4 rounded-[18px] border-2 bg-white text-black flex justify-between"><div><p className="font-bold text-[13px]">SRET - Tirupati</p><p className="text-[11px] text-black/60">{collegeCounts["SRET"]||0} verified</p></div><div className="w-7 h-7 rounded-full bg-black text-white flex items-center justify-center">✓</div></div><button onClick={handleCollegeNext} className="w-full mt-8 py-4 rounded-full font-black bg-white text-black">Enter SRET</button><Footer/></div></div>);
   }
   if(screen==='verify'){
     const config=getCollegeConfig();
@@ -271,34 +239,9 @@ const handleVote=async(y:any,type:'up'|'down')=>{
       setNewYak(''); setPollOptions(['','']); setMarketPrice(''); setPyqSubject(''); setYakType('yak'); setScreen('feed'); showToast("Posted");
     }catch(e:any){ showToast(e.message); }finally{ setPosting(false); }
   };
-  const handleDelete=async(y:any)=>{ 
-    const isOwner = user?.uid===y.uid;
-    const isAdminUser = isAdmin(user?.email);
-    if(!isOwner && !isAdminUser) return; 
-    if(!confirm(isAdminUser && !isOwner ? "🛡️ Admin Delete?" : "Delete?")) return; 
-    try{ await deleteDoc(doc(db,'yaks',y.id)); showToast(isAdminUser && !isOwner ? "🛡️ Admin deleted ✅" : "Deleted"); }catch(e:any){ showToast(e.message); } setShowMenu(null); 
-  };
+  const handleDelete=async(y:any)=>{ const isOwner = user?.uid===y.uid; const isAdminUser = isAdmin(user?.email); if(!isOwner && !isAdminUser) return; if(!confirm(isAdminUser && !isOwner ? "🛡️ Admin Delete?" : "Delete?")) return; try{ await deleteDoc(doc(db,'yaks',y.id)); showToast(isAdminUser && !isOwner ? "🛡️ Admin deleted ✅" : "Deleted"); }catch(e:any){ showToast(e.message); } setShowMenu(null); };
   const handleEdit=async()=>{ if(!editingPost) return; if(!editText.trim()) return; if(containsVulgar(editText)){ showToast("Vulgar not allowed"); return; } try{ await updateDoc(doc(db,'yaks',editingPost.id),{text:editText.trim(), edited:true}); }catch(e:any){ showToast(e.message); } setEditingPost(null); setEditText(''); setShowMenu(null); };
-  const handleReport=async(y:any, reasonArg?:string)=>{ 
-    const finalReason=reasonArg||reportReason; 
-    if(!userData) return; 
-    if(userData.reportedPosts?.includes(y.id)){ showToast("Already reported"); setReportingPost(null); setShowMenu(null); return; } 
-    if(!finalReason){ showToast("Select reason"); return; } 
-    try{ 
-      await addDoc(collection(db,'reports'),{yakId:y.id, yakText:y.text.slice(0,200), yakUid:y.uid, reportedBy:user.uid, reason:finalReason, status:"pending", createdAt:serverTimestamp()}); 
-      const newReportCount = (y.reports||0)+1;
-      if(newReportCount >= REPORT_DELETE_THRESHOLD){
-        await updateDoc(doc(db,'yaks',y.id),{reports:increment(1), hidden:true});
-        showToast(`🚫 Auto deleted - ${REPORT_DELETE_THRESHOLD} reports`);
-      } else {
-        await updateDoc(doc(db,'yaks',y.id),{reports:increment(1)});
-        showToast(`Reported (${newReportCount}/${REPORT_DELETE_THRESHOLD})`);
-      }
-      await updateDoc(doc(db,'users',userData.id),{reportedPosts:arrayUnion(y.id)}); 
-      setUserData({...userData, reportedPosts:[...(userData.reportedPosts||[]), y.id]}); 
-      setReportingPost(null); setReportReason(''); setShowMenu(null); 
-    }catch(e:any){ showToast(e.message); } 
-  };
+  const handleReport=async(y:any, reasonArg?:string)=>{ const finalReason=reasonArg||reportReason; if(!userData) return; if(userData.reportedPosts?.includes(y.id)){ showToast("Already reported"); setReportingPost(null); setShowMenu(null); return; } if(!finalReason){ showToast("Select reason"); return; } try{ await addDoc(collection(db,'reports'),{yakId:y.id, yakText:y.text.slice(0,200), yakUid:y.uid, reportedBy:user.uid, reason:finalReason, status:"pending", createdAt:serverTimestamp()}); const newReportCount = (y.reports||0)+1; if(newReportCount >= REPORT_DELETE_THRESHOLD){ await updateDoc(doc(db,'yaks',y.id),{reports:increment(1), hidden:true}); showToast(`🚫 Auto deleted - ${REPORT_DELETE_THRESHOLD} reports`); } else { await updateDoc(doc(db,'yaks',y.id),{reports:increment(1)}); showToast(`Reported (${newReportCount}/${REPORT_DELETE_THRESHOLD})`); } await updateDoc(doc(db,'users',userData.id),{reportedPosts:arrayUnion(y.id)}); setUserData({...userData, reportedPosts:[...(userData.reportedPosts||[]), y.id]}); setReportingPost(null); setReportReason(''); setShowMenu(null); }catch(e:any){ showToast(e.message); } };
   const handleAdminRestore=async(r:any)=>{ try{ await updateDoc(doc(db,'yaks',r.yakId),{hidden:false, reports:0}); await updateDoc(doc(db,'reports',r.id),{status:"dismissed"}); }catch(e:any){ showToast(e.message); } };
   const handleAdminDelete=async(r:any)=>{ if(!confirm('Delete?')) return; try{ await deleteDoc(doc(db,'yaks',r.yakId)); await updateDoc(doc(db,'reports',r.id),{status:"deleted"}); }catch(e:any){ showToast(e.message); } };
   const handleAdminDismiss=async(r:any)=>{ try{ await updateDoc(doc(db,'reports',r.id),{status:"dismissed"}); }catch(e:any){ showToast(e.message); } };
@@ -309,17 +252,8 @@ const handleVote=async(y:any,type:'up'|'down')=>{
     setCommentText(''); const temp = replyTo; setReplyTo(null);
     try{ await addDoc(collection(db,'yaks/'+yId+'/comments'), payload); await updateDoc(doc(db,'yaks', yId), {commentsCount: increment(1)}); }catch(e:any){ showToast(e.message); setCommentText(payload.text); setReplyTo(temp); }
   };
-  const handleStartDm = async (otherUid:string)=>{
-    if(otherUid===user?.uid){ showToast("Can't DM yourself"); return; }
-    if(blockedUsers.includes(otherUid)){ showToast("Blocked"); return; }
-    const existing=dmChats.find(c=> c.participants.includes(otherUid) && c.participants.length===2);
-    if(existing){ setActiveDm(existing); setScreen('feed'); return; }
-    try{ const newChat=await addDoc(collection(db,'dms'),{ participants:[user.uid, otherUid], lastMessage:"Started chat", lastMessageAt:serverTimestamp(), createdAt:serverTimestamp(), isPrivate:true }); setActiveDm({id:newChat.id, participants:[user.uid, otherUid]}); setScreen('feed'); }catch(e:any){ showToast(e.message); }
-  };
-  const handleSendDm=async()=>{
-    if(!dmText.trim()||!activeDm||!user) return; if(containsVulgar(dmText)){ showToast("Vulgar not allowed"); return; } setDmText('');
-    try{ await addDoc(collection(db,'dms/'+activeDm.id+'/messages'),{ text:dmText.trim(), uid:user.uid, username:"Anonymous", createdAt:serverTimestamp() }); await updateDoc(doc(db,'dms',activeDm.id),{lastMessage:dmText.trim(), lastMessageAt:serverTimestamp()}); }catch(e:any){ showToast(e.message); }
-  };
+  const handleStartDm = async (otherUid:string)=>{ if(otherUid===user?.uid){ showToast("Can't DM yourself"); return; } if(blockedUsers.includes(otherUid)){ showToast("Blocked"); return; } const existing=dmChats.find(c=> c.participants.includes(otherUid) && c.participants.length===2); if(existing){ setActiveDm(existing); setScreen('dm'); return; } try{ const newChat=await addDoc(collection(db,'dms'),{ participants:[user.uid, otherUid], lastMessage:"Started chat", lastMessageAt:serverTimestamp(), createdAt:serverTimestamp(), isPrivate:true }); setActiveDm({id:newChat.id, participants:[user.uid, otherUid]}); setScreen('dm'); }catch(e:any){ showToast(e.message); } };
+  const handleSendDm=async()=>{ if(!dmText.trim()||!activeDm||!user) return; if(containsVulgar(dmText)){ showToast("Vulgar not allowed"); return; } setDmText(''); try{ await addDoc(collection(db,'dms/'+activeDm.id+'/messages'),{ text:dmText.trim(), uid:user.uid, username:"Anonymous", createdAt:serverTimestamp() }); await updateDoc(doc(db,'dms',activeDm.id),{lastMessage:dmText.trim(), lastMessageAt:serverTimestamp()}); }catch(e:any){ showToast(e.message); } };
   const markNotificationsRead=async()=>{ try{ for(const n of notifications.filter((n:any)=>!n.read)){ await updateDoc(doc(db,'notifications',n.id),{read:true}); } }catch{} };
   const handleCrushSubmit=async()=>{ const roll=crushRoll.trim().toUpperCase(); if(!roll) return; try{ await addDoc(collection(db,'crushes'),{fromUid:user.uid, toRoll:roll, matched:false, createdAt:serverTimestamp()}); setCrushRoll(''); showToast("Crush added"); }catch(e:any){ showToast(e.message); } };
   const handleCancelCrush=async(id:string)=>{ if(!confirm("Cancel?")) return; try{ await deleteDoc(doc(db,'crushes',id)); }catch(e:any){ showToast(e.message); } };
@@ -333,7 +267,7 @@ const handleVote=async(y:any,type:'up'|'down')=>{
         <div className="flex gap-2.5">
           <div className={`bg-white/5 border border-white/10 rounded-full flex items-center justify-center shrink-0 ${isReply? 'w-6 h-6 text-[10px]' : 'w-7 h-7 text-xs'}`}>A</div>
           <div className="flex-1">
-            <div className="bg-[#1a1a1a] border border-white/[0.08] rounded-[14px] px-4 py-2.5 relative">
+            <div className="bg-[#111111] border border-white/[0.06] rounded-[14px] px-4 py-2.5 relative">
               <div className="flex justify-between items-center">
                 <p className="text-[10px] font-bold text-white/40">Anonymous {isOwn?'- You':''}</p>
                 <button onClick={()=>setShowCommentMenu(showCommentMenu===c.id?null:c.id)} className="w-6 h-6 bg-white/5 rounded-full flex items-center justify-center text-white/30 text-[10px]">...</button>
@@ -364,49 +298,22 @@ const handleVote=async(y:any,type:'up'|'down')=>{
   const displayPollYaks = pollYaks.filter(y=>!blockedUsers.includes(y.uid));
 
 return(
-    <div className="min-h-screen bg-[#0a0a0b] text-white flex flex-col">
-      <style>{`body{background:#000000} ::-webkit-scrollbar{display:none} *{ -ms-overflow-style:none; scrollbar-width:none }`}</style>
-      {toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white text-black px-5 py-2 rounded-full text-xs font-bold z-[100] shadow-2xl">{toast}</div>}
-      
-      {/* === PREMIUM TOP HEADER === */}
+    <div className="min-h-screen bg-[#000000] text-white flex flex-col">
+      <style>{`body{background:#000} ::-webkit-scrollbar{display:none}`}</style>
+      {toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white text-black px-5 py-2 rounded-full text-xs font-bold z-[100]">{toast}</div>}
       <div className="sticky top-0 z-20 bg-[#000000]/95 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="max-w-[600px] mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-white text-black rounded-[10px] flex items-center justify-center font-black text-[13px]">D</div>
-            <p className="font-bold text-[14px] tracking-tight">DABEAN <span className="text-white/30 font-normal text-[11px] ml-1">SRET</span> {isAdmin(user?.email) && <span className="bg-red-600 px-2 py-0.5 rounded-full text-[9px] ml-2">ADMIN</span>}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* ALERTS MOVED TO BELL */}
-            <button onClick={()=>setShowNotifications(true)} className="w-9 h-9 bg-white/[0.06] border border-white/[0.08] rounded-full flex items-center justify-center relative hover:bg-white/[0.1] transition">
-              <span className="text-[14px]">🔔</span>
-              {(collegeAlertsList.length>0 || unreadCount>0) && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 rounded-full text-[9px] flex items-center justify-center font-bold border-2 border-black">{collegeAlertsList.length + unreadCount}</span>}
-            </button>
+          <div className="flex items-center gap-2.5"><div className="w-8 h-8 bg-white text-black rounded-[10px] flex items-center justify-center font-black text-[13px]">D</div><p className="font-bold text-[14px]">DABEAN <span className="text-white/30 text-[11px] ml-1">SRET</span> {isAdmin(user?.email) && <span className="bg-red-600 px-2 py-0.5 rounded-full text-[9px] ml-2">ADMIN</span>}</p></div>
+          <div className="flex gap-2">
+            <button onClick={()=>{ setShowNotifications(true); markNotificationsRead(); }} className="w-9 h-9 bg-white/[0.06] border border-white/[0.08] rounded-full flex items-center justify-center relative">🔔{(collegeAlertsList.length>0 || unreadCount>0) && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 rounded-full text-[9px] flex items-center justify-center font-bold border-2 border-black">{collegeAlertsList.length + unreadCount}</span>}</button>
             <button onClick={()=>setShowProfile(true)} className="w-9 h-9 bg-white/[0.06] border border-white/[0.08] rounded-full flex items-center justify-center">👤</button>
           </div>
         </div>
-        
-        {/* SEARCH */}
+        <div className="max-w-[600px] mx-auto px-4 pb-3"><input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Search posts, #tags" className="w-full h-9 bg-white/[0.04] border border-white/[0.06] rounded-full px-4 text-[12px] outline-none placeholder:text-white/25" /></div>
         <div className="max-w-[600px] mx-auto px-4 pb-3">
-          <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Search posts, #tags" className="w-full h-9 bg-white/[0.04] border border-white/[0.06] rounded-full px-4 text-[12px] outline-none placeholder:text-white/25 focus:bg-white/[0.06] focus:border-white/[0.10] transition" />
-        </div>
-
-        {/* === NEW 5 TABS ONLY - PREMIUM PILL DESIGN === */}
-        <div className="max-w-[600px] mx-auto px-4 pb-3">
-          <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-            {[
-              {id:'new', label:'NEW'},
-              {id:'hot', label:'HOT'},
-              {id:'top', label:'TOP'},
-              {id:'meme', label:'MEME'},
-              {id:'poll', label:'POLL'},
-            ].map(tab=>(
-              <button 
-                key={tab.id}
-                onClick={()=>{ setScreen('feed'); setFeedTab(tab.id as any); }}
-                className={`h-8 px-4 rounded-full text-[11px] font-bold tracking-wide border transition-all whitespace-nowrap ${feedTab===tab.id && screen==='feed' ? 'bg-white text-black border-white shadow-lg' : 'bg-white/[0.04] border-white/[0.08] text-white/40 hover:bg-white/[0.08] hover:text-white/60'}`}
-              >
-                {tab.label}
-              </button>
+          <div className="flex gap-2 overflow-x-auto">
+            {[{id:'new',label:'NEW'},{id:'hot',label:'HOT'},{id:'top',label:'TOP'},{id:'meme',label:'MEME'},{id:'poll',label:'POLL'}].map(tab=>(
+              <button key={tab.id} onClick={()=>{ setScreen('feed'); setFeedTab(tab.id as any); }} className={`h-8 px-4 rounded-full text-[11px] font-bold border whitespace-nowrap ${feedTab===tab.id && screen==='feed' ? 'bg-white text-black border-white' : 'bg-white/[0.04] border-white/[0.08] text-white/40'}`}>{tab.label}</button>
             ))}
           </div>
         </div>
@@ -415,118 +322,103 @@ return(
       <div className="max-w-[600px] mx-auto w-full flex-1 p-3 pb-[84px] space-y-3">
         {screen==='feed' && (
           <>
-            {feedTab==='new' && hashtags.length>0 && (
-              <div className="bg-white/[0.02] border border-white/[0.06] rounded-[14px] p-3"><p className="text-[10px] font-bold text-white/25 tracking-widest">TRENDING</p><div className="flex gap-2 mt-2 flex-wrap">{hashtags.slice(0,6).map((h:any)=><button key={h.tag} onClick={()=>setSearchQuery(h.tag)} className="px-3 py-1.5 bg-white/[0.04] border border-white/[0.06] rounded-full text-[11px] text-white/60 hover:bg-white/[0.08]">{h.tag}</button>)}</div></div>
-            )}
+            {feedTab==='new' && hashtags.length>0 && (<div className="bg-white/[0.02] border border-white/[0.06] rounded-[14px] p-3"><p className="text-[10px] font-bold text-white/25 tracking-widest">TRENDING</p><div className="flex gap-2 mt-2 flex-wrap">{hashtags.slice(0,6).map((h:any)=><button key={h.tag} onClick={()=>setSearchQuery(h.tag)} className="px-3 py-1.5 bg-white/[0.04] border border-white/[0.06] rounded-full text-[11px] text-white/60">{h.tag}</button>)}</div></div>)}
             {feedTab==='top' && (<div className="space-y-2">{leaderboard.map((u:any,i:number)=><div key={u.id} className="bg-[#111111] border border-white/[0.06] rounded-[14px] p-3 flex justify-between items-center"><div className="flex gap-3 items-center"><span className="w-7 h-7 bg-white/[0.06] rounded-full flex items-center justify-center text-[11px] font-bold">{i+1}</span><p className="text-[13px] font-bold">Anonymous {i+1}</p></div><p className="text-[13px] font-bold">{u.yakarma}</p></div>)}<Footer/></div>)}
-
-                        {/* FEED POSTS */}
             {feedTab!=='top' && (
               <>
                 {(feedTab==='new'? filteredYaks : feedTab==='meme'? displayMemeYaks : feedTab==='poll'? displayPollYaks : displayHotYaks).map(y=>{
                   const liked=userData.likedPosts?.includes(y.id); const disliked=userData.dislikedPosts?.includes(y.id); const score=(y.likes||0)-(y.dislikes||0); const isOwn=user?.uid===y.uid; const isPoll=y.type==='poll'; const hasVoted=userData.pollVoted?.includes(y.id); const nestedTree = activePost===y.id? buildTree(comments) : [];
                   return(
-                    <div key={y.id} className="bg-[#111111] border border-white/[0.06] rounded-[16px] p-4 relative hover:border-white/[0.10] transition">
+                    <div key={y.id} className="bg-[#111111] border border-white/[0.06] rounded-[16px] p-4 relative">
                       <div className="flex justify-between items-start">
-                        <div className="flex gap-2.5"><div className="w-8 h-8 bg-white/[0.06] border border-white/[0.08] rounded-full flex items-center justify-center text-[12px]">A</div><div><p className="font-bold text-[12px]">Anonymous {isOwn?'- You':''}</p><p className="text-[10px] text-white/30 mt-0.5">{score} points • {y.type}</p></div></div>
+                        <div className="flex gap-2.5"><div className="w-8 h-8 bg-white/[0.06] border border-white/[0.08] rounded-full flex items-center justify-center text-[12px]">A</div><div><p className="font-bold text-[12px]">Anonymous {isOwn?'- You':''}</p><p className="text-[10px] text-white/30 mt-0.5">{score} • {y.type} {y.reports>0 && <span className="text-red-400">• {y.reports} reports</span>}</p></div></div>
                         <div className="flex gap-1.5">
-                          <button onClick={()=>setShowShareMenu(showShareMenu===y.id?null:y.id)} className="w-7 h-7 bg-white/[0.05] border border-white/[0.06] rounded-full flex items-center justify-center text-[11px] hover:bg-white/[0.08]">↗</button>
-                          <button onClick={()=>handleStartDm(y.uid)} className="w-7 h-7 bg-white/[0.05] border border-white/[0.06] rounded-full flex items-center justify-center text-[10px] hover:bg-white/[0.08]">DM</button>
-                          <button onClick={()=>setShowMenu(showMenu===y.id?null:y.id)} className="w-7 h-7 bg-white/[0.05] border border-white/[0.06] rounded-full text-white/30 text-[12px]">•••</button>
+                          <button onClick={()=>setShowShareMenu(showShareMenu===y.id?null:y.id)} className="w-7 h-7 bg-white/[0.05] border border-white/[0.06] rounded-full flex items-center justify-center text-[11px]">↗</button>
+                          <button onClick={()=>handleStartDm(y.uid)} className="w-7 h-7 bg-white/[0.05] border border-white/[0.06] rounded-full flex items-center justify-center text-[10px]">DM</button>
+                          <button onClick={()=>setShowMenu(showMenu===y.id?null:y.id)} className="w-7 h-7 bg-white/[0.05] border border-white/[0.06] rounded-full text-white/30">•••</button>
                         </div>
                       </div>
-                      {showShareMenu===y.id && (
-                        <div className="absolute top-12 right-4 bg-[#1a1a1a] border border-white/10 rounded-[12px] p-2 z-20 w-[180px] shadow-2xl">
-                          <button onClick={()=>handleShare(y)} className="w-full text-left px-3 py-2 rounded-full text-[11px] bg-white text-black font-bold">📤 Share Post</button>
-                          <button onClick={()=>handleWhatsAppShare(y)} className="w-full text-left px-3 py-2 rounded-full text-[11px] bg-white/[0.06] mt-1">💬 WhatsApp</button>
-                          <button onClick={()=>handleCopyLink(y)} className="w-full text-left px-3 py-2 rounded-full text-[11px] bg-white/[0.04] mt-1">🔗 Copy Link</button>
-                        </div>
-                      )}
-                      {showMenu===y.id && (
-                        <div className="mt-3 bg-black border border-white/[0.08] rounded-[12px] p-2">
-                          {(isOwn || isAdmin(user?.email)) ? (
-                            <>
-                              {isOwn && <button onClick={()=>{ setEditingPost(y); setEditText(y.text); setShowMenu(null); }} className="w-full text-left px-3 py-2.5 rounded-full text-[11px] bg-white/[0.05] hover:bg-white/[0.08]">Edit</button>}
-                              <button onClick={()=>handleDelete(y)} className="w-full text-left px-3 py-2.5 rounded-full text-[11px] bg-red-500/10 text-red-400 mt-1 font-bold">{isAdmin(user?.email) && !isOwn ? "🛡️ Admin Delete" : "🗑️ Delete"}</button>
-                            </>
-                          ) : (
-                            <>
-                              <button onClick={()=>{ setReportingPost(y); setShowMenu(null); }} className="w-full text-left px-3 py-2.5 rounded-full text-[11px] bg-white/[0.05]">Report</button>
-                              <button onClick={()=>handleBlockUser(y.uid)} className="w-full text-left px-3 py-2.5 rounded-full text-[11px] bg-red-500/10 text-red-400 mt-1">🚫 Block</button>
-                            </>
-                          )}
-                        </div>
-                      )}
+                      {showShareMenu===y.id && (<div className="absolute top-12 right-4 bg-[#1a1a1a] border border-white/10 rounded-[12px] p-2 z-20 w-[180px]"><button onClick={()=>handleShare(y)} className="w-full text-left px-3 py-2 rounded-full text-[11px] bg-white text-black font-bold">📤 Share Post</button><button onClick={()=>handleWhatsAppShare(y)} className="w-full text-left px-3 py-2 rounded-full text-[11px] bg-white/[0.06] mt-1">💬 WhatsApp</button><button onClick={()=>handleCopyLink(y)} className="w-full text-left px-3 py-2 rounded-full text-[11px] bg-white/[0.04] mt-1">🔗 Copy Link</button></div>)}
+                      {showMenu===y.id && (<div className="mt-3 bg-black border border-white/[0.08] rounded-[12px] p-2">{(isOwn || isAdmin(user?.email)) ? (<><button onClick={()=>{ setEditingPost(y); setEditText(y.text); setShowMenu(null); }} className="w-full text-left px-3 py-2.5 rounded-full text-[11px] bg-white/[0.05]">Edit</button><button onClick={()=>handleDelete(y)} className="w-full text-left px-3 py-2.5 rounded-full text-[11px] bg-red-500/10 text-red-400 mt-1 font-bold">{isAdmin(user?.email) && !isOwn ? "🛡️ Admin Delete" : "🗑️ Delete"}</button></>) : (<><button onClick={()=>{ setReportingPost(y); setShowMenu(null); }} className="w-full text-left px-3 py-2.5 rounded-full text-[11px] bg-white/[0.05]">Report</button><button onClick={()=>handleBlockUser(y.uid)} className="w-full text-left px-3 py-2.5 rounded-full text-[11px] bg-red-500/10 text-red-400 mt-1">🚫 Block</button></>)}<button onClick={()=>setShowMenu(null)} className="w-full mt-1 py-1 text-[10px] text-white/30">Cancel</button></div>)}
                       <p className="text-[14px] mt-3 leading-[1.5] whitespace-pre-wrap text-white/90">{y.text}</p>
-                      {isPoll && y.pollOptions && (
-                        <div className="mt-3 space-y-2">
-                          {[...y.pollOptions].sort((a:any,b:any)=> (b.votes||0)-(a.votes||0)).map((opt:any,idx:number)=>{
-                            const total=y.totalVotes||1; const percent=Math.round((opt.votes/total)*100)||0;
-                            return(
-                              <button key={idx} onClick={()=>handlePollVote(y,y.pollOptions.indexOf(opt))} disabled={!!hasVoted} className="w-full relative overflow-hidden rounded-full border border-white/[0.08] text-left p-3 bg-white/[0.02] hover:bg-white/[0.04]">
-                                <div className="absolute left-0 top-0 bottom-0 bg-white/[0.08]" style={{width:`${hasVoted? percent:0}%`}}></div>
-                                <div className="relative flex justify-between items-center"><span className="text-[12px]">{opt.text}</span><span className="text-[11px] font-bold">{hasVoted? `${percent}%` : `${opt.votes||0} votes`}</span></div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                      <div className="flex gap-2 mt-4">
-                        <div className="flex bg-white/[0.04] border border-white/[0.06] rounded-full p-1"><button onClick={()=>handleVote(y,'up')} className={`px-3 py-1 rounded-full text-[11px] font-bold transition ${liked?'bg-white text-black':'text-white/40 hover:text-white/60'}`}>↑ {y.likes||0}</button><span className="px-2 py-1 text-[10px] text-white/15">•</span><button onClick={()=>handleVote(y,'down')} className={`px-3 py-1 rounded-full text-[11px] font-bold transition ${disliked?'bg-red-500 text-white':'text-white/30 hover:text-white/50'}`}>↓ {y.dislikes||0}</button></div>
-                        <button onClick={()=>{ setActivePost(activePost===y.id?null:y.id); }} className="px-3 h-7 rounded-full text-[11px] bg-white/[0.04] border border-white/[0.06] text-white/40 hover:bg-white/[0.08]">💬 {y.commentsCount||0}</button>
-                        <button onClick={()=>handleShare(y)} className="px-3 h-7 rounded-full text-[11px] bg-white/[0.04] border border-white/[0.06] text-white/40 hover:bg-white/[0.08]">↗</button>
-                      </div>
-                      {activePost===y.id && (
-                        <div className="mt-4 border-t border-white/[0.06] pt-3">
-                          <div className="max-h-[350px] overflow-y-auto pr-1">{nestedTree.length===0 && <p className="text-[11px] text-white/20 text-center py-6">No comments yet</p>}{nestedTree.map((c:any)=>renderComment(c,0))}</div>
-                          <div className="flex gap-2 mt-3"><input value={commentText} onChange={e=>setCommentText(e.target.value)} placeholder={replyTo? `Reply to ${replyTo.username}` : "Add comment"} className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-full px-4 h-9 text-[12px] outline-none placeholder:text-white/25" onKeyDown={e=>{ if(e.key==='Enter') handleCommentPost(y.id); }}/><button onClick={()=>handleCommentPost(y.id)} className="w-9 h-9 rounded-full bg-white text-black text-[12px] font-bold">↗</button></div>
-                        </div>
-                      )}
+                      {isPoll && y.pollOptions && (<div className="mt-3 space-y-2">{[...y.pollOptions].sort((a:any,b:any)=> (b.votes||0)-(a.votes||0)).map((opt:any,idx:number)=>{ const total=y.totalVotes||1; const percent=Math.round((opt.votes/total)*100)||0; return(<button key={idx} onClick={()=>handlePollVote(y,y.pollOptions.indexOf(opt))} disabled={!!hasVoted} className="w-full relative overflow-hidden rounded-full border border-white/[0.08] text-left p-3 bg-white/[0.02]"><div className="absolute left-0 top-0 bottom-0 bg-white/[0.08]" style={{width:`${hasVoted? percent:0}%`}}></div><div className="relative flex justify-between items-center"><span className="text-[12px]">{opt.text}</span><span className="text-[11px] font-bold">{hasVoted? `${percent}%` : `${opt.votes||0}`}</span></div></button>); })}</div>)}
+                      <div className="flex gap-2 mt-4"><div className="flex bg-white/[0.04] border border-white/[0.06] rounded-full p-1"><button onClick={()=>handleVote(y,'up')} className={`px-3 py-1 rounded-full text-[11px] font-bold ${liked?'bg-white text-black':'text-white/40'}`}>↑ {y.likes||0}</button><span className="px-2 py-1 text-[10px] text-white/15">•</span><button onClick={()=>handleVote(y,'down')} className={`px-3 py-1 rounded-full text-[11px] font-bold ${disliked?'bg-red-500 text-white':'text-white/30'}`}>↓ {y.dislikes||0}</button></div><button onClick={()=>{ setActivePost(activePost===y.id?null:y.id); }} className="px-3 h-7 rounded-full text-[11px] bg-white/[0.04] border border-white/[0.06] text-white/40">💬 {y.commentsCount||0}</button><button onClick={()=>handleShare(y)} className="px-3 h-7 rounded-full text-[11px] bg-white/[0.04] border border-white/[0.06] text-white/40">↗ Share</button></div>
+                      {activePost===y.id && (<div className="mt-4 border-t border-white/[0.06] pt-3"><div className="max-h-[350px] overflow-y-auto pr-1">{nestedTree.length===0 && <p className="text-[11px] text-white/20 text-center py-6">No comments yet</p>}{nestedTree.map((c:any)=>renderComment(c,0))}</div><div className="flex gap-2 mt-3"><input value={commentText} onChange={e=>setCommentText(e.target.value)} placeholder={replyTo? `Reply to ${replyTo.username}` : "Add comment"} className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-full px-4 h-9 text-[12px] outline-none" onKeyDown={e=>{ if(e.key==='Enter') handleCommentPost(y.id); }}/><button onClick={()=>handleCommentPost(y.id)} className="w-9 h-9 rounded-full bg-white text-black text-[12px] font-bold">↗</button></div></div>)}
                     </div>
                   );
                 })}
-                {(feedTab==='new'? filteredYaks : feedTab==='meme'? displayMemeYaks : feedTab==='poll'? displayPollYaks : displayHotYaks).length===0 && <div className="py-20 text-center bg-white/[0.02] border border-white/[0.06] rounded-[16px]"><p className="font-bold text-[13px]">No posts yet</p><p className="text-[11px] text-white/30 mt-1">Be first to post</p><button onClick={()=>setScreen('create')} className="mt-4 bg-white text-black px-6 h-9 rounded-full text-[11px] font-bold">Create Post</button></div>}
+                {(feedTab==='new'? filteredYaks : feedTab==='meme'? displayMemeYaks : feedTab==='poll'? displayPollYaks : displayHotYaks).length===0 && <div className="py-20 text-center bg-white/[0.02] border border-white/[0.06] rounded-[16px]"><p className="font-bold text-[13px]">No posts yet</p><button onClick={()=>setScreen('create')} className="mt-4 bg-white text-black px-6 h-9 rounded-full text-[11px] font-bold">Create Post</button></div>}
                 <Footer/>
               </>
             )}
           </>
         )}
-
         {screen==='dm' && (
           <div className="space-y-3">
             <div className="bg-[#111111] border border-white/[0.06] rounded-[16px] p-4">
-              <div className="flex justify-between items-center"><p className="font-bold text-[13px]">DM • {dmChats.length}</p><button onClick={()=>setActiveDm(null)} className="text-[10px] bg-white/[0.06] px-3 py-1.5 rounded-full">All Chats</button></div>
+              <div className="flex justify-between items-center"><p className="font-bold text-[13px]">DM • {dmChats.length}</p><button onClick={()=>setActiveDm(null)} className="text-[10px] bg-white/[0.06] px-3 py-1.5 rounded-full">All</button></div>
               {activeDm? (
-                <div className="mt-4">
-                  <div className="flex justify-between"><p className="text-[11px] text-white/30">{activeDm.id.slice(0,8)}</p><button onClick={()=>setShowDmDeleteConfirm(activeDm)} className="text-[10px] bg-red-500/10 text-red-400 px-3 py-1 rounded-full">Delete</button></div>
-                  <div className="max-h-[400px] overflow-y-auto mt-3 space-y-2">{dmMessages.map((m:any)=><div key={m.id} className={`p-3 rounded-[14px] max-w-[80%] text-[12px] ${m.uid===user?.uid?'bg-white text-black ml-auto':'bg-white/[0.06] border border-white/[0.08]'}`}><p>{m.text}</p>{m.uid===user?.uid && <button onClick={()=>handleDeleteDmMessage(activeDm.id, m.id)} className="text-[9px] opacity-50 mt-1">Delete</button>}</div>)}</div>
-                  <div className="flex gap-2 mt-4"><input value={dmText} onChange={e=>setDmText(e.target.value)} placeholder="Message" className="flex-1 h-10 bg-white/[0.04] border border-white/[0.08] rounded-full px-4 text-[12px]"/><button onClick={handleSendDm} className="w-10 h-10 bg-white text-black rounded-full font-bold">↗</button></div>
-                </div>
-              ) : (
-                <div className="mt-3 space-y-2">{dmChats.map((c:any)=><div key={c.id} className="flex justify-between items-center bg-white/[0.02] border border-white/[0.06] rounded-[14px] p-3 hover:bg-white/[0.04]"><button onClick={()=>setActiveDm(c)} className="flex-1 text-left"><p className="text-[12px] font-bold">Chat {c.participants.filter((p:string)=>p!==user?.uid)[0]?.slice(0,6)}</p><p className="text-[11px] text-white/40 mt-0.5">{c.lastMessage?.slice(0,30)}</p></button><button onClick={()=>handleDeleteDmChat(c.id)} className="text-[10px] bg-red-500/10 text-red-400 px-3 py-1 rounded-full ml-2">Delete</button></div>)}{dmChats.length===0 && <p className="text-[11px] text-white/30 text-center py-8">No DMs yet</p>}</div>
-              )}
+                <div className="mt-4"><div className="flex justify-between"><p className="text-[11px] text-white/30">{activeDm.id.slice(0,8)}</p><button onClick={()=>setShowDmDeleteConfirm(activeDm)} className="text-[10px] bg-red-500/10 text-red-400 px-3 py-1 rounded-full">Delete</button></div><div className="max-h-[400px] overflow-y-auto mt-3 space-y-2">{dmMessages.map((m:any)=><div key={m.id} className={`p-3 rounded-[14px] max-w-[80%] text-[12px] ${m.uid===user?.uid?'bg-white text-black ml-auto':'bg-white/[0.06] border border-white/[0.08]'}`}><p>{m.text}</p>{m.uid===user?.uid && <button onClick={()=>handleDeleteDmMessage(activeDm.id, m.id)} className="text-[9px] opacity-50 mt-1">Delete</button>}</div>)}</div><div className="flex gap-2 mt-4"><input value={dmText} onChange={e=>setDmText(e.target.value)} placeholder="Message" className="flex-1 h-10 bg-white/[0.04] border border-white/[0.08] rounded-full px-4 text-[12px]"/><button onClick={handleSendDm} className="w-10 h-10 bg-white text-black rounded-full font-bold">↗</button></div></div>
+              ) : (<div className="mt-3 space-y-2">{dmChats.map((c:any)=><div key={c.id} className="flex justify-between items-center bg-white/[0.02] border border-white/[0.06] rounded-[14px] p-3"><button onClick={()=>setActiveDm(c)} className="flex-1 text-left"><p className="text-[12px] font-bold">Chat {c.participants.filter((p:string)=>p!==user?.uid)[0]?.slice(0,6)}</p><p className="text-[11px] text-white/40">{c.lastMessage?.slice(0,30)}</p></button><button onClick={()=>handleDeleteDmChat(c.id)} className="text-[10px] bg-red-500/10 text-red-400 px-3 py-1 rounded-full ml-2">Delete</button></div>)}{dmChats.length===0 && <p className="text-[11px] text-white/30 text-center py-8">No DMs</p>}</div>)}
             </div>
             <Footer/>
           </div>
         )}
       </div>
 
-      {/* === PREMIUM BOTTOM NAV - 4 ONLY === */}
       <div className="fixed bottom-0 left-0 right-0 bg-[#000000]/95 backdrop-blur-xl border-t border-white/[0.06] z-30">
         <div className="max-w-[600px] mx-auto px-6 h-[64px] flex items-center justify-between">
-          <button onClick={()=>{ setScreen('feed'); setFeedTab('new'); }} className="flex flex-col items-center gap-1">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[13px] transition ${screen==='feed'?'bg-white text-black':'bg-white/[0.06] text-white/40'}`}>⌂</div>
-            <span className={`text-[9px] font-bold tracking-wide ${screen==='feed'?'text-white':'text-white/30'}`}>FEED</span>
-          </button>
-          <button onClick={()=>{ setScreen('dm'); }} className="flex flex-col items-center gap-1 relative">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] transition ${screen==='dm'?'bg-white text-black':'bg-white/[0.06] text-white/40'}`}>✉</div>
-            <span className={`text-[9px] font-bold tracking-wide ${screen==='dm'?'text-white':'text-white/30'}`}>DM</span>
-            {dmChats.length>0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full text-[8px] flex items-center justify-center font-bold">{dmChats.length}</span>}
-          </button>
-          <button onClick={()=>setScreen('create')} className="w-12 h-12 bg-white text-black rounded-full flex items-center justify-center text-[20px] font-black shadow-xl hover:scale-105 transition">+</button>
-          <button onClick={()=>setShowProfile(true)} className="flex flex-col items-center gap-1">
-            <div className="w-7 h-7 bg-white/[0.06] rounded-full flex items-center justify-center text-[12px]">👤</div>
-            <span className="text-[9px] font-bold tracking-wide text-white/30">PROFILE</span>
-          </button>
+          <button onClick={()=>{ setScreen('feed'); setFeedTab('new'); }} className="flex flex-col items-center gap-1"><div className={`w-7 h-7 rounded-full flex items-center justify-center text-[13px] ${screen==='feed'?'bg-white text-black':'bg-white/[0.06] text-white/40'}`}>⌂</div><span className={`text-[9px] font-bold ${screen==='feed'?'text-white':'text-white/30'}`}>FEED</span></button>
+          <button onClick={()=>{ setScreen('dm'); }} className="flex flex-col items-center gap-1 relative"><div className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] ${screen==='dm'?'bg-white text-black':'bg-white/[0.06] text-white/40'}`}>✉</div><span className={`text-[9px] font-bold ${screen==='dm'?'text-white':'text-white/30'}`}>DM</span>{dmChats.length>0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full text-[8px] flex items-center justify-center font-bold">{dmChats.length}</span>}</button>
+          <button onClick={()=>setScreen('create')} className="w-12 h-12 bg-white text-black rounded-full flex items-center justify-center text-[20px] font-black shadow-xl">+</button>
+          <button onClick={()=>setShowProfile(true)} className="flex flex-col items-center gap-1"><div className="w-7 h-7 bg-white/[0.06] rounded-full flex items-center justify-center text-[12px]">👤</div><span className="text-[9px] font-bold text-white/30">PROFILE</span></button>
         </div>
       </div>
+
+            {screen==='create' && (
+        <div className="fixed inset-0 bg-[#000000] z-40 flex flex-col">
+          <div className="max-w-[600px] mx-auto w-full flex flex-col h-full">
+            <div className="p-4 flex items-center justify-between border-b border-white/[0.06]"><button onClick={()=>setScreen('feed')} className="w-8 h-8 bg-white/[0.06] rounded-full">✕</button><p className="text-[11px] font-bold">CREATE</p><button onClick={handlePost} disabled={posting||!newYak.trim()} className={`px-5 h-8 rounded-full font-bold text-[11px] ${posting||!newYak.trim()?'bg-white/[0.06] text-white/20':'bg-white text-black'}`}>{posting?'...':'POST'}</button></div>
+            <div className="p-4 flex gap-2 border-b border-white/[0.04] overflow-x-auto"><button onClick={()=>setYakType('yak')} className={`px-4 h-8 rounded-full text-[11px] font-bold border ${yakType==='yak'?'bg-white text-black':'bg-white/[0.04] border-white/[0.06] text-white/40'}`}>TALK</button><button onClick={()=>setYakType('poll')} className={`px-4 h-8 rounded-full text-[11px] font-bold border ${yakType==='poll'?'bg-white text-black':'bg-white/[0.04] border-white/[0.06] text-white/40'}`}>POLL</button><button onClick={()=>setYakType('meme')} className={`px-4 h-8 rounded-full text-[11px] font-bold border ${yakType==='meme'?'bg-white text-black':'bg-white/[0.04] border-white/[0.06] text-white/40'}`}>MEME</button><button onClick={()=>setYakType('market')} className={`px-4 h-8 rounded-full text-[11px] font-bold border ${yakType==='market'?'bg-white text-black':'bg-white/[0.04] border-white/[0.06] text-white/40'}`}>MARKET</button><button onClick={()=>setYakType('pyq')} className={`px-4 h-8 rounded-full text-[11px] font-bold border ${yakType==='pyq'?'bg-white text-black':'bg-white/[0.04] border-white/[0.06] text-white/40'}`}>PYQ</button></div>
+            <div className="p-4 flex-1 overflow-y-auto">
+              {yakType==='market' && <input value={marketPrice} onChange={e=>setMarketPrice(e.target.value)} placeholder="Price ₹" className="w-24 p-3 bg-white/[0.04] border border-white/[0.06] rounded-[12px] text-[12px] mb-3"/>}
+              {yakType==='pyq' && <input value={pyqSubject} onChange={e=>setPyqSubject(e.target.value.toUpperCase())} placeholder="Subject" className="p-3 bg-white/[0.04] border border-white/[0.06] rounded-[12px] text-[12px] mb-3"/>}
+              <textarea value={newYak} onChange={e=>setNewYak(e.target.value)} placeholder="What's happening in SRET?" autoFocus className="w-full bg-transparent text-[18px] outline-none placeholder:text-white/20 resize-none min-h-[120px]" maxLength={300}/>
+              <p className="text-[10px] text-white/20 mt-3">{newYak.length}/300</p>
+              {yakType==='poll' && (<div className="mt-4 space-y-2">{pollOptions.map((opt,idx)=><div key={idx} className="flex gap-2"><input value={opt} onChange={e=>{ const n=[...pollOptions]; n[idx]=e.target.value; setPollOptions(n); }} placeholder={`Option ${idx+1}`} className="flex-1 p-3 bg-white/[0.04] border border-white/[0.06] rounded-[12px] text-[12px]"/>{pollOptions.length>2 && <button onClick={()=>setPollOptions(pollOptions.filter((_,i)=>i!==idx))} className="w-10 h-10 bg-white/[0.04] rounded-[12px]">✕</button>}</div>)}{pollOptions.length<4 && <button onClick={()=>setPollOptions([...pollOptions,''])} className="w-full p-2.5 border border-dashed border-white/[0.08] rounded-[12px] text-[11px] text-white/30">+ Add Option</button>}</div>)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProfile && (
+        <div className="fixed inset-0 bg-black/80 z-[150] flex items-end justify-center p-4">
+          <div className="bg-[#111111] border border-white/[0.08] w-full max-w-[600px] rounded-t-[20px] p-5 pb-8 max-h-[90vh] overflow-y-auto">
+            <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-5"></div>
+            <div className="flex items-center gap-3"><div className="w-12 h-12 bg-white/[0.06] rounded-[14px] flex items-center justify-center">👤</div><div><p className="font-bold text-[13px]">Anonymous {isAdmin(user?.email) && <span className="bg-red-600 text-[9px] px-2 py-0.5 rounded-full ml-2">ADMIN</span>}</p><p className="text-[11px] text-white/40">Karma {userData?.yakarma||0} • {userData?.totalPosts||0} posts</p><p className="text-[10px] text-white/20">{user?.email}</p></div></div>
+            <div className="mt-5 grid grid-cols-3 gap-2"><button onClick={()=>{ setShowProfile(false); }} className="py-3 rounded-full bg-white/[0.04] border border-white/[0.06] text-[11px] font-bold">MARKET {marketYaks.length}</button><button onClick={()=>{ setShowProfile(false); }} className="py-3 rounded-full bg-white/[0.04] border border-white/[0.06] text-[11px] font-bold">PYQ {pyqYaks.length}</button><button onClick={()=>{ setShowProfile(false); }} className="py-3 rounded-full bg-white/[0.04] border border-white/[0.06] text-[11px] font-bold">CRUSH {crushMatches.length}</button></div>
+            <div className="mt-4 bg-white/[0.02] border border-white/[0.06] rounded-[14px] p-3"><div className="flex justify-between"><p className="text-[11px] font-bold">🚫 Blocked • {blockedUsers.length}</p></div><div className="mt-3 max-h-[150px] overflow-y-auto space-y-2">{blockedUsers.length===0 ? <p className="text-[11px] text-white/20 text-center py-4">No blocked</p> : blockedUsers.map(uid=><div key={uid} className="flex justify-between items-center bg-black/40 border border-white/[0.04] rounded-[12px] p-3"><p className="text-[11px] font-mono">{uid.slice(0,12)}...</p><button onClick={()=>handleUnblockUser(uid)} className="px-3 py-1 bg-white text-black rounded-full text-[10px] font-bold">Unblock</button></div>)}</div></div>
+            <div className="mt-4 space-y-2"><button onClick={()=>{ setShowProfile(false); setShowNotifications(true); }} className="w-full py-3 rounded-full bg-white/[0.04] border border-white/[0.06] text-[11px] font-bold">🔔 Alerts • {collegeAlertsList.length}</button><button onClick={()=>{ setShowProfile(false); setShowAdmin(true); }} className="w-full py-3 rounded-full bg-white/[0.04] border border-white/[0.06] text-[11px] font-bold">Admin • {adminReports.length}</button><button onClick={()=>setShowLogoutConfirm(true)} className="w-full py-3 rounded-full bg-red-600 text-white text-[11px] font-bold">Logout</button><button onClick={()=>setShowProfile(false)} className="w-full py-3 rounded-full bg-white/[0.04] border border-white/[0.06] text-[11px]">Close</button></div>
+          </div>
+        </div>
+      )}
+
+      {showLogoutConfirm && (<div className="fixed inset-0 bg-black/70 z-[160] flex items-center justify-center p-4"><div className="bg-[#111111] border border-white/[0.08] rounded-[16px] p-5 w-full max-w-sm text-center"><p className="font-bold text-[13px]">Logout?</p><div className="flex gap-2 mt-4"><button onClick={()=>setShowLogoutConfirm(false)} className="flex-1 py-2.5 rounded-full bg-white/[0.06] text-[11px]">Cancel</button><button onClick={handleLogout} className="flex-1 py-2.5 rounded-full bg-red-600 text-white text-[11px] font-bold">Logout</button></div></div></div>)}
+      {editingPost && <div className="fixed inset-0 bg-black/60 z-50 flex items-end justify-center p-4"><div className="bg-[#111111] border border-white/[0.08] w-full max-w-[600px] rounded-t-[20px] p-5 pb-8"><p className="font-bold text-[13px]">Edit Post</p><textarea value={editText} onChange={e=>setEditText(e.target.value)} className="w-full mt-4 bg-white/[0.04] border border-white/[0.06] rounded-[12px] p-3 text-[13px] min-h-[100px] resize-none"/><div className="flex gap-2 mt-4"><button onClick={()=>{ setEditingPost(null); setEditText(''); }} className="flex-1 h-10 bg-white/[0.06] border border-white/[0.08] rounded-full text-[11px]">Cancel</button><button onClick={handleEdit} className="flex-1 h-10 bg-white text-black rounded-full text-[11px] font-bold">Save</button></div></div></div>}
+      {reportingPost && (<div className="fixed inset-0 bg-black/70 z-[180] flex items-center justify-center p-4"><div className="bg-[#111111] border border-white/[0.08] rounded-[16px] p-4 w-full max-w-sm"><p className="font-bold text-[13px]">Report</p><p className="text-[10px] text-white/30 mt-1">Auto delete at {REPORT_DELETE_THRESHOLD} reports</p><div className="mt-3 space-y-2">{REPORT_REASONS.map(r=><button key={r} onClick={()=>setReportReason(r)} className={`w-full text-left px-3 py-2.5 rounded-full text-[11px] border ${reportReason===r?'bg-white text-black':'bg-white/[0.04] border-white/[0.06] text-white/60'}`}>{r}</button>)}</div><div className="flex gap-2 mt-3"><button onClick={()=>{ setReportingPost(null); setReportReason(''); }} className="flex-1 py-2.5 rounded-full bg-white/[0.06] text-[11px]">Cancel</button><button onClick={()=>handleReport(reportingPost, reportReason)} className="flex-1 py-2.5 rounded-full bg-red-600 text-white text-[11px] font-bold">Report</button></div></div></div>)}
+      {showNotifications && (
+        <div className="fixed inset-0 bg-black/80 z-[170] flex items-end justify-center p-4">
+          <div className="bg-[#111111] border border-white/[0.08] w-full max-w-[600px] rounded-t-[20px] p-5 pb-8 max-h-[85vh] overflow-y-auto">
+            <div className="flex justify-between items-center"><p className="font-bold text-[14px]">🔔 Notifications</p><button onClick={()=>setShowNotifications(false)} className="w-8 h-8 bg-white/[0.06] rounded-full">✕</button></div>
+            <div className="mt-5"><div className="flex justify-between items-center"><p className="text-[11px] font-bold text-white/40">COLLEGE ALERTS • {collegeAlertsList.length}</p><button onClick={()=>setShowCollegeAlertAdmin(true)} className="text-[10px] bg-white text-black px-3 py-1 rounded-full font-bold">+ New</button></div><div className="mt-3 space-y-2">{collegeAlertsList.map((a:any)=><div key={a.id} className="bg-red-500/10 border border-red-500/20 rounded-[14px] p-3"><div className="flex justify-between"><span className="bg-red-500/20 text-red-400 text-[9px] px-2 py-1 rounded-full font-bold">#{a.type}</span><div className="flex gap-2"><button onClick={()=>{ setEditingAlert(a); setEditAlertTitle(a.title); setEditAlertDesc(a.desc); setEditAlertType(a.type); }} className="text-[10px] bg-white/10 px-2 py-1 rounded-full">Edit</button><button onClick={()=>handleDeleteAlert(a.id)} className="text-[10px] bg-red-500/20 text-red-400 px-2 py-1 rounded-full">Delete</button></div></div><p className="font-bold text-[13px] mt-2">{a.title}</p><p className="text-[11px] text-white/60 mt-1">{a.desc}</p></div>)}{collegeAlertsList.length===0 && <p className="text-[11px] text-white/20 text-center py-4">No alerts</p>}</div></div>
+            <div className="mt-6 pt-5 border-t border-white/[0.06]"><p className="text-[11px] font-bold text-white/40">OTHER NOTIFICATIONS</p><div className="mt-3 space-y-2">{notifications.map((n:any)=><div key={n.id} className="p-3 rounded-[12px] border border-white/[0.06] bg-white/[0.02]"><p className="text-[11px] font-bold">{n.type}</p><p className="text-[11px] text-white/50 mt-1">{n.text}</p></div>)}{notifications.length===0 && <p className="text-[11px] text-white/20 text-center py-4">No notifications</p>}</div></div>
+          </div>
+        </div>
+      )}
+      {showAdmin && (<div className="fixed inset-0 bg-black/70 z-[175] flex items-end justify-center p-4"><div className="bg-[#111111] border border-white/[0.08] w-full max-w-[600px] rounded-t-[20px] p-5 pb-8 max-h-[80vh] overflow-y-auto"><div className="flex justify-between items-center"><p className="font-bold text-[13px]">Admin Reports</p><button onClick={()=>setShowAdmin(false)} className="w-8 h-8 bg-white/[0.06] rounded-full">✕</button></div><div className="mt-4 space-y-2">{adminReports.map((r:any)=><div key={r.id} className="bg-white/[0.02] border border-white/[0.06] rounded-[12px] p-3"><p className="text-[11px] font-bold text-red-400">{r.reason}</p><p className="text-[11px] mt-1">{r.yakText}</p><div className="flex gap-2 mt-2"><button onClick={()=>handleAdminRestore(r)} className="px-3 h-7 rounded-full bg-green-600 text-white text-[10px]">Restore</button><button onClick={()=>handleAdminDelete(r)} className="px-3 h-7 rounded-full bg-red-600 text-white text-[10px]">Delete</button><button onClick={()=>handleAdminDismiss(r)} className="px-3 h-7 rounded-full bg-white/[0.06] text-white text-[10px]">Dismiss</button></div></div>)}{adminReports.length===0 && <p className="text-[11px] text-white/20 text-center py-8">No reports</p>}</div></div></div>)}
+      {showCollegeAlertAdmin && (<div className="fixed inset-0 bg-black/70 z-[200] flex items-center justify-center p-4"><div className="bg-[#111111] border border-white/[0.08] rounded-[16px] p-4 w-full max-w-sm"><p className="font-bold text-[13px]">New Alert</p><select value={newAlertType} onChange={e=>setNewAlertType(e.target.value)} className="w-full mt-3 p-2.5 bg-black border border-white/[0.08] rounded-[12px] text-[12px]"><option>ExamAlert</option><option>Holiday</option><option>FeeDue</option><option>Placement</option><option>Event</option><option>Official</option></select><input value={newAlertTitle} onChange={e=>setNewAlertTitle(e.target.value)} placeholder="Title" className="w-full mt-3 p-2.5 bg-black border border-white/[0.08] rounded-[12px] text-[12px]"/><textarea value={newAlertDesc} onChange={e=>setNewAlertDesc(e.target.value)} placeholder="Description" className="w-full mt-3 p-2.5 bg-black border border-white/[0.08] rounded-[12px] text-[12px] h-20"/><div className="flex gap-2 mt-3"><button onClick={()=>setShowCollegeAlertAdmin(false)} className="flex-1 py-2.5 rounded-full bg-white/[0.06] text-[11px]">Cancel</button><button onClick={postCollegeAlert} className="flex-1 py-2.5 rounded-full bg-white text-black text-[11px] font-bold">Post</button></div></div></div>)}
+      {editingAlert && (<div className="fixed inset-0 bg-black/70 z-[210] flex items-center justify-center p-4"><div className="bg-[#111111] border border-white/[0.08] rounded-[16px] p-4 w-full max-w-sm"><p className="font-bold text-[13px]">Edit Alert</p><select value={editAlertType} onChange={e=>setEditAlertType(e.target.value)} className="w-full mt-3 p-2.5 bg-black border border-white/[0.08] rounded-[12px] text-[12px]"><option>ExamAlert</option><option>Holiday</option><option>FeeDue</option><option>Placement</option><option>Event</option><option>Official</option></select><input value={editAlertTitle} onChange={e=>setEditAlertTitle(e.target.value)} placeholder="Title" className="w-full mt-3 p-2.5 bg-black border border-white/[0.08] rounded-[12px] text-[12px]"/><textarea value={editAlertDesc} onChange={e=>setEditAlertDesc(e.target.value)} placeholder="Description" className="w-full mt-3 p-2.5 bg-black border border-white/[0.08] rounded-[12px] text-[12px] h-20"/><div className="flex gap-2 mt-3"><button onClick={()=>setEditingAlert(null)} className="flex-1 py-2.5 rounded-full bg-white/[0.06] text-[11px]">Cancel</button><button onClick={handleUpdateAlert} className="flex-1 py-2.5 rounded-full bg-white text-black text-[11px] font-bold">Update</button></div></div></div>)}
+      {showDmDeleteConfirm && (<div className="fixed inset-0 bg-black/70 z-[220] flex items-center justify-center p-4"><div className="bg-[#111111] border border-white/[0.08] rounded-[16px] p-5 w-full max-w-sm text-center"><p className="font-bold text-[13px]">Delete DM?</p><p className="text-[11px] text-white/40 mt-1">All messages will be deleted</p><div className="flex gap-2 mt-4"><button onClick={()=>setShowDmDeleteConfirm(null)} className="flex-1 py-2.5 rounded-full bg-white/[0.06] text-[11px]">Cancel</button><button onClick={()=>handleDeleteDmChat(showDmDeleteConfirm.id)} className="flex-1 py-2.5 rounded-full bg-red-600 text-white text-[11px] font-bold">Delete</button></div></div></div>)}
+    </div>
+  );
+}

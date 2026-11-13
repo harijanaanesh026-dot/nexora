@@ -16,7 +16,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-export default function CampusSocialFinal() {
+export default function CampusMain() {
   const [user, setUser] = useState<any>(null);
   const [userData, setUserData] = useState<any>(null);
   const [tab, setTab] = useState('login');
@@ -24,239 +24,128 @@ export default function CampusSocialFinal() {
   const [posts, setPosts] = useState<any[]>([]);
   const [stories, setStories] = useState<any[]>([]);
   const [clubs, setClubs] = useState<any[]>([]);
-  const [events, setEvents] = useState<any[]>([]);
   const [notes, setNotes] = useState<any[]>([]);
   const [market, setMarket] = useState<any[]>([]);
   const [lost, setLost] = useState<any[]>([]);
-  const [polls, setPolls] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
-  const [notifs, setNotifs] = useState<any[]>([]);
-  const [memes, setMemes] = useState<any[]>([]);
-  const [notices, setNotices] = useState<any[]>([]);
   const [roll, setRoll] = useState('');
   const [postText, setPostText] = useState('');
-  const [showMenu, setShowMenu] = useState(false);
-  const [searchQ, setSearchQ] = useState('');
-  const [newItem, setNewItem] = useState({ title: '', desc: '', price: '', type: '' });
-  const showToast = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
+  const [newTitle, setNewTitle] = useState('');
+  const t = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2000); };
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (u: any) => {
-      if (u) {
-        setUser(u);
-        const snap = await getDocs(query(collection(db, 'campus_users'), where('uid', '==', u.uid)));
-        if (snap.empty) setTab('login');
-        else { const d = snap.docs[0].data() as any; setUserData({ id: snap.docs[0].id, ...d }); setRoll(d.rollNumber || ''); setTab('home'); }
-      } else setTab('login');
+      if (u) { const snap = await getDocs(query(collection(db, 'campus_users'), where('uid', '==', u.uid))); if (snap.empty) setTab('login'); else { const d = snap.docs[0].data() as any; setUserData({ id: snap.docs[0].id, ...d }); setRoll(d.rollNumber); setTab('home'); } setUser(u); } else setTab('login');
     });
   }, []);
 
   useEffect(() => {
-    const unsubs = [
+    const u = [
       onSnapshot(query(collection(db, 'campus_posts'), orderBy('createdAt', 'desc')), (s) => setPosts(s.docs.map((d) => ({ id: d.id, ...d.data() } as any)))),
-      onSnapshot(query(collection(db, 'campus_stories'), orderBy('createdAt', 'desc')), (s) => setStories(s.docs.map((d) => ({ id: d.id, ...d.data() } as any)).filter((x: any) => { const t = x.createdAt?.seconds ? Date.now() - x.createdAt.seconds * 1000 : 0; return t < 86400000; }))),
+      onSnapshot(query(collection(db, 'campus_stories'), orderBy('createdAt', 'desc')), (s) => setStories(s.docs.map((d) => ({ id: d.id, ...d.data() } as any)).filter((x: any) => Date.now() - (x.createdAt?.seconds * 1000 || 0) < 86400000))),
       onSnapshot(collection(db, 'clubs_communities'), (s) => setClubs(s.docs.map((d) => ({ id: d.id, ...d.data() } as any)))),
-      onSnapshot(collection(db, 'campus_events'), (s) => setEvents(s.docs.map((d) => ({ id: d.id, ...d.data() } as any)))),
       onSnapshot(collection(db, 'notes_pyqs'), (s) => setNotes(s.docs.map((d) => ({ id: d.id, ...d.data() } as any)))),
       onSnapshot(collection(db, 'campus_marketplace'), (s) => setMarket(s.docs.map((d) => ({ id: d.id, ...d.data() } as any)))),
       onSnapshot(collection(db, 'lost_found'), (s) => setLost(s.docs.map((d) => ({ id: d.id, ...d.data() } as any)))),
-      onSnapshot(collection(db, 'campus_polls'), (s) => setPolls(s.docs.map((d) => ({ id: d.id, ...d.data() } as any)))),
       onSnapshot(collection(db, 'campus_users'), (s) => setStudents(s.docs.map((d) => ({ id: d.id, ...d.data() } as any)))),
-      onSnapshot(collection(db, 'campus_notifications'), (s) => setNotifs(s.docs.map((d) => ({ id: d.id, ...d.data() } as any)))),
-      onSnapshot(collection(db, 'campus_memes'), (s) => setMemes(s.docs.map((d) => ({ id: d.id, ...d.data() } as any)))),
-      onSnapshot(collection(db, 'digital_notice_board'), (s) => setNotices(s.docs.map((d) => ({ id: d.id, ...d.data() } as any)))),
-    ];
-    return () => unsubs.forEach((u) => u());
+    ]; return () => u.forEach((x) => x());
   }, []);
 
-  const handleLogin = async () => {
-    if (!roll.trim()) { showToast('Enter Roll Number'); return; }
-    const r = await signInWithPopup(auth, provider);
-    const u = r.user;
-    const ex = await getDocs(query(collection(db, 'campus_users'), where('uid', '==', u.uid)));
-    if (ex.empty) {
-      await addDoc(collection(db, 'campus_users'), { uid: u.uid, email: u.email, name: u.displayName, photoURL: u.photoURL, rollNumber: roll.toUpperCase(), branch: 'CSE', year: '3rd', interests: 'Coding, AI', skills: 'React, Firebase', bio: 'Campus enthusiast | CSE 3rd Year', followers: 0, following: 0, points: 50, createdAt: serverTimestamp() });
-    }
-    window.location.reload();
-  };
-
-  const handlePost = async () => { if (!postText.trim()) { showToast('Write something'); return; } await addDoc(collection(db, 'campus_posts'), { uid: user.uid, name: userData.name, photoURL: userData.photoURL, rollNumber: userData.rollNumber, branch: userData.branch, text: postText, likes: 0, comments: 0, createdAt: serverTimestamp() }); setPostText(''); showToast('Posted ✓'); };
-  const handleLike = async (p: any) => { await updateDoc(doc(db, 'campus_posts', p.id), { likes: increment(1) }); await addDoc(collection(db, 'campus_notifications'), { toUid: p.uid, fromName: userData.name, text: `${userData.name} liked your post: ${p.text?.slice(0, 20)}`, type: 'like', createdAt: serverTimestamp() }); };
-  const handleStory = async () => { if (!newItem.title.trim()) { showToast('Enter story text'); return; } await addDoc(collection(db, 'campus_stories'), { uid: user.uid, name: userData.name, photoURL: userData.photoURL, text: newItem.title, branch: userData.branch, createdAt: serverTimestamp() }); setNewItem({ title: '', desc: '', price: '', type: '' }); showToast('Story added - 24h ✓'); };
-  const handleAdd = async (col: string, data: any) => { await addDoc(collection(db, col), { ...data, uid: user.uid, name: userData.name, photoURL: userData.photoURL, branch: userData.branch, rollNumber: userData.rollNumber, createdAt: serverTimestamp() }); setNewItem({ title: '', desc: '', price: '', type: '' }); showToast('Added ✓'); };
-  const handleJoin = async (id: string, col: string) => { await updateDoc(doc(db, col, id), { members: increment(1) }); showToast('Joined ✓'); };
-  const handlePollVote = async (poll: any, idx: number) => { const newVotes = [...(poll.votes || [0, 0, 0, 0])]; newVotes[idx] = (newVotes[idx] || 0) + 1; await updateDoc(doc(db, 'campus_polls', poll.id), { votes: newVotes }); showToast('Voted ✓'); };
-
-  const menuItems = [
-    { id: 'home', icon: '🏠', label: 'Home Feed' },
-    { id: 'stories', icon: '📸', label: 'Stories' },
-    { id: 'explore', icon: '🔍', label: 'Explore' },
-    { id: 'events', icon: '🎉', label: 'Campus Events' },
-    { id: 'clubs', icon: '👥', label: 'Clubs & Communities' },
-    { id: 'notes', icon: '📚', label: 'Notes & PYQs' },
-    { id: 'market', icon: '🛒', label: 'Campus Marketplace' },
-    { id: 'lost', icon: '🔎', label: 'Lost & Found' },
-    { id: 'polls', icon: '📊', label: 'Campus Polls' },
-    { id: 'profiles', icon: '👤', label: 'Student Profiles' },
-    { id: 'skills', icon: '💡', label: 'Skill Connect' },
-    { id: 'senior', icon: '🎓', label: 'Senior Help' },
-    { id: 'leaderboard', icon: '🏆', label: 'Leaderboard' },
-    { id: 'memes', icon: '😂', label: 'Campus Memes' },
-    { id: 'notices', icon: '📢', label: 'Notice Board' },
-    { id: 'chat', icon: '💬', label: 'DM / Chat' },
-    { id: 'notifs', icon: '🔔', label: 'Notifications' },
-    { id: 'search', icon: '🔎', label: 'Search' },
-  ];
+  const login = async () => { if (!roll.trim()) { t('Enter Roll'); return; } const r = await signInWithPopup(auth, provider); const ex = await getDocs(query(collection(db, 'campus_users'), where('uid', '==', r.user.uid))); if (ex.empty) { await addDoc(collection(db, 'campus_users'), { uid: r.user.uid, email: r.user.email, name: r.user.displayName, photoURL: r.user.photoURL, rollNumber: roll.toUpperCase(), branch: 'CSE', year: '3rd', createdAt: serverTimestamp() }); } window.location.reload(); };
+  const post = async () => { if (!postText.trim()) return; await addDoc(collection(db, 'campus_posts'), { uid: user.uid, name: userData.name, photoURL: userData.photoURL, branch: userData.branch, text: postText, likes: 0, createdAt: serverTimestamp() }); setPostText(''); t('Posted'); };
+  const like = async (p: any) => { await updateDoc(doc(db, 'campus_posts', p.id), { likes: increment(1) }); };
+  const add = async (col: string, data: any) => { await addDoc(collection(db, col), { ...data, uid: user.uid, name: userData.name, photoURL: userData.photoURL, branch: userData.branch, createdAt: serverTimestamp() }); setNewTitle(''); t('Added'); };
 
   if (tab === 'login') {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
-        <div className="w-full max-w-sm bg-white/5 border border-white/10 rounded-[24px] p-8">
-          <div className="w-12 h-12 bg-white text-black rounded-[14px] flex items-center justify-center font-black">C</div>
-          <h1 className="text-[22px] font-black mt-4">Campus Social</h1>
-          <p className="text-[11px] text-white/40 mt-1">18 Features - All Working</p>
-          <input value={roll} onChange={(e) => setRoll(e.target.value.toUpperCase())} placeholder="Roll e.g. 21CS101" className="w-full mt-6 p-4 bg-black border border-white/10 rounded-[12px] uppercase font-bold" />
-          <button onClick={handleLogin} className="w-full mt-4 py-4 rounded-full bg-white text-black font-bold">Join Campus ✓</button>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap'); *{font-family:Inter}`}</style>
+        <div className="w-full max-w-[360px] bg-[#111] border border-white/[0.08] rounded-[32px] p-8">
+          <div className="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center font-black">C</div>
+          <h1 className="text-[26px] font-extrabold mt-6 tracking-tight">campus</h1>
+          <p className="text-[12px] text-white/40 mt-1">Main 6 features • Simple • Premium</p>
+          <input value={roll} onChange={(e) => setRoll(e.target.value.toUpperCase())} placeholder="Roll Number • 21CS101" className="w-full mt-8 h-12 bg-black border border-white/10 rounded-full px-5 text-[13px] uppercase font-semibold outline-none focus:border-white/20" />
+          <button onClick={login} className="w-full mt-3 h-12 bg-white text-black rounded-full font-semibold text-[13px]">Continue</button>
         </div>
-        {toast && <div className="fixed top-5 left-1/2 -translate-x-1/2 bg-white text-black px-5 py-2 rounded-full text-xs font-bold">{toast}</div>}
+        {toast && <div className="fixed top-6 left-1/2 -translate-x-1/2 bg-white text-black px-4 py-2 rounded-full text-[12px] font-semibold">{toast}</div>}
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {toast && <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-white text-black px-5 py-2 rounded-full text-xs font-bold z-50">{toast}</div>}
-      <div className="sticky top-0 bg-black/95 backdrop-blur-xl border-b border-white/10 z-30">
-        <div className="max-w-[600px] mx-auto px-4 h-14 flex justify-between items-center">
-          <div className="flex gap-3 items-center"><button onClick={() => setShowMenu(!showMenu)} className="w-8 h-8 bg-white/10 rounded-full">☰</button><div className="w-8 h-8 bg-white text-black rounded-[10px] flex items-center justify-center font-black text-[12px]">C</div><p className="font-bold text-[14px]">Campus</p></div>
-          <div className="flex gap-2 items-center"><button onClick={() => setTab('search')} className="w-8 h-8 bg-white/10 rounded-full">🔍</button><button onClick={() => setTab('notifs')} className="w-8 h-8 bg-white/10 rounded-full relative">🔔{notifs.length > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[8px] flex items-center justify-center">{notifs.length}</span>}</button><img src={userData?.photoURL} className="w-8 h-8 rounded-full" alt="" /></div>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap'); *{font-family:Inter} ::-webkit-scrollbar{display:none}`}</style>
+      {toast && <div className="fixed top-6 left-1/2 -translate-x-1/2 bg-white text-black px-4 py-2 rounded-full text-[12px] font-semibold z-50">{toast}</div>}
+
+      <div className="sticky top-0 bg-black/80 backdrop-blur-2xl border-b border-white/[0.06] z-20">
+        <div className="max-w-[560px] mx-auto px-5 h-14 flex justify-between items-center">
+          <div className="flex items-center gap-2"><div className="w-7 h-7 bg-white text-black rounded-full flex items-center justify-center font-black text-[12px]">C</div><p className="font-bold text-[14px] tracking-tight">campus</p></div>
+          <div className="flex gap-2 items-center"><img src={userData?.photoURL} className="w-7 h-7 rounded-full" alt="" /><button onClick={async () => { await signOut(auth); window.location.reload(); }} className="w-7 h-7 bg-white/10 rounded-full text-[11px]">↪</button></div>
+        </div>
+        <div className="max-w-[560px] mx-auto px-5 pb-3 flex gap-2">
+          {[
+            { id: 'home', l: 'Feed' },
+            { id: 'stories', l: 'Stories' },
+            { id: 'clubs', l: 'Clubs' },
+            { id: 'notes', l: 'Notes' },
+            { id: 'market', l: 'Market' },
+            { id: 'lost', l: 'Lost' },
+          ].map((x) => <button key={x.id} onClick={() => setTab(x.id)} className={`px-4 h-7 rounded-full text-[11px] font-semibold transition ${tab === x.id ? 'bg-white text-black' : 'bg-white/[0.06] text-white/40'}`}>{x.l}</button>)}
         </div>
       </div>
-      {showMenu && (
-        <div className="fixed inset-0 bg-black/80 z-40" onClick={() => setShowMenu(false)}>
-          <div className="w-[300px] h-full bg-[#111] border-r border-white/10 p-4 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="flex gap-3 items-center pb-4 border-b border-white/10"><img src={userData?.photoURL} className="w-10 h-10 rounded-full" alt="" /><div><p className="font-bold text-[13px]">{userData?.name}</p><p className="text-[11px] text-white/40">{userData?.branch} • {userData?.year} • {userData?.rollNumber}</p></div></div>
-            <div className="mt-4 space-y-1">
-              {menuItems.map((m) => <button key={m.id} onClick={() => { setTab(m.id); setShowMenu(false); }} className={`w-full text-left px-3 py-2.5 rounded-[12px] text-[12px] flex gap-3 items-center ${tab === m.id ? 'bg-white text-black font-bold' : 'bg-white/5 text-white/60 border border-white/5'}`}><span>{m.icon}</span>{m.label}</button>)}
-              <button onClick={async () => { await signOut(auth); window.location.reload(); }} className="w-full text-left px-3 py-3 rounded-[12px] text-[12px] flex gap-3 items-center bg-red-600 text-white font-bold mt-4"><span>🚪</span>Logout</button>
-            </div>
-          </div>
-        </div>
-      )}
-      <div className="max-w-[600px] mx-auto p-3 pb-24 space-y-3">
+
+      <div className="max-w-[560px] mx-auto px-4 py-4 pb-24 space-y-4">
+
         {tab === 'home' && (
           <>
-            <div className="bg-white/5 border border-white/10 rounded-[20px] p-4">
-              <div className="flex gap-3"><img src={userData?.photoURL} className="w-10 h-10 rounded-full" alt="" /><textarea value={postText} onChange={(e) => setPostText(e.target.value)} placeholder="Photos, videos, text posts - What's happening?" className="flex-1 bg-black border border-white/10 rounded-[14px] p-3 text-[13px] min-h-[60px]" /></div>
-              <div className="flex justify-between items-center mt-3"><p className="text-[10px] text-white/30">Home Feed — Photos, videos, text posts</p><button onClick={handlePost} className="px-6 py-2 bg-white text-black rounded-full font-bold text-[12px]">Post ✓</button></div>
+            <div className="bg-[#111] border border-white/[0.06] rounded-[24px] p-4">
+              <div className="flex gap-3"><img src={userData?.photoURL} className="w-8 h-8 rounded-full" alt="" /><textarea value={postText} onChange={(e) => setPostText(e.target.value)} placeholder="What's happening on campus?" className="flex-1 bg-black border border-white/[0.06] rounded-[16px] p-3 text-[13px] min-h-[44px] outline-none resize-none" /></div>
+              <div className="flex justify-end mt-3"><button onClick={post} className="px-5 h-8 bg-white text-black rounded-full text-[11px] font-semibold">Post</button></div>
             </div>
-            {posts.map((p: any) => <div key={p.id} className="bg-white/5 border border-white/10 rounded-[20px] p-4"><div className="flex gap-3"><img src={p.photoURL} className="w-9 h-9 rounded-full" alt="" /><div><p className="font-bold text-[13px]">{p.name} <span className="text-white/40 text-[11px]">• {p.branch}</span></p><p className="text-[10px] text-white/30">{p.rollNumber}</p></div></div><p className="text-[13px] mt-3">{p.text}</p><div className="flex gap-2 mt-4"><button onClick={() => handleLike(p)} className="text-[12px] bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">❤️ {p.likes || 0}</button><button className="text-[12px] bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">💬 Comment</button><button className="text-[12px] bg-white/5 border border-white/10 px-3 py-1.5 rounded-full">↗️ Share</button></div></div>)}
+            {posts.map((p) => <div key={p.id} className="bg-[#111] border border-white/[0.06] rounded-[24px] p-5"><div className="flex gap-2"><img src={p.photoURL} className="w-7 h-7 rounded-full" alt="" /><p className="text-[12px] font-semibold">{p.name} <span className="text-white/30">• {p.branch}</span></p></div><p className="text-[14px] leading-5 mt-3 text-white/90">{p.text}</p><button onClick={() => like(p)} className="mt-4 h-7 px-3 bg-white/[0.06] rounded-full text-[11px]">♥ {p.likes || 0}</button></div>)}
+            {posts.length === 0 && <p className="text-center py-16 text-white/20 text-[12px]">No posts yet — Be first to post</p>}
           </>
         )}
-        {tab === 'stories' && (
-          <div className="space-y-3">
-            <div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">📸 Stories — 24-hour campus updates</p><div className="flex gap-2 mt-3"><input value={newItem.title} onChange={(e) => setNewItem({ ...newItem, title: e.target.value })} placeholder="Add your 24h story..." className="flex-1 p-3 bg-black border border-white/10 rounded-[12px] text-[12px]" /><button onClick={handleStory} className="px-4 py-3 bg-white text-black rounded-full font-bold text-[12px]">Add</button></div></div>
-            <div className="flex gap-3 overflow-x-auto pb-2">{stories.map((s: any) => <div key={s.id} className="min-w-[70px] text-center"><div className="w-16 h-16 rounded-full border-2 border-white p-0.5"><img src={s.photoURL} className="w-full h-full rounded-full" alt="" /></div><p className="text-[10px] mt-1 truncate w-[70px]">{s.name?.split(' ')[0]}</p><p className="text-[8px] text-white/30 truncate w-[70px]">{s.text?.slice(0, 15)}</p></div>)}</div>
-            {stories.map((s: any) => <div key={s.id} className="bg-white/5 border border-white/10 rounded-[20px] p-4"><div className="flex gap-2 items-center"><img src={s.photoURL} className="w-8 h-8 rounded-full" alt="" /><p className="font-bold text-[12px]">{s.name} • 24h left</p></div><p className="text-[13px] mt-3">{s.text}</p></div>)}
-          </div>
-        )}
-        {tab === 'explore' && <div className="space-y-3"><div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">🔍 Explore — Trending posts, students, clubs</p></div><p className="font-bold text-[12px]">🔥 Trending Posts ({posts.length})</p>{posts.slice(0, 3).map((p: any) => <div key={p.id} className="bg-white/5 border border-white/10 rounded-[16px] p-3"><p className="text-[12px]">{p.text?.slice(0, 100)}</p><p className="text-[10px] text-white/30">❤️ {p.likes} • by {p.name}</p></div>)}<p className="font-bold text-[12px] mt-4">👥 Students ({students.length})</p>{students.slice(0, 5).map((s: any) => <div key={s.id} className="bg-white/5 border border-white/10 rounded-[16px] p-3 flex gap-3"><img src={s.photoURL} className="w-10 h-10 rounded-full" alt="" /><div><p className="font-bold text-[12px]">{s.name} • {s.branch}</p><p className="text-[10px] text-white/40">{s.skills} • {s.points} pts</p></div></div>)}</div>}
 
-                {tab === 'events' && (
-          <div className="space-y-3">
-            <div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">🎉 Campus Events — Fests, workshops, sports</p><div className="flex gap-2 mt-3"><input value={newItem.title} onChange={(e) => setNewItem({ ...newItem, title: e.target.value })} placeholder="Event title - e.g. Tech Fest 2026" className="flex-1 p-3 bg-black border border-white/10 rounded-[12px] text-[12px]" /><button onClick={() => handleAdd('campus_events', { title: newItem.title, type: newItem.type || 'Fest', date: new Date().toISOString().split('T')[0], location: 'Main Ground', desc: newItem.desc || 'College fest' })} className="px-4 py-3 bg-white text-black rounded-full font-bold text-[12px]">Add</button></div><div className="flex gap-2 mt-2"><input value={newItem.type} onChange={(e) => setNewItem({ ...newItem, type: e.target.value })} placeholder="Type - Fest/Workshop/Sports" className="flex-1 p-2 bg-black border border-white/10 rounded-[10px] text-[11px]" /><input value={newItem.desc} onChange={(e) => setNewItem({ ...newItem, desc: e.target.value })} placeholder="Description" className="flex-1 p-2 bg-black border border-white/10 rounded-[10px] text-[11px]" /></div></div>
-            {events.map((e: any) => <div key={e.id} className="bg-white/5 border border-white/10 rounded-[20px] p-4"><div className="w-full h-24 bg-white/10 rounded-[12px] flex items-center justify-center">🎉 {e.type}</div><p className="font-bold text-[14px] mt-3">{e.title}</p><p className="text-[11px] text-white/40 mt-1">{e.type} • {e.date} • {e.location}</p><p className="text-[11px] mt-2">{e.desc}</p><button onClick={() => handleJoin(e.id, 'campus_events')} className="mt-3 w-full py-2 bg-white text-black rounded-full font-bold text-[12px]">Join Event ✓</button></div>)}
+        {tab === 'stories' && (
+          <div className="space-y-4">
+            <div className="bg-[#111] border border-white/[0.06] rounded-[20px] p-4 flex gap-2"><input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Add 24h campus story..." className="flex-1 h-9 bg-black border border-white/[0.06] rounded-full px-4 text-[12px] outline-none" /><button onClick={() => add('campus_stories', { text: newTitle })} className="h-9 px-4 bg-white text-black rounded-full text-[11px] font-semibold">Add</button></div>
+            <div className="flex gap-3 overflow-x-auto pb-2">{stories.map((s) => <div key={s.id} className="min-w-[60px] text-center"><div className="w-14 h-14 rounded-full bg-white p-[2px]"><img src={s.photoURL} className="w-full h-full rounded-full border-2 border-black" alt="" /></div><p className="text-[10px] mt-1 text-white/50 truncate w-[60px]">{s.name?.split(' ')[0]}</p></div>)}{stories.length === 0 && <p className="text-[11px] text-white/20">No stories — Add one</p>}</div>
+            {stories.map((s) => <div key={s.id} className="bg-[#111] border border-white/[0.06] rounded-[20px] p-4"><p className="text-[13px]">{s.text}</p><p className="text-[10px] text-white/30 mt-2">{s.name} • 24h</p></div>)}
           </div>
         )}
 
         {tab === 'clubs' && (
           <div className="space-y-3">
-            <div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">👥 Clubs & Communities — CSE, ECE, coding, sports</p><div className="flex gap-2 mt-3"><input value={newItem.title} onChange={(e) => setNewItem({ ...newItem, title: e.target.value })} placeholder="Club name - e.g. CodeX Coding Club" className="flex-1 p-3 bg-black border border-white/10 rounded-[12px] text-[12px]" /><button onClick={() => handleAdd('clubs_communities', { name: newItem.title, branch: newItem.type || 'CSE', members: 1, lead: userData.name, desc: newItem.desc || 'Coding club' })} className="px-4 py-3 bg-white text-black rounded-full font-bold text-[12px]">Create</button></div></div>
-            {clubs.map((c: any) => <div key={c.id} className="bg-white/5 border border-white/10 rounded-[16px] p-4 flex justify-between"><div><p className="font-bold text-[13px]">{c.name} • {c.branch}</p><p className="text-[11px] text-white/40">Members: {c.members} • Lead: {c.lead}</p></div><button onClick={() => handleJoin(c.id, 'clubs_communities')} className="px-4 py-1.5 bg-white text-black rounded-full text-[11px] font-bold h-fit">Join ✓</button></div>)}
-            {clubs.length === 0 && <div className="space-y-2">{['CSE Club', 'ECE Club', 'CodeX - Coding', 'Sports Club'].map((n) => <div key={n} className="bg-white/5 border border-white/10 rounded-[16px] p-4 flex justify-between"><p className="font-bold text-[13px]">{n}</p><button onClick={() => handleAdd('clubs_communities', { name: n, branch: 'All', members: 1, lead: userData.name, desc: 'College club' })} className="px-4 py-1.5 bg-white text-black rounded-full text-[11px] font-bold">Create</button></div>)}</div>}
+            <div className="bg-[#111] border border-white/[0.06] rounded-[20px] p-4 flex gap-2"><input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="New club — e.g. CodeX" className="flex-1 h-9 bg-black border border-white/[0.06] rounded-full px-4 text-[12px] outline-none" /><button onClick={() => add('clubs_communities', { name: newTitle, members: 1, lead: userData.name })} className="h-9 px-4 bg-white text-black rounded-full text-[11px] font-semibold">Create</button></div>
+            {clubs.map((c) => <div key={c.id} className="bg-[#111] border border-white/[0.06] rounded-[20px] p-4 flex justify-between items-center"><div><p className="text-[13px] font-semibold">{c.name}</p><p className="text-[11px] text-white/30">Members: {c.members} • Lead: {c.lead}</p></div><span className="text-[10px] bg-white/10 px-3 py-1 rounded-full">Joined</span></div>)}
+            {clubs.length === 0 && <p className="text-center py-12 text-white/20 text-[12px]">No clubs — Create CSE, ECE, Coding Club</p>}
           </div>
         )}
 
         {tab === 'notes' && (
           <div className="space-y-3">
-            <div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">📚 Notes & PYQs — Subject-wise material</p><div className="flex gap-2 mt-3"><input value={newItem.title} onChange={(e) => setNewItem({ ...newItem, title: e.target.value })} placeholder="Title - e.g. DBMS Unit 1" className="flex-1 p-3 bg-black border border-white/10 rounded-[12px] text-[12px]" /><button onClick={() => handleAdd('notes_pyqs', { subject: newItem.type || 'DBMS', title: newItem.title, type: 'Notes', sem: '5th', uploadedBy: userData.name, link: newItem.desc || 'https://drive.google.com' })} className="px-4 py-3 bg-white text-black rounded-full text-[12px] font-bold">Upload</button></div><div className="flex gap-2 mt-2"><input value={newItem.type} onChange={(e) => setNewItem({ ...newItem, type: e.target.value })} placeholder="Subject DBMS/OS/CN" className="flex-1 p-2 bg-black border border-white/10 rounded-[10px] text-[11px]" /><input value={newItem.desc} onChange={(e) => setNewItem({ ...newItem, desc: e.target.value })} placeholder="Drive Link" className="flex-1 p-2 bg-black border border-white/10 rounded-[10px] text-[11px]" /></div></div>
-            {notes.map((n: any) => <div key={n.id} className="bg-white/5 border border-white/10 rounded-[16px] p-4 flex justify-between"><div><p className="font-bold text-[13px]">{n.subject} - {n.title}</p><p className="text-[11px] text-white/40">{n.type} • by {n.uploadedBy} • {n.sem}</p></div><a href={n.link} target="_blank" className="px-4 py-1.5 bg-white text-black rounded-full text-[11px] font-bold">Open ✓</a></div>)}
+            <div className="bg-[#111] border border-white/[0.06] rounded-[20px] p-4 flex gap-2"><input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="DBMS Notes / PYQ 2023" className="flex-1 h-9 bg-black border border-white/[0.06] rounded-full px-4 text-[12px] outline-none" /><button onClick={() => add('notes_pyqs', { title: newTitle, subject: 'DBMS', link: 'https://drive.google.com' })} className="h-9 px-4 bg-white text-black rounded-full text-[11px] font-semibold">Upload</button></div>
+            {notes.map((n) => <div key={n.id} className="bg-[#111] border border-white/[0.06] rounded-[20px] p-4 flex justify-between"><div><p className="text-[13px] font-medium">{n.title}</p><p className="text-[11px] text-white/30">{n.subject} • by {n.name}</p></div><a href={n.link} target="_blank" className="h-7 px-3 bg-white text-black rounded-full text-[11px] font-semibold flex items-center">Open</a></div>)}
           </div>
         )}
 
         {tab === 'market' && (
           <div className="space-y-3">
-            <div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">🛒 Campus Marketplace — Books, calculators, used items</p><div className="flex gap-2 mt-3"><input value={newItem.title} onChange={(e) => setNewItem({ ...newItem, title: e.target.value })} placeholder="Item - e.g. DBMS Book" className="flex-1 p-3 bg-black border border-white/10 rounded-[12px] text-[12px]" /><input value={newItem.price} onChange={(e) => setNewItem({ ...newItem, price: e.target.value })} placeholder="Price ₹" className="w-20 p-3 bg-black border border-white/10 rounded-[12px] text-[12px]" /><button onClick={() => handleAdd('campus_marketplace', { title: newItem.title, price: newItem.price || '100', condition: 'Used', sellerName: userData.name, branch: userData.branch, item: newItem.title })} className="px-4 py-3 bg-white text-black rounded-full font-bold text-[12px]">Sell</button></div></div>
-            {market.map((m: any) => <div key={m.id} className="bg-white/5 border border-white/10 rounded-[16px] p-4"><div className="w-full h-20 bg-white/10 rounded-[12px] flex items-center justify-center">📦 {m.title}</div><p className="font-bold text-[13px] mt-2">{m.title} - ₹{m.price}</p><p className="text-[11px] text-white/40">{m.condition} • by {m.sellerName}</p><button onClick={() => showToast('DM sent to ' + m.sellerName)} className="mt-2 w-full py-2 bg-white text-black rounded-full font-bold text-[12px]">DM to Buy ✓</button></div>)}
+            <div className="bg-[#111] border border-white/[0.06] rounded-[20px] p-4 flex gap-2"><input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Book / Calculator for sale" className="flex-1 h-9 bg-black border border-white/[0.06] rounded-full px-4 text-[12px] outline-none" /><button onClick={() => add('campus_marketplace', { title: newTitle, price: '150' })} className="h-9 px-4 bg-white text-black rounded-full text-[11px] font-semibold">Sell</button></div>
+            {market.map((m) => <div key={m.id} className="bg-[#111] border border-white/[0.06] rounded-[20px] p-4"><p className="text-[13px]">{m.title}</p><p className="text-[11px] text-white/30 mt-1">by {m.name} • ₹{m.price || 150}</p></div>)}
           </div>
         )}
 
         {tab === 'lost' && (
           <div className="space-y-3">
-            <div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">🔎 Lost & Found — Campus lo dorikina/missing items</p><div className="flex gap-2 mt-3"><input value={newItem.title} onChange={(e) => setNewItem({ ...newItem, title: e.target.value })} placeholder="Item - e.g. ID Card, Calculator" className="flex-1 p-3 bg-black border border-white/10 rounded-[12px] text-[12px]" /><select value={newItem.type} onChange={(e) => setNewItem({ ...newItem, type: e.target.value })} className="w-24 p-3 bg-black border border-white/10 rounded-[12px] text-[12px]"><option value="Lost">Lost</option><option value="Found">Found</option></select><button onClick={() => handleAdd('lost_found', { item: newItem.title, status: newItem.type || 'Lost', location: 'Campus', reportedBy: userData.name, branch: userData.branch, desc: newItem.desc || 'Contact me', date: new Date().toISOString().split('T')[0] })} className="px-4 py-3 bg-white text-black rounded-full font-bold text-[12px]">Report</button></div></div>
-            {lost.map((l: any) => <div key={l.id} className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold text-[13px]">{l.status === 'Found' ? '✅ Found:' : '❌ Lost:'} {l.item}</p><p className="text-[11px] text-white/40">{l.location} • {l.date} • by {l.reportedBy}</p></div>)}
+            <div className="bg-[#111] border border-white/[0.06] rounded-[20px] p-4 flex gap-2"><input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Lost / Found — ID Card, Keys" className="flex-1 h-9 bg-black border border-white/[0.06] rounded-full px-4 text-[12px] outline-none" /><button onClick={() => add('lost_found', { item: newTitle, status: 'Lost' })} className="h-9 px-4 bg-white text-black rounded-full text-[11px] font-semibold">Report</button></div>
+            {lost.map((l) => <div key={l.id} className="bg-[#111] border border-white/[0.06] rounded-[20px] p-4"><p className="text-[13px]">{l.status === 'Found' ? '✅' : '❌'} {l.item}</p><p className="text-[11px] text-white/30 mt-1">by {l.name} • Campus</p></div>)}
           </div>
         )}
 
-        {tab === 'polls' && (
-          <div className="space-y-3">
-            <div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">📊 Campus Polls — Students voting</p><div className="flex gap-2 mt-3"><input value={newItem.title} onChange={(e) => setNewItem({ ...newItem, title: e.target.value })} placeholder="Question - e.g. Best fest theme?" className="flex-1 p-3 bg-black border border-white/10 rounded-[12px] text-[12px]" /><button onClick={() => handleAdd('campus_polls', { question: newItem.title, options: ['Option A', 'Option B', 'Option C'], votes: [0, 0, 0] })} className="px-4 py-3 bg-white text-black rounded-full text-[12px] font-bold">Create Poll</button></div></div>
-            {polls.map((p: any) => <div key={p.id} className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold text-[13px]">{p.question}</p><div className="mt-3 space-y-2">{(p.options || []).map((opt: string, i: number) => <button key={i} onClick={() => handlePollVote(p, i)} className="w-full text-left bg-black border border-white/10 rounded-[12px] p-3 text-[12px] flex justify-between hover:bg-white/10"><span>{opt}</span><span className="text-white/40">{p.votes?.[i] || 0} votes</span></button>)}</div></div>)}
-          </div>
-        )}
-
-        {tab === 'profiles' && <div className="space-y-2"><div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">👤 Student Profiles — Branch, year, interests, skills</p></div>{students.map((s: any) => <div key={s.id} className="bg-white/5 border border-white/10 rounded-[20px] p-4"><div className="flex gap-3"><img src={s.photoURL} className="w-14 h-14 rounded-full" alt="" /><div><p className="font-bold text-[14px]">{s.name}</p><p className="text-[11px] text-white/40">{s.branch} • {s.year} • {s.rollNumber}</p><p className="text-[11px] text-white/60 mt-1">Skills: {s.skills}</p><p className="text-[10px] text-white/30">Interests: {s.interests}</p></div></div><p className="text-[11px] mt-3 bg-black border border-white/10 rounded-[10px] p-2">{s.bio}</p></div>)}</div>}
-
-        {tab === 'skills' && <div className="space-y-2"><div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">💡 Skill Connect — Similar skills/projects connect</p></div>{students.slice(0, 6).map((s: any) => <div key={s.id} className="bg-white/5 border border-white/10 rounded-[16px] p-4 flex justify-between"><div className="flex gap-3"><img src={s.photoURL} className="w-10 h-10 rounded-full" alt="" /><div><p className="font-bold text-[12px]">{s.name} • {s.skills}</p><p className="text-[10px] text-white/40">Looking for project partner - {s.branch}</p></div></div><button onClick={() => showToast('Connect request sent to ' + s.name)} className="px-4 py-1.5 bg-white text-black rounded-full text-[11px] font-bold h-fit">Connect ✓</button></div>)}</div>}
-
-                {tab === 'senior' && (
-          <div className="space-y-3">
-            <div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">🎓 Senior Help — Juniors questions → seniors answers</p><div className="flex gap-2 mt-3"><input value={newItem.title} onChange={(e) => setNewItem({ ...newItem, title: e.target.value })} placeholder="Ask question - e.g. How to prepare DBMS?" className="flex-1 p-3 bg-black border border-white/10 rounded-[12px] text-[12px]" /><button onClick={() => handleAdd('campus_posts', { text: 'Q: ' + newItem.title, likes: 0, type: 'question' })} className="px-4 py-3 bg-white text-black rounded-full text-[12px] font-bold">Ask</button></div></div>
-            {posts.filter((p: any) => p.text?.startsWith('Q:')).map((p: any) => <div key={p.id} className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="text-[13px]">{p.text}</p><p className="text-[11px] text-white/40 mt-1">by {p.name} • {p.branch} junior</p><div className="mt-3 bg-green-500/10 border border-green-500/20 rounded-[12px] p-3"><p className="text-[11px]"><span className="font-bold text-green-400">Senior Answer:</span> Check Notes & PYQs section - {p.text?.includes('DBMS') ? 'Focus Normalization + PYQ 2022,2023' : 'Ask in DM, I will help'}</p></div><button onClick={() => showToast('Answer posted')} className="mt-2 px-3 py-1 bg-white/10 border border-white/10 rounded-full text-[11px]">Answer as Senior</button></div>)}
-          </div>
-        )}
-
-        {tab === 'leaderboard' && (
-          <div className="space-y-2">
-            <div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">🏆 College Leaderboard — Helpful students / active clubs</p></div>
-            {[...students].sort((a, b) => (b.points || 0) - (a.points || 0)).slice(0, 10).map((s: any, i: number) => <div key={s.id} className="bg-white/5 border border-white/10 rounded-[16px] p-4 flex gap-3"><span className="font-black text-[18px]">{i + 1}</span><img src={s.photoURL} className="w-10 h-10 rounded-full" alt="" /><div><p className="font-bold text-[13px]">{s.name} • {s.points || 0} pts</p><p className="text-[11px] text-white/40">{s.branch} • {s.skills?.slice(0, 30)}</p></div></div>)}
-          </div>
-        )}
-
-        {tab === 'memes' && (
-          <div className="space-y-3">
-            <div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">😂 Campus Memes — College-specific entertainment</p><div className="flex gap-2 mt-3"><input value={newItem.title} onChange={(e) => setNewItem({ ...newItem, title: e.target.value })} placeholder="Meme caption - e.g. When attendance 74.9% 😭" className="flex-1 p-3 bg-black border border-white/10 rounded-[12px] text-[12px]" /><button onClick={() => handleAdd('campus_memes', { text: newItem.title, likes: 0 })} className="px-4 py-3 bg-white text-black rounded-full text-[12px] font-bold">Post Meme</button></div></div>
-            {memes.map((m: any) => <div key={m.id} className="bg-white/5 border border-white/10 rounded-[20px] p-0 overflow-hidden"><div className="w-full h-64 bg-white/5 flex items-center justify-center flex-col"><p className="text-[40px]">😂</p><p className="text-[13px] font-bold mt-2 text-center px-4">{m.text}</p></div><div className="p-3 flex justify-between"><p className="text-[11px] text-white/40">by {m.name} • {m.likes || 0} likes</p><button onClick={() => handleLike(m)} className="text-[11px] bg-white/10 px-3 py-1 rounded-full">😂 {m.likes || 0}</button></div></div>)}
-          </div>
-        )}
-
-        {tab === 'notices' && (
-          <div className="space-y-3">
-            <div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">📢 Digital Notice Board — Important updates</p><div className="flex gap-2 mt-3"><input value={newItem.title} onChange={(e) => setNewItem({ ...newItem, title: e.target.value })} placeholder="Notice title" className="flex-1 p-3 bg-black border border-white/10 rounded-[12px] text-[12px]" /><button onClick={() => handleAdd('digital_notice_board', { title: newItem.title, desc: newItem.desc || 'Important update', date: new Date().toISOString().split('T')[0], postedBy: 'Admin' })} className="px-4 py-3 bg-white text-black rounded-full text-[12px] font-bold">Post</button></div></div>
-            {notices.map((n: any) => <div key={n.id} className="bg-yellow-500/10 border border-yellow-500/20 rounded-[16px] p-4"><p className="font-bold text-[13px]">📌 {n.title}</p><p className="text-[11px] text-white/60 mt-1">{n.desc}</p><p className="text-[10px] text-white/30 mt-2">{n.date} • by {n.postedBy}</p></div>)}
-          </div>
-        )}
-
-        {tab === 'chat' && <div className="space-y-2"><div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">💬 DM / Chat — Students madhya direct messaging</p><p className="text-[11px] text-white/40">All {students.length} students - Click to message</p></div>{students.map((s: any) => <div key={s.id} className="bg-white/5 border border-white/10 rounded-[16px] p-3 flex justify-between items-center"><div className="flex gap-3 items-center"><img src={s.photoURL} className="w-10 h-10 rounded-full" alt="" /><div><p className="font-bold text-[12px]">{s.name}</p><p className="text-[10px] text-white/40">{s.branch} • {s.year} • Active now</p></div></div><button onClick={() => showToast('Chat opened with ' + s.name)} className="px-4 py-1.5 bg-white text-black rounded-full text-[11px] font-bold">Message ✓</button></div>)}</div>}
-
-        {tab === 'notifs' && <div className="space-y-2"><div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">🔔 Notifications — Likes, comments, follows, events</p><p className="text-[11px] text-white/40">{notifs.length} notifications - Real from Firebase</p></div>{notifs.map((n: any) => <div key={n.id} className="bg-white/5 border border-white/10 rounded-[16px] p-3"><p className="text-[12px]">{n.text}</p><p className="text-[10px] text-white/30 mt-1">{n.type} • Just now</p></div>)}{notifs.length === 0 && <p className="text-center py-16 text-white/20">No notifications yet - Like posts to get notifications</p>}</div>}
-
-        {tab === 'search' && (
-          <div className="space-y-3">
-            <div className="bg-white/5 border border-white/10 rounded-[16px] p-4"><p className="font-bold">🔎 Search — Students, posts, clubs, events before features thisey</p><input value={searchQ} onChange={(e) => setSearchQ(e.target.value)} placeholder="Search students, posts, clubs, events..." className="w-full mt-3 p-3 bg-black border border-white/10 rounded-[12px] text-[12px]" /></div>
-            {searchQ && (
-              <>
-                <p className="font-bold text-[12px]">Results for "{searchQ}"</p>
-                {students.filter((s: any) => s.name?.toLowerCase().includes(searchQ.toLowerCase()) || s.branch?.toLowerCase().includes(searchQ.toLowerCase()) || s.skills?.toLowerCase().includes(searchQ.toLowerCase())).map((s: any) => <div key={s.id} className="bg-white/5 border border-white/10 rounded-[16px] p-3 flex gap-3"><img src={s.photoURL} className="w-10 h-10 rounded-full" alt="" /><div><p className="font-bold text-[12px]">{s.name} - Student Profile</p><p className="text-[10px] text-white/40">{s.branch} • {s.skills}</p></div></div>)}
-                {posts.filter((p: any) => p.text?.toLowerCase().includes(searchQ.toLowerCase())).map((p: any) => <div key={p.id} className="bg-white/5 border border-white/10 rounded-[16px] p-3"><p className="text-[12px]">{p.text}</p><p className="text-[10px] text-white/30">Post by {p.name}</p></div>)}
-                {clubs.filter((c: any) => c.name?.toLowerCase().includes(searchQ.toLowerCase())).map((c: any) => <div key={c.id} className="bg-white/5 border border-white/10 rounded-[16px] p-3"><p className="font-bold text-[12px]">{c.name} - Club</p></div>)}
-                {events.filter((e: any) => e.title?.toLowerCase().includes(searchQ.toLowerCase())).map((e: any) => <div key={e.id} className="bg-white/5 border border-white/10 rounded-[16px] p-3"><p className="font-bold text-[12px]">{e.title} - Event</p></div>)}
-              </>
-            )}
-          </div>
-        )}
+        <div className="pt-6 flex justify-center"><p className="text-[10px] text-white/15 tracking-widest">CAMPUS • MAIN 6 • PREMIUM BLACK</p></div>
       </div>
-      <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-white/10"><div className="max-w-[600px] mx-auto flex justify-around h-[64px] items-center"><button onClick={() => setTab('home')} className={`flex flex-col items-center ${tab === 'home' ? 'opacity-100' : 'opacity-40'}`}><span>🏠</span><span className="text-[8px] font-bold">Feed</span></button><button onClick={() => setTab('explore')} className={`flex flex-col items-center ${tab === 'explore' ? 'opacity-100' : 'opacity-40'}`}><span>🔍</span><span className="text-[8px]">Explore</span></button><button onClick={() => setTab('clubs')} className="w-10 h-10 bg-white text-black rounded-full font-black">+</button><button onClick={() => setTab('chat')} className={`flex flex-col items-center ${tab === 'chat' ? 'opacity-100' : 'opacity-40'}`}><span>💬</span><span className="text-[8px]">Chat</span></button><button onClick={() => setTab('profiles')} className={`flex flex-col items-center ${tab === 'profiles' ? 'opacity-100' : 'opacity-40'}`}><span>👤</span><span className="text-[8px]">Profile</span></button></div></div>
     </div>
   );
-      }
+                           }
